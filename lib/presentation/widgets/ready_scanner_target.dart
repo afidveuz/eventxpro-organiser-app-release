@@ -170,12 +170,15 @@ class _ReadyScannerTargetState extends State<ReadyScannerTarget>
                   children: [
                     Icon(Icons.keyboard_hide_outlined, size: 14, color: Color(0xFF38BDF8)),
                     SizedBox(width: 6),
-                    Text(
-                      'No TextField Focus Required • Native Broadcast Engine',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF38BDF8),
+                    Flexible(
+                      child: Text(
+                        'Hardware Broadcast Engine Ready',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF38BDF8),
+                        ),
                       ),
                     ),
                   ],

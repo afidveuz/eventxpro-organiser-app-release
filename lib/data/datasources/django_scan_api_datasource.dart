@@ -5,19 +5,24 @@ import '../../core/config/app_constants.dart';
 import '../../domain/entities/scan_decision_code.dart';
 import '../../domain/entities/scan_request.dart';
 import '../../domain/entities/scan_response.dart';
+import 'auth_local_storage.dart';
 
 class DjangoScanApiDatasource {
   final Dio _dio;
+  final AuthLocalStorage? _authLocalStorage;
   bool useMockServer = false;
 
-  // In-memory set of already checked-in QR tokens to simulate Django database constraints
+  // In-memory set of already checked-in QR tokens for unit testing simulation
   final Set<String> _admittedTokens = {};
 
-  DjangoScanApiDatasource({Dio? dio})
-      : _dio = dio ??
+  DjangoScanApiDatasource({
+    Dio? dio,
+    AuthLocalStorage? authLocalStorage,
+  })  : _authLocalStorage = authLocalStorage,
+        _dio = dio ??
             Dio(
               BaseOptions(
-                baseUrl: AppConstants.defaultBaseUrl,
+                baseUrl: authLocalStorage?.getBaseUrl() ?? AppConstants.defaultBaseUrl,
                 connectTimeout: AppConstants.defaultNetworkTimeout,
                 receiveTimeout: AppConstants.defaultNetworkTimeout,
                 headers: {
@@ -31,193 +36,126 @@ class DjangoScanApiDatasource {
     _dio.options.baseUrl = url;
   }
 
-  String testUsername = 'user@example.com';
+  /// Authoritative QR Code Validation connecting directly to EventXPro:
+  /// POST organizer/event-entrance
+  Future<ScanResponse> validateScan(ScanRequest request) async {
+    final stopwatch = Stopwatch()..start();
 
-  /// Test Login API requested by user:
-  /// POST https://riseexpobackend-staging.veuzco.com/kiosk/api/v1/login
-  /// Pass scanned code as password
-  Future<String> callTestLoginApi({
-    required String scannedCode,
-    String? username,
-    int type = 2,
-  }) async {
-    final user = username ?? testUsername;
-    const url = 'https://riseexpobackend-staging.veuzco.com/kiosk/api/v1/login';
-    final payload = {
-      'username': user,
-      'password': scannedCode,
-      'type': type,
+    // If unit test explicitly requests mock simulation
+    if (useMockServer) {
+      return _simulateDjangoAdmission(request, stopwatch);
+    }
+
+    // Keep BaseUrl synchronized with user configuration
+    if (_authLocalStorage != null) {
+      _dio.options.baseUrl = _authLocalStorage.getBaseUrl();
+    }
+
+    final token = _authLocalStorage?.getToken();
+    final qrInput = request.qrToken.trim();
+    final isDigitsOnly = RegExp(r'^\d+$').hasMatch(qrInput);
+    int scanType = isDigitsOnly ? 1 : 0;
+
+    final String punchType =
+        request.scanType.toUpperCase() == 'EXIT' ? 'check_out' : 'check_in';
+
+    Map<String, dynamic> payload = {
+      'event_id': 1,
+      'type': punchType,
+      'user_latitude': 11.0,
+      'user_longitude': 12.0,
+      'user_city': '',
+      'user_input': qrInput,
+      'scan_type': scanType,
     };
 
-    final headers = {
+    final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': 'GitexKiosk/1.0.0',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      'X-Request-ID': request.scanRequestId,
+      'X-Device-ID': request.deviceId,
     };
 
-    final stopwatch = Stopwatch()..start();
     try {
-      final dio = Dio(
-        BaseOptions(
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 10),
+      Response response = await _dio.post(
+        AppConstants.eventEntranceEndpoint,
+        data: payload,
+        options: Options(
+          headers: headers,
           validateStatus: (status) => true,
         ),
       );
 
-      final response = await dio.post(
-        url,
-        data: payload,
-        options: Options(headers: headers),
-      );
+      var data = response.data is String
+          ? jsonDecode(response.data as String) as Map<String, dynamic>
+          : (response.data is Map<String, dynamic>
+              ? response.data as Map<String, dynamic>
+              : <String, dynamic>{'raw': response.data.toString()});
+
+      // If user not found with scan_type 1 (numeric), retry once with scan_type 0 (or vice versa)
+      final String msg = (data['message'] as String? ??
+              data['detail'] as String? ??
+              '')
+          .toLowerCase();
+
+      if (msg.contains('not found') && isDigitsOnly) {
+        payload['scan_type'] = 0;
+        final retryResponse = await _dio.post(
+          AppConstants.eventEntranceEndpoint,
+          data: payload,
+          options: Options(
+            headers: headers,
+            validateStatus: (status) => true,
+          ),
+        );
+        if (retryResponse.statusCode == 200 && retryResponse.data is Map) {
+          response = retryResponse;
+          data = retryResponse.data is String
+              ? jsonDecode(retryResponse.data as String) as Map<String, dynamic>
+              : retryResponse.data as Map<String, dynamic>;
+        }
+      }
 
       stopwatch.stop();
-      final responseBody = response.data is String
-          ? response.data
-          : jsonEncode(response.data);
+      final latencyMs = stopwatch.elapsedMilliseconds;
+      final summary =
+          '[HTTP ${response.statusCode}]: ${data['message'] ?? data['detail'] ?? (data['status'] == true ? 'OK' : 'FAILED')}';
 
-      _printTestApiResponse(
-        url: url,
+      _printScanApiResponse(
+        url: '${_dio.options.baseUrl}${AppConstants.eventEntranceEndpoint}',
         headers: headers,
         payload: payload,
         statusCode: response.statusCode ?? 200,
-        responseBody: responseBody.toString(),
-        latencyMs: stopwatch.elapsedMilliseconds,
+        responseBody: jsonEncode(data),
+        latencyMs: latencyMs,
+        isSuccess: data['status'] == true,
       );
 
-      return '[HTTP ${response.statusCode}]: $responseBody';
+      return ScanResponse.fromJson(
+        data,
+        latencyMs: latencyMs,
+        scanRequestId: request.scanRequestId,
+      ).copyWith(testApiResponse: summary);
     } on DioException catch (dioErr) {
       stopwatch.stop();
       final statusCode = dioErr.response?.statusCode ?? 0;
       final rawData = dioErr.response?.data;
-      String responseBody;
-      if (rawData == null || (rawData is String && rawData.isEmpty)) {
-        responseBody = dioErr.message ?? 'HTTP $statusCode Error';
-      } else if (rawData is String) {
-        responseBody = rawData;
-      } else {
-        try {
-          responseBody = jsonEncode(rawData);
-        } catch (_) {
-          responseBody = rawData.toString();
-        }
-      }
 
-      _printTestApiResponse(
-        url: url,
-        headers: headers,
-        payload: payload,
-        statusCode: statusCode,
-        responseBody: responseBody.toString(),
-        latencyMs: stopwatch.elapsedMilliseconds,
-        isError: true,
-      );
-
-      return '[HTTP $statusCode]: $responseBody';
-    } catch (e) {
-      stopwatch.stop();
-      _printTestApiResponse(
-        url: url,
-        headers: headers,
-        payload: payload,
-        statusCode: 0,
-        responseBody: e.toString(),
-        latencyMs: stopwatch.elapsedMilliseconds,
-        isError: true,
-      );
-
-      return '[ERROR]: $e';
-    }
-  }
-
-  void _printTestApiResponse({
-    required String url,
-    required Map<String, String> headers,
-    required Map<String, dynamic> payload,
-    required int statusCode,
-    required String responseBody,
-    required int latencyMs,
-    bool isError = false,
-  }) {
-    final statusBadge = statusCode == 200
-        ? '✅ 200 OK (AUTHORIZED)'
-        : (isError ? '⚠️ HTTP $statusCode (FAILED)' : 'ℹ️ HTTP $statusCode');
-    final banner = '''
-╔════════════════════════════════════════════════════════════════
-║ [TEST LOGIN API CALL - AFTER SCAN]
-╠════════════════════════════════════════════════════════════════
-║  Endpoint:     $url
-║  Headers:      Content-Type: ${headers['Content-Type']}
-║                Accept: ${headers['Accept']}
-║                User-Agent: ${headers['User-Agent']}
-║  Payload:      ${jsonEncode(payload)}
-╠════════════════════════════════════════════════════════════════
-║  Status:       $statusBadge
-║  Latency:      $latencyMs ms
-║  Response:     $responseBody
-╚════════════════════════════════════════════════════════════════''';
-    // Print directly to terminal stdout
-    debugPrint(banner);
-  }
-
-  Future<ScanResponse> validateScan(ScanRequest request) async {
-    final stopwatch = Stopwatch()..start();
-
-    // Trigger test login API with scanned code as password
-    String? testApiSummary;
-    if (!useMockServer) {
-      testApiSummary = await callTestLoginApi(
-        scannedCode: request.qrToken,
-        username: testUsername,
-      );
-    }
-
-    // If Mock server is forced or URL is mock
-    if (useMockServer || _dio.options.baseUrl.contains('mock') || _dio.options.baseUrl.contains('eventxpro.com')) {
-      final simResponse = await _simulateDjangoAdmission(request, stopwatch);
-      return simResponse.copyWith(testApiResponse: testApiSummary);
-    }
-
-    try {
-      final response = await _dio.post(
-        AppConstants.scanValidateEndpoint,
-        data: request.toJson(),
-        options: Options(
-          headers: {
-            'X-Request-ID': request.scanRequestId,
-            'X-Device-ID': request.deviceId,
-          },
-        ),
-      );
-
-      stopwatch.stop();
-      final data = response.data is String
-          ? jsonDecode(response.data as String) as Map<String, dynamic>
-          : response.data as Map<String, dynamic>;
-
-      return ScanResponse.fromJson(
-        data,
-        latencyMs: stopwatch.elapsedMilliseconds,
-        scanRequestId: request.scanRequestId,
-      ).copyWith(testApiResponse: testApiSummary);
-    } on DioException catch (dioErr) {
-      stopwatch.stop();
-      // If server returned structured JSON error with decision code (e.g. 403, 409, 422)
-      if (dioErr.response?.data != null && dioErr.response?.data is Map) {
-        final data = dioErr.response!.data as Map<String, dynamic>;
+      if (rawData is Map<String, dynamic>) {
+        final summary = '[HTTP $statusCode]: ${rawData['message'] ?? rawData['detail'] ?? 'Error'}';
         return ScanResponse.fromJson(
-          data,
+          rawData,
           latencyMs: stopwatch.elapsedMilliseconds,
           scanRequestId: request.scanRequestId,
-        ).copyWith(testApiResponse: testApiSummary);
+        ).copyWith(testApiResponse: summary);
       }
 
-      // If network unreachable, fallback to simulation or network error
       return ScanResponse.networkError(
-        message: 'Network Timeout / Unreachable (${dioErr.type.name})',
+        message: 'Network Unreachable: ${dioErr.message ?? dioErr.type.name}',
         latencyMs: stopwatch.elapsedMilliseconds,
         scanRequestId: request.scanRequestId,
-        testApiResponse: testApiSummary,
+        testApiResponse: '[NET ERROR]: ${dioErr.type.name}',
       );
     } catch (e) {
       stopwatch.stop();
@@ -225,21 +163,41 @@ class DjangoScanApiDatasource {
         message: 'Client Transport Failure: $e',
         latencyMs: stopwatch.elapsedMilliseconds,
         scanRequestId: request.scanRequestId,
-        testApiResponse: testApiSummary,
+        testApiResponse: '[ERROR]: $e',
       );
     }
   }
 
-  /// Authoritative Django DRF Admission Simulator.
-  /// Follows Section 8 & 9 rules:
-  /// - Deterministic outcomes
-  /// - Single-entry verification
-  /// - Checks event_id and token shape
-  /// - No PII revealed on rejection
+  void _printScanApiResponse({
+    required String url,
+    required Map<String, String> headers,
+    required Map<String, dynamic> payload,
+    required int statusCode,
+    required String responseBody,
+    required int latencyMs,
+    bool isSuccess = false,
+  }) {
+    final statusBadge = isSuccess
+        ? '✅ HTTP $statusCode (CHECK-IN SUCCESS)'
+        : 'ℹ️ HTTP $statusCode (RESPONSE RECEIVED)';
+    final banner = '''
+╔════════════════════════════════════════════════════════════════
+║ [EVENTXPRO REAL ENTRANCE SCAN API]
+╠════════════════════════════════════════════════════════════════
+║  Endpoint:     $url
+║  Payload:      ${jsonEncode(payload)}
+╠════════════════════════════════════════════════════════════════
+║  Status:       $statusBadge
+║  Latency:      $latencyMs ms
+║  Response:     $responseBody
+╚════════════════════════════════════════════════════════════════''';
+    debugPrint(banner);
+  }
+
+  /// Authoritative admission simulator retained for deterministic unit tests
   Future<ScanResponse> _simulateDjangoAdmission(
       ScanRequest request, Stopwatch stopwatch) async {
-    // Add realistic 45ms server transaction latency
-    await Future.delayed(const Duration(milliseconds: 45));
+    await Future.delayed(const Duration(milliseconds: 30));
     stopwatch.stop();
     final latency = stopwatch.elapsedMilliseconds;
     final token = request.qrToken.trim();
@@ -256,11 +214,11 @@ class DjangoScanApiDatasource {
     }
 
     // 2. Wrong Event check
-    if (token.contains('WRONG') || token.contains('1025') || request.eventId != AppConstants.defaultEventId) {
+    if (token.contains('WRONG') || token.contains('9999')) {
       return ScanResponse(
         status: 'REJECTED',
         code: ScanDecisionCode.wrongEvent,
-        message: 'Badge registered for a different event (Event #${request.eventId})',
+        message: 'Badge registered for a different event',
         latencyMs: latency,
         scanRequestId: request.scanRequestId,
       );
@@ -271,7 +229,7 @@ class DjangoScanApiDatasource {
       return ScanResponse(
         status: 'REJECTED',
         code: ScanDecisionCode.expired,
-        message: 'Badge validity expired on 2026-10-18',
+        message: 'Badge validity expired',
         latencyMs: latency,
         scanRequestId: request.scanRequestId,
       );
@@ -288,12 +246,12 @@ class DjangoScanApiDatasource {
       );
     }
 
-    // 5. Single-Entry / Already Checked In check
+    // 5. Already Checked In check
     if (_admittedTokens.contains(token) || token.contains('USED')) {
       return ScanResponse(
         status: 'WARNING',
         code: ScanDecisionCode.alreadyCheckedIn,
-        message: 'Warning: Badge already admitted at Gate #02 at 10:42 AM',
+        message: 'Warning: Badge already admitted (Entry Limited)',
         checkInId: 'chk-${request.scanRequestId.length >= 8 ? request.scanRequestId.substring(0, 8) : request.scanRequestId}',
         serverTime: DateTime.now(),
         latencyMs: latency,
@@ -301,10 +259,9 @@ class DjangoScanApiDatasource {
       );
     }
 
-    // 6. Valid Admission (ENTRY_ALLOWED)
+    // 6. Valid Admission
     _admittedTokens.add(token);
 
-    // Dynamic attendee parsing based on token flavor
     String attendeeName = 'Alex Mercer';
     String badgeType = 'VIP Attendee';
     String company = 'EventX Global Corp';
@@ -313,37 +270,24 @@ class DjangoScanApiDatasource {
       attendeeName = 'Victoria Sterling';
       badgeType = 'VIP Speaker';
       company = 'Quantum Analytics';
-    } else if (token.contains('EXH') || token.contains('EXHIBITOR')) {
+    } else if (token.contains('EXH')) {
       attendeeName = 'Marcus Vance';
       badgeType = 'Exhibitor';
-      company = 'Zebra Technologies Partner';
-    } else if (token.contains('PRESS')) {
-      attendeeName = 'Elena Rostova';
-      badgeType = 'Press & Media';
-      company = 'Tech Tribune';
-    } else if (token.length > 8) {
-      attendeeName = 'Attendee #${token.substring(token.length - 4)}';
-      badgeType = 'Delegate';
-      company = 'Registered Partner';
+      company = 'Partner Exhibitor';
     }
-
-    final fakeAttendee = {
-      'name': attendeeName,
-      'badge_type': badgeType,
-      'company': company,
-    };
-
-    final safeId = request.scanRequestId.length >= 8
-        ? request.scanRequestId.substring(0, 8)
-        : request.scanRequestId;
 
     return ScanResponse.fromJson(
       {
-        'status': 'ACCEPTED',
-        'code': 'ENTRY_ALLOWED',
-        'message': 'Access granted - Welcome to EventXPro',
-        'attendee': fakeAttendee,
-        'check_in_id': 'chk-$safeId',
+        'status': true,
+        'message': 'Checked In Successfully!',
+        'user_data': {
+          'firstname': attendeeName.split(' ').first,
+          'lastname': attendeeName.split(' ').length > 1 ? attendeeName.split(' ').last : '',
+          'ticket_type_cat': badgeType,
+          'company_name': company,
+          'unique_id': token,
+        },
+        'check_in_id': 'chk-${request.scanRequestId.length >= 8 ? request.scanRequestId.substring(0, 8) : request.scanRequestId}',
         'server_time': DateTime.now().toUtc().toIso8601String(),
       },
       latencyMs: latency,

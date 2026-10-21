@@ -43,9 +43,10 @@ void main() async {
   );
 
   // Initialize remote Django DRF API client with timeout
-  final remoteDatasource = DjangoScanApiDatasource();
+  final remoteDatasource = DjangoScanApiDatasource(
+    authLocalStorage: authLocalStorage,
+  );
   remoteDatasource.updateBaseUrl(scannerLocalStorage.getServerUrl());
-  remoteDatasource.testUsername = scannerLocalStorage.getTestUsername();
 
   // Initialize scanner repository
   final scannerRepository = ScannerRepositoryImpl(
@@ -98,6 +99,7 @@ class EventXProApp extends StatelessWidget {
     return MultiRepositoryProvider(
       providers: [
         RepositoryProvider<AuthRepository>.value(value: authRepository),
+        RepositoryProvider<ScannerLocalStorage>.value(value: scannerLocalStorage),
       ],
       child: MultiBlocProvider(
         providers: [

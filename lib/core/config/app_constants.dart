@@ -16,6 +16,7 @@ class AppConstants {
   static const String refreshTokenEndpoint = 'exhibitor/refresh_token';
   static const String generateOtpEndpoint = 'organizer/generate-otp';
   static const String scanValidateEndpoint = '/api/v1/access-control/scans/validate/';
+  static const String eventEntranceEndpoint = 'organizer/event-entrance';
 
   // Master Secret for changing backend Base URL
   static const String masterPassword = 'Veuz@url4788';
@@ -45,8 +46,8 @@ class AppConstants {
   static const int maxQueueCapacity = 50;
 
   // Defaults
-  static const int defaultEventId = 1024;
-  static const int defaultGateId = 12;
+  static const int defaultEventId = 1;
+  static const int defaultGateId = 1;
   static const String defaultScanType = 'ENTRY';
   static const String appVersion = '1.0.0+1';
 }

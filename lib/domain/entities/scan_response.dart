@@ -35,12 +35,41 @@ class ScanResponse extends Equatable {
     String? scanRequestId,
   }) {
     final rawCode = json['code'] as String?;
-    final decisionCode = ScanDecisionCode.fromCode(rawCode);
+    ScanDecisionCode decisionCode;
 
-    // Only allow attendee parsing if the response is actually accepted (least-privilege security)
+    if (rawCode != null) {
+      decisionCode = ScanDecisionCode.fromCode(rawCode);
+    } else {
+      final isStatusTrue = json['status'] == true;
+      final msg = (json['message'] as String? ?? json['detail'] as String? ?? '').toLowerCase();
+
+      if (isStatusTrue) {
+        decisionCode = ScanDecisionCode.entryAllowed;
+      } else if (msg.contains('limited') || msg.contains('already')) {
+        decisionCode = ScanDecisionCode.alreadyCheckedIn;
+      } else if (msg.contains('not found') || msg.contains('valid code') || msg.contains('invalid')) {
+        decisionCode = ScanDecisionCode.invalidBadge;
+      } else if (msg.contains('expired')) {
+        decisionCode = ScanDecisionCode.expired;
+      } else {
+        decisionCode = ScanDecisionCode.accessDenied;
+      }
+    }
+
     Attendee? parsedAttendee;
-    if (decisionCode.isSuccess && json['attendee'] != null) {
+    if (json['attendee'] != null && json['attendee'] is Map<String, dynamic>) {
       parsedAttendee = Attendee.fromJson(json['attendee'] as Map<String, dynamic>);
+    } else if (json['user_data'] != null && json['user_data'] is Map<String, dynamic>) {
+      final u = json['user_data'] as Map<String, dynamic>;
+      final fn = (u['firstname'] as String? ?? '').trim();
+      final ln = (u['lastname'] as String? ?? '').trim();
+      final fullName = '$fn $ln'.trim();
+      parsedAttendee = Attendee(
+        name: fullName.isNotEmpty ? fullName : 'Attendee',
+        badgeType: u['ticket_type_cat'] as String? ?? u['display_ticket_name'] as String? ?? 'Authorized Badge',
+        company: u['company_name'] as String?,
+        category: u['reg_cat'] as String?,
+      );
     }
 
     DateTime? parsedServerTime;
@@ -48,12 +77,26 @@ class ScanResponse extends Equatable {
       parsedServerTime = DateTime.tryParse(json['server_time'] as String);
     }
 
+    final String statusStr = json['status'] is bool
+        ? (json['status'] == true
+            ? 'ACCEPTED'
+            : (decisionCode == ScanDecisionCode.alreadyCheckedIn ? 'WARNING' : 'REJECTED'))
+        : (json['status'] as String? ?? decisionCode.status);
+
+    final String messageStr =
+        json['message'] as String? ?? json['detail'] as String? ?? 'Processed';
+
+    final String? resolvedCheckInId = json['check_in_id'] as String? ??
+        (json['user_data'] is Map && json['user_data']['unique_id'] != null
+            ? 'chk-${json['user_data']['unique_id']}'
+            : null);
+
     return ScanResponse(
-      status: json['status'] as String? ?? decisionCode.status,
+      status: statusStr,
       code: decisionCode,
-      message: json['message'] as String? ?? 'Processed',
+      message: messageStr,
       attendee: parsedAttendee,
-      checkInId: json['check_in_id'] as String?,
+      checkInId: resolvedCheckInId,
       serverTime: parsedServerTime,
       latencyMs: latencyMs,
       decodeToEventMs: decodeToEventMs,

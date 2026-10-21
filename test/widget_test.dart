@@ -130,13 +130,20 @@ void main() {
       expect(telemetry.averageLatency, greaterThan(0));
     });
 
-    test('Test Login API call formats and returns cleanly', () async {
-      final res = await remoteDatasource.callTestLoginApi(
-        scannedCode: 'UNIT_TEST_PASSWORD',
-        username: 'user@example.com',
+    test('QR Code Entrance Scan API formats and returns valid decision', () async {
+      final res = await remoteDatasource.validateScan(
+        ScanRequest(
+          qrToken: 'VIP-TEST-TOKEN',
+          eventId: 1,
+          gateId: 1,
+          scanType: 'ENTRY',
+          deviceId: 'test-device-uuid',
+          scanRequestId: 'req-12345',
+          scannedAt: DateTime.now(),
+        ),
       );
-      expect(res, isNotEmpty);
-      expect(res, contains('HTTP 400'));
+      expect(res.code, equals(ScanDecisionCode.entryAllowed));
+      expect(res.attendee?.name, contains('Victoria Sterling'));
     });
   });
 }

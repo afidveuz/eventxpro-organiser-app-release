@@ -19,6 +19,7 @@ class AppTheme {
 
   // Accent & Neutral
   static const Color accentIndigo = Color(0xFF6366F1);
+  static const Color accentCyan = Color(0xFF00E5FF);
   static const Color textPrimary = Color(0xFFF0F6FC);
   static const Color textSecondary = Color(0xFF8B949E);
   static const Color textMuted = Color(0xFF6E7681);

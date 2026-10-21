@@ -15,6 +15,7 @@ class ScannerLocalStorage {
   static const String _keyServerUrl = 'scanner_server_url';
   static const String _keySuppressionMs = 'scanner_suppression_ms';
   static const String _keyTestUsername = 'scanner_test_username';
+  static const String _keySimpleUiMode = 'scanner_simple_ui_mode';
 
   final SharedPreferences _prefs;
 
@@ -35,7 +36,13 @@ class ScannerLocalStorage {
     return id;
   }
 
-  int getEventId() => _prefs.getInt(_keyEventId) ?? AppConstants.defaultEventId;
+  int getEventId() {
+    final val = _prefs.getInt(_keyEventId);
+    if (val == null || val == 1024) {
+      return AppConstants.defaultEventId; // 1
+    }
+    return val;
+  }
   Future<void> setEventId(int value) => _prefs.setInt(_keyEventId, value);
 
   int getGateId() => _prefs.getInt(_keyGateId) ?? AppConstants.defaultGateId;
@@ -49,6 +56,10 @@ class ScannerLocalStorage {
   bool get isOfflineModeEnabled => _prefs.getBool(_keyOfflineMode) ?? false;
   Future<void> setOfflineMode(bool enabled) =>
       _prefs.setBool(_keyOfflineMode, enabled);
+
+  bool get isSimpleUiMode => _prefs.getBool(_keySimpleUiMode) ?? true;
+  Future<void> setSimpleUiMode(bool enabled) =>
+      _prefs.setBool(_keySimpleUiMode, enabled);
 
   String getServerUrl() =>
       _prefs.getString(_keyServerUrl) ?? AppConstants.defaultBaseUrl;

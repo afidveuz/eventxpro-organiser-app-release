@@ -10,6 +10,7 @@ class KioskHeaderHud extends StatelessWidget {
   final VoidCallback onSyncOffline;
   final VoidCallback onOpenHistory;
   final VoidCallback? onLogout;
+  final VoidCallback? onToggleMode;
 
   const KioskHeaderHud({
     super.key,
@@ -20,6 +21,7 @@ class KioskHeaderHud extends StatelessWidget {
     required this.onSyncOffline,
     required this.onOpenHistory,
     this.onLogout,
+    this.onToggleMode,
   });
 
   @override
@@ -89,6 +91,15 @@ class KioskHeaderHud extends StatelessWidget {
                 ),
 
                 // Action Buttons
+                if (onToggleMode != null)
+                  IconButton(
+                    icon: const Icon(Icons.crop_free_rounded, size: 20, color: AppTheme.accentCyan),
+                    tooltip: 'Switch to Simple Scanner UI',
+                    onPressed: onToggleMode,
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                  ),
                 IconButton(
                   icon: const Icon(Icons.history, size: 20),
                   tooltip: 'Recent Scans Log',

@@ -181,7 +181,51 @@ class _SimulatorScreenState extends State<SimulatorScreen> {
 
           // Presets
           const Text(
-            'ADMISSION TEST PRESETS',
+            'REAL LIVE EVENT ATTENDEES (EVENTXPRO STAGING)',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.0,
+              color: Color(0xFF10B981),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          _buildPresetCard(
+            title: 'Real Attendee: David d (Veuz - QA)',
+            code: '271830914024',
+            expected: 'Live Backend Admission (organizer/event-entrance)',
+            expectedColor: AppTheme.statusSuccess,
+            icon: Icons.verified_user,
+            onTap: () => _triggerScan('271830914024'),
+          ),
+
+          const SizedBox(height: 8),
+
+          _buildPresetCard(
+            title: 'Real Attendee: Ajay d (Veuz - Visitor)',
+            code: '271111514008',
+            expected: 'Live Backend Admission (organizer/event-entrance)',
+            expectedColor: AppTheme.statusSuccess,
+            icon: Icons.person_pin_circle,
+            onTap: () => _triggerScan('271111514008'),
+          ),
+
+          const SizedBox(height: 8),
+
+          _buildPresetCard(
+            title: 'Real Attendee: Amal M (Exhibitor - ISM_EXHI)',
+            code: '271552213869',
+            expected: 'Live Backend Admission (organizer/event-entrance)',
+            expectedColor: AppTheme.statusSuccess,
+            icon: Icons.business,
+            onTap: () => _triggerScan('271552213869'),
+          ),
+
+          const SizedBox(height: 16),
+
+          const Text(
+            'HARDWARE SCAN SIMULATION PRESETS',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w800,

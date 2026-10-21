@@ -12,12 +12,14 @@ import '../widgets/ready_scanner_target.dart';
 import '../widgets/scan_feedback_banner.dart';
 import '../bloc/auth/auth_bloc.dart';
 import '../bloc/auth/auth_event.dart';
+import '../../data/datasources/scanner_local_storage.dart';
+import '../widgets/simple_scanner_view.dart';
 import 'auth/login_screen.dart';
 import 'diagnostics_screen.dart';
 import 'provisioning_screen.dart';
 import 'simulator_screen.dart';
 
-class KioskScannerScreen extends StatelessWidget {
+class KioskScannerScreen extends StatefulWidget {
   final ZebraDataWedgeAdapter zebraAdapter;
   final SimulatedHardwareAdapter simulatorAdapter;
 
@@ -28,6 +30,40 @@ class KioskScannerScreen extends StatelessWidget {
   })  : zebraAdapter = zebraAdapter ?? ZebraDataWedgeAdapter(),
         simulatorAdapter = simulatorAdapter ?? SimulatedHardwareAdapter();
 
+  @override
+  State<KioskScannerScreen> createState() => _KioskScannerScreenState();
+}
+
+class _KioskScannerScreenState extends State<KioskScannerScreen> {
+  bool _isSimpleMode = true;
+  bool _hasLoadedPrefs = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasLoadedPrefs) {
+      _hasLoadedPrefs = true;
+      try {
+        final storage = context.read<ScannerLocalStorage>();
+        setState(() {
+          _isSimpleMode = storage.isSimpleUiMode;
+        });
+      } catch (_) {
+        // Fallback default
+        _isSimpleMode = true;
+      }
+    }
+  }
+
+  void _toggleMode() {
+    setState(() {
+      _isSimpleMode = !_isSimpleMode;
+    });
+    try {
+      context.read<ScannerLocalStorage>().setSimpleUiMode(_isSimpleMode);
+    } catch (_) {}
+  }
+
   void _openDiagnostics(BuildContext context) {
     Navigator.of(
       context,
@@ -37,7 +73,7 @@ class KioskScannerScreen extends StatelessWidget {
   void _openSimulator(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => SimulatorScreen(simulatorAdapter: simulatorAdapter),
+        builder: (_) => SimulatorScreen(simulatorAdapter: widget.simulatorAdapter),
       ),
     );
   }
@@ -46,8 +82,8 @@ class KioskScannerScreen extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ProvisioningScreen(
-          zebraAdapter: zebraAdapter,
-          simulatorAdapter: simulatorAdapter,
+          zebraAdapter: widget.zebraAdapter,
+          simulatorAdapter: widget.simulatorAdapter,
         ),
       ),
     );
@@ -222,7 +258,7 @@ class KioskScannerScreen extends StatelessWidget {
                             if (item.testApiResponse != null) ...[
                               const SizedBox(height: 3),
                               Text(
-                                'Login API: ${item.testApiResponse}',
+                                'Server: ${item.testApiResponse}',
                                 style: const TextStyle(
                                   fontSize: 10,
                                   fontFamily: 'monospace',
@@ -262,6 +298,25 @@ class KioskScannerScreen extends StatelessWidget {
           // Listen to state changes if needed
         },
         builder: (context, state) {
+          if (_isSimpleMode) {
+            return SimpleScannerView(
+              state: state,
+              onToggleMode: _toggleMode,
+              onOpenSettings: () => _openProvisioning(context),
+              onLogout: () => _handleLogout(context),
+              onChangeScanType: (punchType) {
+                context
+                    .read<ScannerBloc>()
+                    .add(ScannerConfigChanged(scanType: punchType));
+              },
+              onResetToReady: () {
+                context
+                    .read<ScannerBloc>()
+                    .add(const ScannerFeedbackTimeout());
+              },
+            );
+          }
+
           return Column(
             children: [
               // Top Bar HUD
@@ -273,6 +328,7 @@ class KioskScannerScreen extends StatelessWidget {
                 onSyncOffline: () => _syncOffline(context),
                 onOpenHistory: () => _openHistory(context, state),
                 onLogout: () => _handleLogout(context),
+                onToggleMode: _toggleMode,
               ),
 
               // Main Active View Area
@@ -439,6 +495,14 @@ class KioskScannerScreen extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
+                  _buildQuickButton(
+                    label: 'Simple UI Mode',
+                    color: AppTheme.accentCyan,
+                    icon: Icons.crop_free_rounded,
+                    onTap: _toggleMode,
+                  ),
+                  const SizedBox(width: 8),
+
                   const Text(
                     'Quick Test:',
                     style: TextStyle(
@@ -459,7 +523,7 @@ class KioskScannerScreen extends StatelessWidget {
                       context
                           .read<ScannerBloc>()
                           .add(ScannerRawBarcodeReceived(token));
-                      simulatorAdapter.triggerScan(token);
+                      widget.simulatorAdapter.triggerScan(token);
                     },
                   ),
                   const SizedBox(width: 6),
@@ -473,7 +537,7 @@ class KioskScannerScreen extends StatelessWidget {
                       context
                           .read<ScannerBloc>()
                           .add(ScannerRawBarcodeReceived(token));
-                      simulatorAdapter.triggerScan(token);
+                      widget.simulatorAdapter.triggerScan(token);
                     },
                   ),
                   const SizedBox(width: 6),
@@ -487,7 +551,7 @@ class KioskScannerScreen extends StatelessWidget {
                       context
                           .read<ScannerBloc>()
                           .add(ScannerRawBarcodeReceived(token));
-                      simulatorAdapter.triggerScan(token);
+                      widget.simulatorAdapter.triggerScan(token);
                     },
                   ),
                   const SizedBox(width: 6),
@@ -508,7 +572,7 @@ class KioskScannerScreen extends StatelessWidget {
                           }
                         });
                       }
-                      simulatorAdapter.triggerBurst(
+                      widget.simulatorAdapter.triggerBurst(
                         barcode: token,
                         count: 8,
                         interval: const Duration(milliseconds: 30),

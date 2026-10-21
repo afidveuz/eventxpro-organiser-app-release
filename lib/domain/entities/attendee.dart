@@ -14,6 +14,8 @@ class Attendee extends Equatable {
     this.category,
   });
 
+  String get fullName => name;
+
   factory Attendee.fromJson(Map<String, dynamic> json) {
     return Attendee(
       name: json['name'] as String? ?? 'Authorized Attendee',
