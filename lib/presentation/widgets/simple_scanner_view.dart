@@ -1,27 +1,26 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/datasources/scanner_local_storage.dart';
+import '../bloc/scanner_bloc.dart';
+import '../bloc/scanner_event.dart';
 import '../bloc/scanner_state.dart';
 
-/// A clean, modern, focused scanning UI designed specifically for event gate staff.
-/// Eliminates diagnostic clutter, technical telemetry, and simulator buttons,
-/// providing high-visibility attendee validation and quick check-in / check-out toggling.
+/// Clean, high-performance scanning UI for EventXPro gate staff.
+/// Supports both:
+/// 1. Native Zebra Hardware Barcode Broadcaster (TC21/TC26/etc. zero-focus)
+/// 2. Live Camera Viewfinder for regular Android/iOS smartphones
 class SimpleScannerView extends StatefulWidget {
   final ScannerState state;
-  final VoidCallback onToggleMode;
-  final VoidCallback onOpenSettings;
   final VoidCallback onLogout;
-  final ValueChanged<String> onChangeScanType;
   final VoidCallback onResetToReady;
 
   const SimpleScannerView({
     super.key,
     required this.state,
-    required this.onToggleMode,
-    required this.onOpenSettings,
     required this.onLogout,
-    required this.onChangeScanType,
     required this.onResetToReady,
   });
 
@@ -33,6 +32,11 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     with SingleTickerProviderStateMixin {
   late AnimationController _laserController;
   late Animation<double> _laserAnimation;
+
+  MobileScannerController? _cameraController;
+  bool _isCameraActive = false;
+  bool _isTorchOn = false;
+  bool _hasLoadedCameraPref = false;
 
   @override
   void initState() {
@@ -48,21 +52,62 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasLoadedCameraPref) {
+      _hasLoadedCameraPref = true;
+      try {
+        final storage = context.read<ScannerLocalStorage>();
+        final enabled = storage.isCameraEnabled;
+        if (enabled) {
+          _initCamera();
+        }
+      } catch (_) {}
+    }
+  }
+
+  void _initCamera() {
+    _cameraController ??= MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+      torchEnabled: false,
+    );
+    setState(() {
+      _isCameraActive = true;
+    });
+  }
+
+  void _toggleCamera() {
+    if (_isCameraActive) {
+      _cameraController?.dispose();
+      _cameraController = null;
+      setState(() {
+        _isCameraActive = false;
+        _isTorchOn = false;
+      });
+    } else {
+      _initCamera();
+    }
+
+    try {
+      context.read<ScannerLocalStorage>().setCameraEnabled(_isCameraActive);
+    } catch (_) {}
+  }
+
+  @override
   void dispose() {
+    _cameraController?.dispose();
     _laserController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isCheckIn = widget.state.scanType.toUpperCase() != 'EXIT' &&
-        widget.state.scanType.toLowerCase() != 'check_out';
-
     return SafeArea(
       child: Column(
         children: [
           // ── Clean Header ──────────────────────────────────────────
-          _buildHeader(isCheckIn),
+          _buildHeader(),
 
           // ── Main View Area ────────────────────────────────────────
           Expanded(
@@ -78,14 +123,14 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
           ),
 
           // ── Simple Footer ─────────────────────────────────────────
-          _buildFooter(isCheckIn),
+          _buildFooter(),
         ],
       ),
     );
   }
 
   // ── 1. Top Header ────────────────────────────────────────────────
-  Widget _buildHeader(bool isCheckIn) {
+  Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(
@@ -143,7 +188,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Gate #${widget.state.gateId} • ${isCheckIn ? 'Entrance Check-in' : 'Exit Check-out'}',
+                  'Gate #${widget.state.gateId} • Entrance Check-in',
                   style: const TextStyle(
                     fontSize: 11,
                     color: AppTheme.textSecondary,
@@ -154,76 +199,49 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             ),
           ),
 
-          // Punch Type Quick Toggle Pill (Check-in / Check-out)
-          InkWell(
-            onTap: () {
-              final newType = isCheckIn ? 'EXIT' : 'ENTRY';
-              widget.onChangeScanType(newType);
-            },
-            borderRadius: BorderRadius.circular(20),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: isCheckIn
-                    ? AppTheme.statusSuccess.withValues(alpha: 0.15)
-                    : AppTheme.statusWarning.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isCheckIn
-                      ? AppTheme.statusSuccess
-                      : AppTheme.statusWarning,
-                  width: 1.5,
+          // Check-in Badge (Check-in only)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppTheme.statusSuccess.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: AppTheme.statusSuccess,
+                width: 1.5,
+              ),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.login_rounded,
+                  size: 14,
+                  color: AppTheme.statusSuccess,
                 ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isCheckIn ? Icons.login_rounded : Icons.logout_rounded,
-                    size: 14,
-                    color: isCheckIn
-                        ? AppTheme.statusSuccess
-                        : AppTheme.statusWarning,
+                SizedBox(width: 4),
+                Text(
+                  'Check-in',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.statusSuccess,
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    isCheckIn ? 'Check-in' : 'Check-out',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: isCheckIn
-                          ? AppTheme.statusSuccess
-                          : AppTheme.statusWarning,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
 
           const SizedBox(width: 8),
 
-          // Mode Switcher (Switch to Advanced Kiosk UI)
+          // Camera Quick Toggle Icon in Header
           IconButton(
-            tooltip: 'Switch to Advanced Kiosk HUD',
-            icon: const Icon(
-              Icons.dashboard_customize_outlined,
-              size: 20,
-              color: AppTheme.textSecondary,
+            tooltip: _isCameraActive ? 'Turn Off Camera (Use Hardware)' : 'Turn On Phone Camera',
+            icon: Icon(
+              _isCameraActive ? Icons.videocam_rounded : Icons.videocam_outlined,
+              size: 22,
+              color: _isCameraActive ? AppTheme.accentCyan : AppTheme.textSecondary,
             ),
-            onPressed: widget.onToggleMode,
-          ),
-
-          // Settings Button
-          IconButton(
-            tooltip: 'Scanner Settings',
-            icon: const Icon(
-              Icons.tune_rounded,
-              size: 20,
-              color: AppTheme.textSecondary,
-            ),
-            onPressed: widget.onOpenSettings,
+            onPressed: _toggleCamera,
           ),
 
           // Logout Button
@@ -255,93 +273,147 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     return _buildReadyViewfinder();
   }
 
-  // ── 2A. Ready Viewfinder ──────────────────────────────────────────
+  // ── 2A. Ready Viewfinder (Hardware or Camera) ───────────────────────
   Widget _buildReadyViewfinder() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Viewfinder Frame with Laser Animation
+        // Viewfinder Frame (Camera or Animated Graphic)
         AnimatedBuilder(
           animation: _laserAnimation,
           builder: (context, child) {
             return Container(
-              width: 250,
-              height: 250,
+              width: 270,
+              height: 270,
               decoration: BoxDecoration(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.8),
+                color: const Color(0xFF0F172A),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: AppTheme.accentIndigo.withValues(alpha: 0.4),
-                  width: 1.5,
+                  color: _isCameraActive
+                      ? AppTheme.accentCyan.withValues(alpha: 0.6)
+                      : AppTheme.accentIndigo.withValues(alpha: 0.4),
+                  width: 2.0,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.accentIndigo.withValues(alpha: 0.1),
-                    blurRadius: 24,
+                    color: (_isCameraActive
+                            ? AppTheme.accentCyan
+                            : AppTheme.accentIndigo)
+                        .withValues(alpha: 0.15),
+                    blurRadius: 28,
                     spreadRadius: 2,
                   ),
                 ],
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Subtle Watermark QR Icon in center
-                  Icon(
-                    Icons.qr_code_2_rounded,
-                    size: 96,
-                    color: Colors.white.withValues(alpha: 0.08),
-                  ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(22),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Live Smartphone Camera Preview
+                    if (_isCameraActive && _cameraController != null)
+                      MobileScanner(
+                        controller: _cameraController!,
+                        onDetect: (BarcodeCapture capture) {
+                          if (widget.state is! ScannerReadyState) return;
+                          for (final barcode in capture.barcodes) {
+                            final rawVal = barcode.rawValue?.trim();
+                            if (rawVal != null && rawVal.isNotEmpty) {
+                              context
+                                  .read<ScannerBloc>()
+                                  .add(ScannerRawBarcodeReceived(rawVal));
+                              break;
+                            }
+                          }
+                        },
+                        errorBuilder: (context, error) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.videocam_off_rounded,
+                                    size: 36,
+                                    color: AppTheme.statusRejected,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Camera: ${error.errorCode.name}',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                    else
+                      // Subtle Watermark QR Icon in center (Hardware mode)
+                      Icon(
+                        Icons.qr_code_2_rounded,
+                        size: 110,
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
 
-                  // 4 High-tech Corner Brackets
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _CornerBracketPainter(
-                        color: AppTheme.accentIndigo,
-                        bracketLength: 28,
-                        strokeWidth: 3.5,
+                    // 4 High-tech Corner Brackets
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _CornerBracketPainter(
+                          color: _isCameraActive
+                              ? AppTheme.accentCyan
+                              : AppTheme.accentIndigo,
+                          bracketLength: 30,
+                          strokeWidth: 3.5,
+                        ),
                       ),
                     ),
-                  ),
 
-                  // Animated Scanning Laser Beam
-                  Positioned(
-                    top: 250 * _laserAnimation.value,
-                    left: 20,
-                    right: 20,
-                    child: Container(
-                      height: 2,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.transparent,
-                            AppTheme.accentCyan,
-                            Colors.white,
-                            AppTheme.accentCyan,
-                            Colors.transparent,
+                    // Animated Scanning Laser Beam
+                    Positioned(
+                      top: 270 * _laserAnimation.value,
+                      left: 18,
+                      right: 18,
+                      child: Container(
+                        height: 2.5,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              AppTheme.accentCyan,
+                              Colors.white,
+                              AppTheme.accentCyan,
+                              Colors.transparent,
+                            ],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.accentCyan.withValues(alpha: 0.85),
+                              blurRadius: 10,
+                              spreadRadius: 1.5,
+                            ),
                           ],
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.accentCyan.withValues(alpha: 0.8),
-                            blurRadius: 10,
-                            spreadRadius: 1.5,
-                          ),
-                        ],
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
         // Title
-        const Text(
-          'READY TO SCAN',
-          style: TextStyle(
+        Text(
+          _isCameraActive ? 'SCAN WITH CAMERA' : 'READY TO SCAN',
+          style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.2,
@@ -352,10 +424,12 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
         const SizedBox(height: 6),
 
         // Subtitle
-        const Text(
-          'Aim Zebra hardware scanner or camera at badge',
+        Text(
+          _isCameraActive
+              ? 'Point smartphone camera at attendee badge'
+              : 'Aim Zebra hardware barcode scanner at badge',
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 13,
             color: AppTheme.textSecondary,
             fontWeight: FontWeight.w500,
@@ -364,45 +438,120 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
         const SizedBox(height: 16),
 
-        // Hardware Scanner Ready Pill
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceElevated,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppTheme.statusSuccess.withValues(alpha: 0.35),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppTheme.statusSuccess,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.statusSuccess,
-                      blurRadius: 6,
-                      spreadRadius: 1,
+        // Camera / Hardware Mode Switcher & Controls
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Mode Toggle Pill (Hardware <-> Camera)
+            InkWell(
+              onTap: _toggleCamera,
+              borderRadius: BorderRadius.circular(20),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: _isCameraActive
+                      ? AppTheme.accentCyan.withValues(alpha: 0.15)
+                      : AppTheme.surfaceElevated,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _isCameraActive
+                        ? AppTheme.accentCyan
+                        : AppTheme.statusSuccess.withValues(alpha: 0.4),
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _isCameraActive
+                            ? AppTheme.accentCyan
+                            : AppTheme.statusSuccess,
+                        boxShadow: [
+                          BoxShadow(
+                            color: _isCameraActive
+                                ? AppTheme.accentCyan
+                                : AppTheme.statusSuccess,
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _isCameraActive
+                          ? 'Phone Camera Active'
+                          : 'Hardware Scanner Active',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _isCameraActive
+                            ? AppTheme.accentCyan
+                            : Colors.white,
+                      ),
                     ),
                   ],
                 ),
               ),
+            ),
+
+            // Camera Controls (Torch & Flip)
+            if (_isCameraActive && _cameraController != null) ...[
               const SizedBox(width: 8),
-              const Text(
-                'Hardware Barcode Engine Active',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white70,
+              // Torch / Flashlight Toggle
+              Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceElevated,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppTheme.surfaceBorder),
+                ),
+                child: IconButton(
+                  tooltip: _isTorchOn ? 'Turn Off Flashlight' : 'Turn On Flashlight',
+                  icon: Icon(
+                    _isTorchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+                    size: 18,
+                    color: _isTorchOn ? Colors.amberAccent : Colors.white70,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () {
+                    _cameraController?.toggleTorch();
+                    setState(() {
+                      _isTorchOn = !_isTorchOn;
+                    });
+                  },
+                ),
+              ),
+
+              const SizedBox(width: 6),
+
+              // Switch Front/Back Camera
+              Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceElevated,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppTheme.surfaceBorder),
+                ),
+                child: IconButton(
+                  tooltip: 'Switch Camera',
+                  icon: const Icon(
+                    Icons.cameraswitch_rounded,
+                    size: 18,
+                    color: Colors.white70,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () {
+                    _cameraController?.switchCamera();
+                  },
                 ),
               ),
             ],
-          ),
+          ],
         ),
       ],
     ).animate().fadeIn(duration: 200.ms);
@@ -645,7 +794,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
   }
 
   // ── 3. Simple Footer ─────────────────────────────────────────────
-  Widget _buildFooter(bool isCheckIn) {
+  Widget _buildFooter() {
     final telemetry = widget.state.telemetry;
 
     return Container(
@@ -691,23 +840,20 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
           const Spacer(),
 
-          // Quick Button to Switch to Advanced Kiosk HUD
-          TextButton.icon(
-            onPressed: widget.onToggleMode,
-            icon: const Icon(Icons.tune_rounded, size: 16, color: AppTheme.accentIndigo),
-            label: const Text(
-              'Advanced HUD',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.accentIndigo,
-              ),
+          // Clean Gate Identifier Pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceElevated,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppTheme.surfaceBorder),
             ),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              backgroundColor: AppTheme.accentIndigo.withValues(alpha: 0.1),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+            child: Text(
+              'Gate #${widget.state.gateId}',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textMuted,
               ),
             ),
           ),

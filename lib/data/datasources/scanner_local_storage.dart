@@ -16,6 +16,7 @@ class ScannerLocalStorage {
   static const String _keySuppressionMs = 'scanner_suppression_ms';
   static const String _keyTestUsername = 'scanner_test_username';
   static const String _keySimpleUiMode = 'scanner_simple_ui_mode';
+  static const String _keyCameraEnabled = 'scanner_camera_enabled';
 
   final SharedPreferences _prefs;
 
@@ -60,6 +61,10 @@ class ScannerLocalStorage {
   bool get isSimpleUiMode => _prefs.getBool(_keySimpleUiMode) ?? true;
   Future<void> setSimpleUiMode(bool enabled) =>
       _prefs.setBool(_keySimpleUiMode, enabled);
+
+  bool get isCameraEnabled => _prefs.getBool(_keyCameraEnabled) ?? false;
+  Future<void> setCameraEnabled(bool enabled) =>
+      _prefs.setBool(_keyCameraEnabled, enabled);
 
   String getServerUrl() =>
       _prefs.getString(_keyServerUrl) ?? AppConstants.defaultBaseUrl;

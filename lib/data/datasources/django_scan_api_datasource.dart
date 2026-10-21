@@ -56,8 +56,7 @@ class DjangoScanApiDatasource {
     final isDigitsOnly = RegExp(r'^\d+$').hasMatch(qrInput);
     int scanType = isDigitsOnly ? 1 : 0;
 
-    final String punchType =
-        request.scanType.toUpperCase() == 'EXIT' ? 'check_out' : 'check_in';
+    const String punchType = 'check_in';
 
     Map<String, dynamic> payload = {
       'event_id': 1,
