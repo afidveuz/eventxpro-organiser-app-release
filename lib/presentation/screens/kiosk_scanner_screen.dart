@@ -10,6 +10,9 @@ import '../bloc/scanner_state.dart';
 import '../widgets/kiosk_header_hud.dart';
 import '../widgets/ready_scanner_target.dart';
 import '../widgets/scan_feedback_banner.dart';
+import '../bloc/auth/auth_bloc.dart';
+import '../bloc/auth/auth_event.dart';
+import 'auth/login_screen.dart';
 import 'diagnostics_screen.dart';
 import 'provisioning_screen.dart';
 import 'simulator_screen.dart';
@@ -18,11 +21,12 @@ class KioskScannerScreen extends StatelessWidget {
   final ZebraDataWedgeAdapter zebraAdapter;
   final SimulatedHardwareAdapter simulatorAdapter;
 
-  const KioskScannerScreen({
+  KioskScannerScreen({
     super.key,
-    required this.zebraAdapter,
-    required this.simulatorAdapter,
-  });
+    ZebraDataWedgeAdapter? zebraAdapter,
+    SimulatedHardwareAdapter? simulatorAdapter,
+  })  : zebraAdapter = zebraAdapter ?? ZebraDataWedgeAdapter(),
+        simulatorAdapter = simulatorAdapter ?? SimulatedHardwareAdapter();
 
   void _openDiagnostics(BuildContext context) {
     Navigator.of(
@@ -51,6 +55,34 @@ class KioskScannerScreen extends StatelessWidget {
 
   void _syncOffline(BuildContext context) {
     context.read<ScannerBloc>().add(const ScannerSyncOfflineRequested());
+  }
+
+  void _handleLogout(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceElevated,
+        title: const Text('Log Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to log out of EventXPro?', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              context.read<AuthBloc>().add(const LogoutRequested());
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+            },
+            child: const Text('Log Out', style: TextStyle(color: Color(0xFFFF6767), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _openHistory(BuildContext context, ScannerState state) {
@@ -240,6 +272,7 @@ class KioskScannerScreen extends StatelessWidget {
                 onOpenSettings: () => _openProvisioning(context),
                 onSyncOffline: () => _syncOffline(context),
                 onOpenHistory: () => _openHistory(context, state),
+                onLogout: () => _handleLogout(context),
               ),
 
               // Main Active View Area

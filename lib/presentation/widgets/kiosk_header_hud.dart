@@ -9,6 +9,7 @@ class KioskHeaderHud extends StatelessWidget {
   final VoidCallback onOpenSettings;
   final VoidCallback onSyncOffline;
   final VoidCallback onOpenHistory;
+  final VoidCallback? onLogout;
 
   const KioskHeaderHud({
     super.key,
@@ -18,6 +19,7 @@ class KioskHeaderHud extends StatelessWidget {
     required this.onOpenSettings,
     required this.onSyncOffline,
     required this.onOpenHistory,
+    this.onLogout,
   });
 
   @override
@@ -119,6 +121,15 @@ class KioskHeaderHud extends StatelessWidget {
                   padding: const EdgeInsets.all(6),
                   constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
                 ),
+                if (onLogout != null)
+                  IconButton(
+                    icon: const Icon(Icons.logout_rounded, size: 20, color: Color(0xFFFF6767)),
+                    tooltip: 'Logout',
+                    onPressed: onLogout,
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(6),
+                    constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                  ),
               ],
             ),
 
