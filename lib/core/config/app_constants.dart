@@ -21,6 +21,9 @@ class AppConstants {
   // Master Secret for changing backend Base URL
   static const String masterPassword = 'Veuz@url4788';
 
+  // Offline Ticket Encryption Key (matching React Native ENCRYPT_KEY)
+  static const String defaultTicketEncryptionKey = 'yGm7P48x50k=';
+
   // Debug Test Credentials
   static const String debugUsername = 'amar';
   static const String debugPassword = 'Amar@1234788';
@@ -40,7 +43,7 @@ class AppConstants {
   static const Duration defaultNetworkTimeout = Duration(seconds: 10);
 
   /// Feedback display hold time before auto-resetting back to ready-to-scan state.
-  static const Duration feedbackDisplayDuration = Duration(milliseconds: 1800);
+  static const Duration feedbackDisplayDuration = Duration(milliseconds: 4000);
 
   /// Safe bounded FIFO queue size to prevent out-of-memory or unbounded async backpressure.
   static const int maxQueueCapacity = 50;

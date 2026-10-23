@@ -22,7 +22,12 @@ class LoginSubmitted extends AuthEvent {
 }
 
 class LogoutRequested extends AuthEvent {
-  const LogoutRequested();
+  final String? reason;
+
+  const LogoutRequested({this.reason});
+
+  @override
+  List<Object?> get props => [reason];
 }
 
 class UpdateBaseUrlRequested extends AuthEvent {

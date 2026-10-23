@@ -20,9 +20,21 @@ class AppTheme {
   // Accent & Neutral
   static const Color accentIndigo = Color(0xFF6366F1);
   static const Color accentCyan = Color(0xFF00E5FF);
+  static const Color accentOrange = Color(0xFFFF9800);
   static const Color textPrimary = Color(0xFFF0F6FC);
   static const Color textSecondary = Color(0xFF8B949E);
   static const Color textMuted = Color(0xFF6E7681);
+
+  // EventXPro Signature Brand Theme Colors
+  static const Color eventxproBg = Color(0xFF171C26);
+  static const Color eventxproNavy = Color(0xFF0C1A52);
+  static const Color eventxproAccent = Color(0xFFC10067); // Signature Magenta Pink
+  static const Color eventxproCardBg = Color(0xFFFFFFFF);
+  static const Color eventxproSuccess = Color(0xFF8DFFBB); // Check-in Green
+  static const Color eventxproSuccessDark = Color(0xFF39BD76);
+  static const Color eventxproDanger = Color(0xFFFF6767); // Check-out Red
+  static const Color eventxproBorder = Color(0x66FFFFFF); // rgba(255, 255, 255, 0.40)
+  static const Color eventxproDarkText = Color(0xFF1E1638);
 
   static ThemeData get darkTheme {
     return ThemeData(

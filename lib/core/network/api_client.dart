@@ -6,6 +6,7 @@ import '../config/app_constants.dart';
 class ApiClient {
   final AuthLocalStorage _localStorage;
   late final Dio _dio;
+  void Function(String message)? onUnauthorized;
 
   ApiClient({required AuthLocalStorage localStorage})
       : _localStorage = localStorage {
@@ -43,6 +44,23 @@ class ApiClient {
           
           // Check for 401 Unauthorized to trigger token refresh or clear session
           if (error.response?.statusCode == 401) {
+            String message = 'Unauthorized. Please login again.';
+            if (error.response?.data is Map) {
+              final rawMsg = error.response?.data['message'] ?? error.response?.data['detail'];
+              if (rawMsg != null) message = rawMsg.toString();
+            }
+
+            final isAnotherLogin = message.toLowerCase().contains('another login detected') ||
+                message.toLowerCase().contains('logged out');
+
+            // If explicitly logged out due to another login, clear session immediately and notify logout
+            if (isAnotherLogin) {
+              debugPrint('🚨 [API 401] Another login detected! Clearing session and logging out.');
+              await _localStorage.clearSession();
+              onUnauthorized?.call(message);
+              return handler.next(error);
+            }
+
             final refreshToken = _localStorage.getRefreshToken();
             if (refreshToken != null && refreshToken.isNotEmpty) {
               final newAccessToken = await _attemptRefreshToken(refreshToken);
@@ -54,10 +72,15 @@ class ApiClient {
                   final retryResp = await _dio.fetch(clonedOptions);
                   return handler.resolve(retryResp);
                 } catch (retryErr) {
+                  await _localStorage.clearSession();
+                  onUnauthorized?.call(message);
                   return handler.next(error);
                 }
               }
             }
+
+            await _localStorage.clearSession();
+            onUnauthorized?.call(message);
           }
           return handler.next(error);
         },

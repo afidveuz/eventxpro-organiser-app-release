@@ -9,7 +9,7 @@ import '../../widgets/app_background.dart';
 import '../../widgets/gradient_button.dart';
 import 'base_url_screen.dart';
 import 'forgot_password_dialog.dart';
-import '../kiosk_scanner_screen.dart';
+import '../home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -62,7 +62,33 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => KioskScannerScreen()),
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
+        } else if (state is AuthUnauthenticated &&
+            state.errorMessage != null &&
+            state.errorMessage!.isNotEmpty) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded,
+                      color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      state.errorMessage!,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFFD32F2F),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+              duration: const Duration(seconds: 4),
+            ),
           );
         }
       },

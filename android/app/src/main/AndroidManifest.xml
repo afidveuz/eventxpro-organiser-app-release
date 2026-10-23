@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Zebra DataWedge API Permission (Required on Android 11+ / TC15) -->
+    <uses-permission android:name="com.symbol.datawedge.permission.DATAWEDGE"/>
 
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
@@ -51,5 +53,7 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Allow queries to Zebra DataWedge service on Android 11+ -->
+        <package android:name="com.symbol.datawedge"/>
     </queries>
 </manifest>

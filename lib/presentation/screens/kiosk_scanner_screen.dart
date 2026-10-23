@@ -13,16 +13,50 @@ import 'auth/login_screen.dart';
 
 /// Clean, streamlined Scanner Screen for EventXPro gate staff.
 /// Provides native Zebra hardware barcode broadcast listening with high-visibility attendee validation.
-class KioskScannerScreen extends StatelessWidget {
+class KioskScannerScreen extends StatefulWidget {
   final ZebraDataWedgeAdapter zebraAdapter;
   final SimulatedHardwareAdapter simulatorAdapter;
+  final String? initialPunchType;
+  final int? initialGateId;
+  final int? initialEventId;
+
+  final String? gateName;
+  final String? eventName;
 
   KioskScannerScreen({
     super.key,
     ZebraDataWedgeAdapter? zebraAdapter,
     SimulatedHardwareAdapter? simulatorAdapter,
+    this.initialPunchType,
+    this.initialGateId,
+    this.initialEventId,
+    this.gateName,
+    this.eventName,
   })  : zebraAdapter = zebraAdapter ?? ZebraDataWedgeAdapter(),
         simulatorAdapter = simulatorAdapter ?? SimulatedHardwareAdapter();
+
+  @override
+  State<KioskScannerScreen> createState() => _KioskScannerScreenState();
+}
+
+class _KioskScannerScreenState extends State<KioskScannerScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.initialPunchType != null ||
+          widget.initialGateId != null ||
+          widget.initialEventId != null) {
+        context.read<ScannerBloc>().add(
+              ScannerConfigChanged(
+                scanType: widget.initialPunchType,
+                gateId: widget.initialGateId,
+                eventId: widget.initialEventId,
+              ),
+            );
+      }
+    });
+  }
 
   void _handleLogout(BuildContext context) {
     showDialog<void>(
@@ -67,12 +101,14 @@ class KioskScannerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: AppTheme.eventxproBg,
       body: BlocConsumer<ScannerBloc, ScannerState>(
         listener: (context, state) {},
         builder: (context, state) {
           return SimpleScannerView(
             state: state,
+            gateName: widget.gateName,
+            eventName: widget.eventName,
             onLogout: () => _handleLogout(context),
             onResetToReady: () {
               context

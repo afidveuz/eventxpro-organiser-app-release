@@ -75,7 +75,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(const AuthLoading(message: 'Logging out...'));
     await _authRepository.logout();
-    emit(const AuthUnauthenticated());
+    emit(AuthUnauthenticated(errorMessage: event.reason));
   }
 
   Future<void> _onUpdateBaseUrlRequested(

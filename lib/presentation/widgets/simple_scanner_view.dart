@@ -1,25 +1,35 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../../core/config/app_constants.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/datasources/auth_local_storage.dart';
 import '../../data/datasources/scanner_local_storage.dart';
+import '../../domain/entities/attendee.dart';
 import '../bloc/scanner_bloc.dart';
 import '../bloc/scanner_event.dart';
 import '../bloc/scanner_state.dart';
+import '../screens/settings_screen.dart';
 
 /// Clean, high-performance scanning UI for EventXPro gate staff.
-/// Supports both:
-/// 1. Native Zebra Hardware Barcode Broadcaster (TC21/TC26/etc. zero-focus)
-/// 2. Live Camera Viewfinder for regular Android/iOS smartphones
+/// Implements the authentic EventXPro branding, EventTopBar, viewfinder with glowing corner
+/// brackets & sweeping laser, dual hardware/camera mode switcher, and high-visibility decision cards.
 class SimpleScannerView extends StatefulWidget {
   final ScannerState state;
+  final String? gateName;
+  final String? eventName;
   final VoidCallback onLogout;
   final VoidCallback onResetToReady;
 
   const SimpleScannerView({
     super.key,
     required this.state,
+    this.gateName,
+    this.eventName,
     required this.onLogout,
     required this.onResetToReady,
   });
@@ -29,9 +39,15 @@ class SimpleScannerView extends StatefulWidget {
 }
 
 class _SimpleScannerViewState extends State<SimpleScannerView>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _laserController;
   late Animation<double> _laserAnimation;
+
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  late AnimationController _blinkController;
+  late Animation<double> _blinkAnimation;
 
   MobileScannerController? _cameraController;
   bool _isCameraActive = false;
@@ -41,13 +57,36 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
   @override
   void initState() {
     super.initState();
+
+    // Laser sweeps up and down
     _laserController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1800),
+      duration: const Duration(milliseconds: 1700),
     )..repeat(reverse: true);
 
     _laserAnimation = Tween<double>(begin: 0.05, end: 0.95).animate(
       CurvedAnimation(parent: _laserController, curve: Curves.easeInOut),
+    );
+
+    // Hardware Scanner radar pulse rings
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
+
+    _pulseAnimation = CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeOut,
+    );
+
+    // Offline beacon blinking
+    _blinkController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+
+    _blinkAnimation = Tween<double>(begin: 0.35, end: 1.0).animate(
+      CurvedAnimation(parent: _blinkController, curve: Curves.easeInOut),
     );
   }
 
@@ -78,6 +117,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
   }
 
   void _toggleCamera() {
+    HapticFeedback.lightImpact();
     if (_isCameraActive) {
       _cameraController?.dispose();
       _cameraController = null;
@@ -94,173 +134,518 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     } catch (_) {}
   }
 
+  String _resolveGateName() {
+    if (widget.gateName != null && widget.gateName!.trim().isNotEmpty) {
+      return widget.gateName!.trim();
+    }
+    try {
+      final storage = context.read<ScannerLocalStorage>();
+      final offlineRaw = storage.getOfflineData();
+      if (offlineRaw != null && offlineRaw.isNotEmpty) {
+        final data = jsonDecode(offlineRaw) as Map<String, dynamic>;
+        final entrances = data['entrance'] as List<dynamic>?;
+        if (entrances != null) {
+          for (final ent in entrances) {
+            if ((ent['entrance_id'] as num?)?.toInt() == widget.state.gateId) {
+              final name = ent['entrance_name']?.toString();
+              if (name != null && name.isNotEmpty) return name;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return 'Entrance #${widget.state.gateId}';
+  }
+
+  String _resolveEventName() {
+    if (widget.eventName != null && widget.eventName!.trim().isNotEmpty) {
+      return widget.eventName!.trim();
+    }
+    try {
+      final storage = context.read<ScannerLocalStorage>();
+      final offlineRaw = storage.getOfflineData();
+      if (offlineRaw != null && offlineRaw.isNotEmpty) {
+        final data = jsonDecode(offlineRaw) as Map<String, dynamic>;
+        final event = data['event'] as Map<String, dynamic>?;
+        final name = event?['name']?.toString() ?? event?['title']?.toString();
+        if (name != null && name.isNotEmpty) return name;
+      }
+    } catch (_) {}
+    return 'EventXPro Organiser';
+  }
+
+  String? _resolvePhotoUrl(String? photoUrl) {
+    if (photoUrl == null || photoUrl.trim().isEmpty) return null;
+    final trimmed = photoUrl.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    try {
+      final authStorage = context.read<AuthLocalStorage?>();
+      final baseUrl = authStorage?.getBaseUrl() ?? AppConstants.defaultBaseUrl;
+      final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final cleanPath = trimmed.startsWith('/') ? trimmed : '/$trimmed';
+      return '$cleanBase$cleanPath';
+    } catch (_) {
+      final cleanBase = AppConstants.defaultBaseUrl.endsWith('/')
+          ? AppConstants.defaultBaseUrl.substring(0, AppConstants.defaultBaseUrl.length - 1)
+          : AppConstants.defaultBaseUrl;
+      final cleanPath = trimmed.startsWith('/') ? trimmed : '/$trimmed';
+      return '$cleanBase$cleanPath';
+    }
+  }
+
+  String _formatPunchTime(String? punchTime) {
+    if (punchTime == null || punchTime.trim().isEmpty) return '';
+    try {
+      final parts = punchTime.trim().split(':');
+      if (parts.length >= 2) {
+        final hour = int.parse(parts[0]);
+        final minute = int.parse(parts[1]);
+        final now = DateTime.now();
+        final dt = DateTime(now.year, now.month, now.day, hour, minute);
+        return DateFormat('hh:mm a').format(dt);
+      }
+    } catch (_) {}
+    return punchTime.trim();
+  }
+
+  void _showManualEntrySheet() {
+    HapticFeedback.selectionClick();
+    final textController = TextEditingController();
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return Container(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 24,
+            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B2130),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(
+              color: AppTheme.eventxproAccent.withValues(alpha: 0.4),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.6),
+                blurRadius: 32,
+                offset: const Offset(0, -6),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Sheet Handle
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Title
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.eventxproAccent.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.keyboard_outlined,
+                      color: AppTheme.eventxproAccent,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Manual Ticket Entry',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Enter or paste the ticket QR token code to manually validate admission.',
+                style: TextStyle(
+                  color: AppTheme.textSecondary,
+                  fontSize: 12.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Input TextField
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF131722),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppTheme.eventxproAccent.withValues(alpha: 0.5),
+                    width: 1.2,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: textController,
+                        autofocus: true,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.6,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'e.g. TICKET-98234-A7',
+                          hintStyle: TextStyle(
+                            color: Colors.white38,
+                            fontSize: 14,
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          border: InputBorder.none,
+                        ),
+                        onSubmitted: (val) {
+                          if (val.trim().isNotEmpty) {
+                            Navigator.of(sheetCtx).pop();
+                            context
+                                .read<ScannerBloc>()
+                                .add(ScannerRawBarcodeReceived(val.trim()));
+                          }
+                        },
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Paste from clipboard',
+                      icon: const Icon(Icons.paste_rounded, color: Colors.white70),
+                      onPressed: () async {
+                        final data = await Clipboard.getData('text/plain');
+                        if (data?.text != null) {
+                          textController.text = data!.text!.trim();
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Submit Button
+              ElevatedButton(
+                onPressed: () {
+                  final code = textController.text.trim();
+                  if (code.isNotEmpty) {
+                    Navigator.of(sheetCtx).pop();
+                    context
+                        .read<ScannerBloc>()
+                        .add(ScannerRawBarcodeReceived(code));
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.eventxproAccent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'Verify Ticket',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
     _cameraController?.dispose();
     _laserController.dispose();
+    _pulseController.dispose();
+    _blinkController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        children: [
-          // ── Clean Header ──────────────────────────────────────────
-          _buildHeader(),
+    final isCheckOut = widget.state.scanType == 'check_out';
 
-          // ── Main View Area ────────────────────────────────────────
-          Expanded(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 480),
-                  child: _buildBody(),
+    return Stack(
+      children: [
+        // ── 1. Top Radial Brand Aura ──────────────────────────────
+        Positioned(
+          top: -80,
+          left: 0,
+          right: 0,
+          height: 380,
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment(0, -0.65),
+                radius: 1.15,
+                colors: [
+                  Color(0x35C10067),
+                  Color(0x10C10067),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // ── 2. Main Content Layout ────────────────────────────────
+        SafeArea(
+          child: Column(
+            children: [
+              // Top Bar (Matching React Native EventTopBar.jsx)
+              _buildEventTopBar(isCheckOut),
+
+              // Offline Indicator Badge if offline mode is active
+              if (widget.state.isOfflineMode) _buildOfflineBadge(),
+
+              // Main Body (Viewfinder / Processing / Decision Card)
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 480),
+                      child: _buildBody(isCheckOut),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Bottom Dock: Mode switch, flashlight, flip, manual entry
+              _buildControlDock(),
+
+              // Sleek Telemetry Footer
+              _buildFooter(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── 1. EventTopBar (Matching React Native EventTopBar.jsx) ─────────
+  Widget _buildEventTopBar(bool isCheckOut) {
+    final gateName = _resolveGateName();
+    final eventName = _resolveEventName();
+    final typeColor =
+        isCheckOut ? AppTheme.eventxproDanger : AppTheme.eventxproSuccess;
+    final typeText = isCheckOut ? 'Check-out' : 'Check-in';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Circular White Back Button with Accent Border (EventTopBar.jsx)
+          InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.of(context).pop();
+            },
+            borderRadius: BorderRadius.circular(50),
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppTheme.eventxproAccent,
+                  width: 2.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.eventxproAccent.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 16,
+                  color: Color(0xFF171C26),
                 ),
               ),
             ),
           ),
 
-          // ── Simple Footer ─────────────────────────────────────────
-          _buildFooter(),
-        ],
-      ),
-    );
-  }
+          const SizedBox(width: 14),
 
-  // ── 1. Top Header ────────────────────────────────────────────────
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: AppTheme.surface,
-        border: Border(
-          bottom: BorderSide(color: AppTheme.surfaceBorder, width: 1),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Event Title & Badge
+          // Centered Gate Title & Event Name
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                // Title Section: Entrance Name + Status Text
+                RichText(
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  text: TextSpan(
+                    style: const TextStyle(
+                      fontFamily: 'Segoe UI',
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
+                    children: [
+                      TextSpan(text: '$gateName '),
+                      TextSpan(
+                        text: typeText,
+                        style: TextStyle(
+                          color: typeColor,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 3),
+
+                // Subtitle Section: Calendar icon + Event Name
                 Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Icon(
-                      Icons.qr_code_scanner_rounded,
-                      size: 20,
-                      color: AppTheme.accentIndigo,
+                      Icons.calendar_today_rounded,
+                      size: 11,
+                      color: Colors.white70,
                     ),
-                    const SizedBox(width: 8),
-                    const Flexible(
+                    const SizedBox(width: 5),
+                    Flexible(
                       child: Text(
-                        'Eventxpro',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: 0.3,
-                        ),
+                        eventName,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surfaceElevated,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppTheme.surfaceBorder),
-                      ),
-                      child: Text(
-                        'EVT #${widget.state.eventId}',
                         style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textMuted,
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Gate #${widget.state.gateId} • Entrance Check-in',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppTheme.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
               ],
             ),
           ),
 
-          // Check-in Badge (Check-in only)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppTheme.statusSuccess.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: AppTheme.statusSuccess,
-                width: 1.5,
+          const SizedBox(width: 10),
+
+          // Action: Settings Button
+          InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+            borderRadius: BorderRadius.circular(50),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF212836),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppTheme.eventxproBorder,
+                  width: 1.2,
+                ),
+              ),
+              child: const Icon(
+                Icons.settings_outlined,
+                size: 18,
+                color: Colors.white70,
               ),
             ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.login_rounded,
-                  size: 14,
-                  color: AppTheme.statusSuccess,
-                ),
-                SizedBox(width: 4),
-                Text(
-                  'Check-in',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.statusSuccess,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          // Camera Quick Toggle Icon in Header
-          IconButton(
-            tooltip: _isCameraActive ? 'Turn Off Camera (Use Hardware)' : 'Turn On Phone Camera',
-            icon: Icon(
-              _isCameraActive ? Icons.videocam_rounded : Icons.videocam_outlined,
-              size: 22,
-              color: _isCameraActive ? AppTheme.accentCyan : AppTheme.textSecondary,
-            ),
-            onPressed: _toggleCamera,
-          ),
-
-          // Logout Button
-          IconButton(
-            tooltip: 'Log Out',
-            icon: const Icon(
-              Icons.logout_rounded,
-              size: 20,
-              color: Color(0xFFFF6767),
-            ),
-            onPressed: widget.onLogout,
           ),
         ],
       ),
     );
   }
 
-  // ── 2. Main Body Content (State-driven) ───────────────────────────
-  Widget _buildBody() {
+  // ── Offline Beacon Badge ───────────────────────────────────────────
+  Widget _buildOfflineBadge() {
+    return FadeTransition(
+      opacity: _blinkAnimation,
+      child: Container(
+        margin: const EdgeInsets.only(top: 2, bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFF3B30),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFF3B30).withValues(alpha: 0.45),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_off_rounded, size: 12, color: Colors.white),
+            SizedBox(width: 6),
+            Text(
+              'OFFLINE MODE ACTIVE',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── 2. Main Body (State-driven) ───────────────────────────────────
+  Widget _buildBody(bool isCheckOut) {
     if (widget.state is ScannerProcessingState) {
       return _buildProcessingCard(widget.state as ScannerProcessingState);
     }
@@ -270,15 +655,40 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     }
 
     // Default: Ready Viewfinder
-    return _buildReadyViewfinder();
+    return _buildReadyViewfinder(isCheckOut);
   }
 
-  // ── 2A. Ready Viewfinder (Hardware or Camera) ───────────────────────
-  Widget _buildReadyViewfinder() {
+  // ── 2A. Ready Viewfinder (Hardware vs Camera) ───────────────────────
+  Widget _buildReadyViewfinder(bool isCheckOut) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Viewfinder Frame (Camera or Animated Graphic)
+        // Headline guidance (Matching OfflineScanner.jsx)
+        const Text(
+          'Scan any QR',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'Position your phone to make sure the QR code is within the frame',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13.5,
+              color: Color(0xFFAFAFAF),
+              height: 1.3,
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Viewfinder Frame
         AnimatedBuilder(
           animation: _laserAnimation,
           builder: (context, child) {
@@ -286,20 +696,15 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
               width: 270,
               height: 270,
               decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
+                color: const Color(0xFF0F141E),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: _isCameraActive
-                      ? AppTheme.accentCyan.withValues(alpha: 0.6)
-                      : AppTheme.accentIndigo.withValues(alpha: 0.4),
-                  width: 2.0,
+                  color: Colors.white.withValues(alpha: 0.12),
+                  width: 1.2,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: (_isCameraActive
-                            ? AppTheme.accentCyan
-                            : AppTheme.accentIndigo)
-                        .withValues(alpha: 0.15),
+                    color: AppTheme.eventxproAccent.withValues(alpha: 0.2),
                     blurRadius: 28,
                     spreadRadius: 2,
                   ),
@@ -310,7 +715,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Live Smartphone Camera Preview
+                    // Mode A: Live Smartphone Camera Feed
                     if (_isCameraActive && _cameraController != null)
                       MobileScanner(
                         controller: _cameraController!,
@@ -335,15 +740,15 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                                 children: [
                                   const Icon(
                                     Icons.videocam_off_rounded,
-                                    size: 36,
-                                    color: AppTheme.statusRejected,
+                                    size: 38,
+                                    color: AppTheme.eventxproDanger,
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Camera: ${error.errorCode.name}',
+                                    'Camera Access: ${error.errorCode.name}',
                                     textAlign: TextAlign.center,
                                     style: const TextStyle(
-                                      fontSize: 11,
+                                      fontSize: 12,
                                       color: Colors.white70,
                                     ),
                                   ),
@@ -354,48 +759,44 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                         },
                       )
                     else
-                      // Subtle Watermark QR Icon in center (Hardware mode)
-                      Icon(
-                        Icons.qr_code_2_rounded,
-                        size: 110,
-                        color: Colors.white.withValues(alpha: 0.08),
-                      ),
+                      // Mode B: Hardware Scanner Listening Illustration
+                      _buildHardwareScannerArtwork(),
 
-                    // 4 High-tech Corner Brackets
+                    // 4 Signature Corner Brackets (Magenta Accent)
                     Positioned.fill(
                       child: CustomPaint(
                         painter: _CornerBracketPainter(
-                          color: _isCameraActive
-                              ? AppTheme.accentCyan
-                              : AppTheme.accentIndigo,
-                          bracketLength: 30,
+                          color: AppTheme.eventxproAccent,
+                          bracketLength: 32,
                           strokeWidth: 3.5,
                         ),
                       ),
                     ),
 
-                    // Animated Scanning Laser Beam
+                    // Animated Sweeping Laser Beam (Vibrant Magenta Glow)
                     Positioned(
                       top: 270 * _laserAnimation.value,
-                      left: 18,
-                      right: 18,
+                      left: 14,
+                      right: 14,
                       child: Container(
-                        height: 2.5,
+                        height: 2.8,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [
                               Colors.transparent,
-                              AppTheme.accentCyan,
+                              AppTheme.eventxproAccent,
+                              Color(0xFFFF3E96),
                               Colors.white,
-                              AppTheme.accentCyan,
+                              Color(0xFFFF3E96),
+                              AppTheme.eventxproAccent,
                               Colors.transparent,
                             ],
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: AppTheme.accentCyan.withValues(alpha: 0.85),
-                              blurRadius: 10,
-                              spreadRadius: 1.5,
+                              color: AppTheme.eventxproAccent.withValues(alpha: 0.9),
+                              blurRadius: 12,
+                              spreadRadius: 2,
                             ),
                           ],
                         ),
@@ -410,184 +811,164 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
         const SizedBox(height: 20),
 
-        // Title
-        Text(
-          _isCameraActive ? 'SCAN WITH CAMERA' : 'READY TO SCAN',
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.2,
-            color: Colors.white,
+        // Active Listening Indicator Pill
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B2232),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.15),
+              width: 1,
+            ),
           ),
-        ),
-
-        const SizedBox(height: 6),
-
-        // Subtitle
-        Text(
-          _isCameraActive
-              ? 'Point smartphone camera at attendee badge'
-              : 'Aim Zebra hardware barcode scanner at badge',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 13,
-            color: AppTheme.textSecondary,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // Camera / Hardware Mode Switcher & Controls
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Mode Toggle Pill (Hardware <-> Camera)
-            InkWell(
-              onTap: _toggleCamera,
-              borderRadius: BorderRadius.circular(20),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
                 decoration: BoxDecoration(
+                  shape: BoxShape.circle,
                   color: _isCameraActive
-                      ? AppTheme.accentCyan.withValues(alpha: 0.15)
-                      : AppTheme.surfaceElevated,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: _isCameraActive
-                        ? AppTheme.accentCyan
-                        : AppTheme.statusSuccess.withValues(alpha: 0.4),
-                    width: 1.5,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _isCameraActive
-                            ? AppTheme.accentCyan
-                            : AppTheme.statusSuccess,
-                        boxShadow: [
-                          BoxShadow(
-                            color: _isCameraActive
-                                ? AppTheme.accentCyan
-                                : AppTheme.statusSuccess,
-                            blurRadius: 6,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _isCameraActive
-                          ? 'Phone Camera Active'
-                          : 'Hardware Scanner Active',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: _isCameraActive
-                            ? AppTheme.accentCyan
-                            : Colors.white,
-                      ),
+                      ? AppTheme.accentCyan
+                      : AppTheme.statusSuccess,
+                  boxShadow: [
+                    BoxShadow(
+                      color: _isCameraActive
+                          ? AppTheme.accentCyan
+                          : AppTheme.statusSuccess,
+                      blurRadius: 6,
+                      spreadRadius: 1,
                     ),
                   ],
                 ),
               ),
-            ),
-
-            // Camera Controls (Torch & Flip)
-            if (_isCameraActive && _cameraController != null) ...[
               const SizedBox(width: 8),
-              // Torch / Flashlight Toggle
-              Container(
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceElevated,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppTheme.surfaceBorder),
-                ),
-                child: IconButton(
-                  tooltip: _isTorchOn ? 'Turn Off Flashlight' : 'Turn On Flashlight',
-                  icon: Icon(
-                    _isTorchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
-                    size: 18,
-                    color: _isTorchOn ? Colors.amberAccent : Colors.white70,
-                  ),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () {
-                    _cameraController?.toggleTorch();
-                    setState(() {
-                      _isTorchOn = !_isTorchOn;
-                    });
-                  },
-                ),
-              ),
-
-              const SizedBox(width: 6),
-
-              // Switch Front/Back Camera
-              Container(
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceElevated,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppTheme.surfaceBorder),
-                ),
-                child: IconButton(
-                  tooltip: 'Switch Camera',
-                  icon: const Icon(
-                    Icons.cameraswitch_rounded,
-                    size: 18,
-                    color: Colors.white70,
-                  ),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () {
-                    _cameraController?.switchCamera();
-                  },
+              Text(
+                _isCameraActive
+                    ? 'Phone Camera Active'
+                    : 'Zebra Hardware Scanner Ready',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
                 ),
               ),
             ],
-          ],
+          ),
         ),
       ],
     ).animate().fadeIn(duration: 200.ms);
   }
 
-  // ── 2B. Processing Card ───────────────────────────────────────────
+  /// High-tech Artwork shown when Zebra/Honeywell Hardware Scanner is active
+  Widget _buildHardwareScannerArtwork() {
+    return AnimatedBuilder(
+      animation: _pulseAnimation,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            // Concentric Animated Pulse Ring 1
+            Container(
+              width: 80 + (90 * _pulseAnimation.value),
+              height: 80 + (90 * _pulseAnimation.value),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppTheme.eventxproAccent.withValues(
+                    alpha: (1.0 - _pulseAnimation.value) * 0.45,
+                  ),
+                  width: 1.5,
+                ),
+              ),
+            ),
+
+            // Concentric Animated Pulse Ring 2
+            Container(
+              width: 50 + (130 * _pulseAnimation.value),
+              height: 50 + (130 * _pulseAnimation.value),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppTheme.eventxproAccent.withValues(
+                    alpha: (1.0 - _pulseAnimation.value) * 0.25,
+                  ),
+                  width: 1.0,
+                ),
+              ),
+            ),
+
+            // Subtle Watermark QR Icon in center
+            Icon(
+              Icons.qr_code_2_rounded,
+              size: 100,
+              color: Colors.white.withValues(alpha: 0.08),
+            ),
+
+            // Center Target Crosshair Graphic
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.eventxproAccent.withValues(alpha: 0.12),
+                border: Border.all(
+                  color: AppTheme.eventxproAccent.withValues(alpha: 0.6),
+                  width: 1.5,
+                ),
+              ),
+              child: const Icon(
+                Icons.center_focus_strong_rounded,
+                size: 28,
+                color: AppTheme.eventxproAccent,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ── 2B. In-Flight Processing Card ─────────────────────────────────
   Widget _buildProcessingCard(ScannerProcessingState procState) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceElevated,
+        color: const Color(0xFF1E2536),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: AppTheme.accentIndigo.withValues(alpha: 0.6),
-          width: 2,
+          color: AppTheme.eventxproAccent.withValues(alpha: 0.6),
+          width: 1.8,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.eventxproAccent.withValues(alpha: 0.2),
+            blurRadius: 24,
+            spreadRadius: 2,
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(
-            width: 54,
-            height: 54,
+            width: 52,
+            height: 52,
             child: CircularProgressIndicator(
-              strokeWidth: 4,
-              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentIndigo),
+              strokeWidth: 3.8,
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.eventxproAccent),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
           const Text(
             'VERIFYING ADMISSION...',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w900,
-              letterSpacing: 1.2,
+              letterSpacing: 1.0,
               color: Colors.white,
             ),
           ),
@@ -605,187 +986,316 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     ).animate().fadeIn(duration: 150.ms).scale(begin: const Offset(0.95, 0.95));
   }
 
-  // ── 2C. Clean Decision Card ───────────────────────────────────────
+  // ── 2C. Authoritative Decision Card (Success / Warning / Rejected) ─
+  // ── 2C. Authoritative Decision Card (Matching React Native AttendeeSheet.jsx) ─
   Widget _buildDecisionCard(ScannerDecisionState decState) {
-    Color cardColor;
-    Color accentColor;
+    Color headerColor;
     IconData iconData;
-    String headline;
+    final alertType = decState.response.alertType;
+    final msg = decState.response.message;
+    final isSuccess = decState.response.isAlertSuccess;
+    final isWarning = decState.response.isAlertWarning;
 
-    if (decState.isSuccess) {
-      accentColor = AppTheme.statusSuccess;
-      cardColor = AppTheme.statusSuccessBg;
-      iconData = Icons.check_circle_rounded;
-      headline = decState.response.message ?? 'Checked In Successfully!';
-    } else if (decState.isWarning) {
-      accentColor = AppTheme.statusWarning;
-      cardColor = AppTheme.statusWarningBg;
+    if (alertType == 'success' || (alertType == null && isSuccess)) {
+      headerColor = const Color(0xFF23A618); // #23A618 Vibrant Green from AttendeeSheet.jsx
+      iconData = decState.request.scanType.toLowerCase() == 'check_out'
+          ? Icons.logout_rounded
+          : Icons.check_circle_rounded;
+    } else if (alertType == 'warning' || (alertType == null && isWarning)) {
+      headerColor = const Color(0xFFFF8450); // #FF8450 Warning Fill
       iconData = Icons.warning_amber_rounded;
-      headline = decState.response.message ?? 'Already Checked In';
+    } else if (alertType == 'info' || decState.response.isAlertInfo) {
+      headerColor = const Color(0xFF00A0D2); // #00A0D2 Info Sky Blue
+      iconData = Icons.info_outline_rounded;
     } else {
-      accentColor = AppTheme.statusRejected;
-      cardColor = AppTheme.statusRejectedBg;
-      iconData = Icons.cancel_rounded;
-      headline = decState.response.message ?? 'Access Denied';
+      headerColor = const Color(0xFFFF4343); // #FF4343 Error Red
+      iconData = Icons.error_outline_rounded;
     }
 
     final attendee = decState.response.attendee;
+    final punchTime = decState.response.punchTime ?? attendee?.punchTime;
+    final formattedPunchTime = _formatPunchTime(punchTime);
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
       decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: accentColor, width: 2),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: accentColor.withValues(alpha: 0.25),
-            blurRadius: 24,
+            color: headerColor.withValues(alpha: 0.35),
+            blurRadius: 28,
             spreadRadius: 2,
           ),
         ],
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Hero Icon
+          // ── 1. Top Header Bar (Matching AttendeeSheet.jsx) ──
           Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: accentColor.withValues(alpha: 0.15),
-              border: Border.all(
-                color: accentColor.withValues(alpha: 0.4),
-                width: 2,
-              ),
-            ),
-            child: Icon(iconData, size: 52, color: accentColor),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Status Headline
-          Text(
-            headline,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.5,
-              color: accentColor,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Attendee Details (If Granted or Valid Attendee)
-          if (attendee != null) ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: accentColor.withValues(alpha: 0.3)),
-              ),
-              child: Column(
-                children: [
-                  // Attendee Name
-                  Text(
-                    attendee.fullName,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
+            color: headerColor,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Circular White Background ('okBg') with Icon in Header Color
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
                   ),
+                  child: Icon(iconData, size: 22, color: headerColor),
+                ),
+                const SizedBox(width: 12),
 
-                  const SizedBox(height: 6),
+                // Title & Subtitle / Timestamp
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildHeaderTitle(msg),
+                      const SizedBox(height: 2),
+                      _buildHeaderSubtitle(msg, formattedPunchTime),
+                    ],
+                  ),
+                ),
 
-                  // Badge Category Pill
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: accentColor.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: accentColor.withValues(alpha: 0.6),
+                // Circular Close Button (styles.closeBtn)
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      widget.onResetToReady();
+                    },
+                    borderRadius: BorderRadius.circular(50),
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.33),
+                        shape: BoxShape.circle,
                       ),
-                    ),
-                    child: Text(
-                      attendee.badgeType.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.8,
-                        color: accentColor,
+                      child: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                        size: 19,
                       ),
                     ),
                   ),
+                ),
+              ],
+            ),
+          ),
 
-                  if (attendee.company != null &&
-                      attendee.company!.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      attendee.company!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textSecondary,
-                        fontWeight: FontWeight.w500,
+          // ── 2. Card Content Body (Matching styles.profileWrapper) ──
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (attendee != null) ...[
+                  // Profile Row: Avatar + Details
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Avatar: Photo or Initials Monogram (styles.imgTxt)
+                      _buildAvatar(attendee),
+                      const SizedBox(width: 14),
+
+                      // User Detail Wrapper (styles.userDetailWrapper)
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Full Name (styles.name)
+                            Text(
+                              attendee.fullName.toUpperCase(),
+                              style: const TextStyle(
+                                fontSize: 16.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF111827),
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+
+                            // Company Name (styles.nameSub)
+                            if (attendee.company != null &&
+                                attendee.company!.trim().isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                attendee.company!,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF4B5563),
+                                ),
+                              ),
+                            ],
+
+                            // Ticket ID (styles.nameSub)
+                            if (attendee.ticketId != null &&
+                                attendee.ticketId!.trim().isNotEmpty &&
+                                attendee.ticketId != decState.request.qrToken) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                'Ticket ID: ${attendee.ticketId}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF4B5563),
+                                ),
+                              ),
+                            ],
+
+                            // Category Badge (ChipTail.jsx: #9D4AC5 purple)
+                            const SizedBox(height: 6),
+                            _buildChipTail(attendee),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Last Checkin Session (if available in AttendeeSheet.jsx)
+                  if (attendee.lastCheckinSession != null &&
+                      attendee.lastCheckinSession!.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF9FAFB),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.history_rounded, size: 14, color: Color(0xFF6B7280)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Last Checkin: ${attendee.lastCheckinSession} at ${_formatPunchTime(attendee.lastCheckinTime)}',
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                color: Color(0xFF374151),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
+
+                  // Session Access tags (styles.accessWrapper & AgendaTag.jsx)
+                  if (attendee.sessionAccess != null &&
+                      attendee.sessionAccess!.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Access',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: attendee.sessionAccess!.map((itm) {
+                        final timeStr = itm.startTm != null ? _formatPunchTime(itm.startTm) : '';
+                        final hallStr = itm.hallName != null && itm.hallName!.isNotEmpty ? '- ${itm.hallName}' : '';
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF3E8FF),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFD8B4FE)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '$timeStr $hallStr'.trim(),
+                                style: const TextStyle(
+                                  fontSize: 9.5,
+                                  color: Color(0xFF7E22CE),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                itm.title,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF3B0764),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ] else ...[
+                  // If attendee is null (Access Denied / Unassigned / Invalid Badge)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Center(
+                      child: Text(
+                        msg,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
-              ),
-            ),
-          ] else ...[
-            // Rejection / Warning Note
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                'Token: ${decState.request.qrToken}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  color: AppTheme.textMuted,
-                ),
-              ),
-            ),
-          ],
 
-          const SizedBox(height: 18),
+                const SizedBox(height: 16),
 
-          // Dismiss / Next Button
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: ElevatedButton.icon(
-              onPressed: widget.onResetToReady,
-              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-              label: const Text(
-                'Ready For Next Attendee',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: accentColor,
-                foregroundColor:
-                    decState.isSuccess ? Colors.black : Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                // Ready For Next Attendee Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      widget.onResetToReady();
+                    },
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                    label: const Text(
+                      'Ready For Next Attendee',
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: headerColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ],
@@ -793,28 +1303,341 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     ).animate().fadeIn(duration: 180.ms).scale(begin: const Offset(0.92, 0.92));
   }
 
-  // ── 3. Simple Footer ─────────────────────────────────────────────
+  Widget _buildHeaderTitle(String msg) {
+    if (msg.contains('Checked Out Successfully!')) {
+      return const Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: 'Checked Out ', style: TextStyle(fontWeight: FontWeight.w900)),
+            TextSpan(text: 'Successfully!'),
+          ],
+        ),
+        style: TextStyle(color: Colors.white, fontSize: 16),
+      );
+    }
+    if (msg.contains('Checked In Successfully!')) {
+      return const Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: 'Checked In ', style: TextStyle(fontWeight: FontWeight.w900)),
+            TextSpan(text: 'Successfully!'),
+          ],
+        ),
+        style: TextStyle(color: Colors.white, fontSize: 16),
+      );
+    }
+    if (msg.contains('Already Checked In')) {
+      return const Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: 'Already '),
+            TextSpan(text: 'Checked In', style: TextStyle(fontWeight: FontWeight.w900)),
+          ],
+        ),
+        style: TextStyle(color: Colors.white, fontSize: 16),
+      );
+    }
+    if (msg.contains('Already Checked Out')) {
+      return const Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: 'Already '),
+            TextSpan(text: 'Checked Out', style: TextStyle(fontWeight: FontWeight.w900)),
+          ],
+        ),
+        style: TextStyle(color: Colors.white, fontSize: 16),
+      );
+    }
+    return Text(
+      msg,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 16,
+        fontWeight: FontWeight.w800,
+      ),
+    );
+  }
+
+  Widget _buildHeaderSubtitle(String msg, String punchTime) {
+    if (punchTime.isNotEmpty &&
+        (msg.contains('Already') ||
+            msg.contains('Checked Out') ||
+            msg.contains('Checked In') ||
+            msg.contains('Limited'))) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.access_time_rounded, size: 13, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(
+            punchTime,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      );
+    }
+    return Text(
+      DateFormat('dd MMM yyyy hh:mm a').format(DateTime.now()),
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 12.5,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+
+  Widget _buildAvatar(Attendee attendee) {
+    final photoUrl = _resolvePhotoUrl(attendee.photoUrl);
+    if (photoUrl != null) {
+      return ClipOval(
+        child: Image.network(
+          photoUrl,
+          width: 80,
+          height: 80,
+          fit: BoxFit.cover,
+          errorBuilder: (ctx, err, stack) => _buildInitialsAvatar(attendee.initials),
+          loadingBuilder: (ctx, child, progress) {
+            if (progress == null) return child;
+            return Container(
+              width: 80,
+              height: 80,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF171C26),
+              ),
+              child: const Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white54,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    return _buildInitialsAvatar(attendee.initials);
+  }
+
+  Widget _buildInitialsAvatar(String initials) {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: const BoxDecoration(
+        color: Color(0xFF171C26), // colors.bg from AttendeeSheet.jsx
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.0,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChipTail(Attendee attendee) {
+    final title = (attendee.category != null && attendee.category!.isNotEmpty)
+        ? attendee.category!
+        : attendee.badgeType;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: const BoxDecoration(
+        color: Color(0xFF9D4AC5), // ChipTail.jsx #9D4AC5
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(4),
+          bottomLeft: Radius.circular(4),
+          topRight: Radius.circular(12),
+          bottomRight: Radius.circular(12),
+        ),
+      ),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10.5,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+
+
+
+  // ── 3. Floating Control Dock (SwitchBtn.jsx & InfraredBtn.jsx style) ─
+  Widget _buildControlDock() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Mode Switch Button (White circular if in hardware mode, Magenta if in camera mode)
+          InkWell(
+            onTap: _toggleCamera,
+            borderRadius: BorderRadius.circular(50),
+            child: Container(
+              height: 50,
+              width: 50,
+              decoration: BoxDecoration(
+                color: _isCameraActive
+                    ? AppTheme.eventxproAccent
+                    : Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: (_isCameraActive
+                            ? AppTheme.eventxproAccent
+                            : Colors.white)
+                        .withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Icon(
+                _isCameraActive
+                    ? Icons.qr_code_scanner_rounded
+                    : Icons.videocam_rounded,
+                color: _isCameraActive ? Colors.white : const Color(0xFF171C26),
+                size: 24,
+              ),
+            ),
+          ),
+
+          // Camera controls: Flashlight & Switch Camera (only when camera is active)
+          if (_isCameraActive && _cameraController != null) ...[
+            const SizedBox(width: 14),
+
+            // Flashlight / Torch Toggle
+            InkWell(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _cameraController?.toggleTorch();
+                setState(() {
+                  _isTorchOn = !_isTorchOn;
+                });
+              },
+              borderRadius: BorderRadius.circular(50),
+              child: Container(
+                height: 50,
+                width: 50,
+                decoration: BoxDecoration(
+                  color: _isTorchOn
+                      ? Colors.amber.withValues(alpha: 0.25)
+                      : const Color(0xFF222838),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: _isTorchOn
+                        ? Colors.amber
+                        : Colors.white.withValues(alpha: 0.2),
+                    width: 1.5,
+                  ),
+                ),
+                child: Icon(
+                  _isTorchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+                  size: 22,
+                  color: _isTorchOn ? Colors.amberAccent : Colors.white70,
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 14),
+
+            // Flip Front/Back Camera
+            InkWell(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _cameraController?.switchCamera();
+              },
+              borderRadius: BorderRadius.circular(50),
+              child: Container(
+                height: 50,
+                width: 50,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF222838),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    width: 1.5,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.cameraswitch_rounded,
+                  size: 22,
+                  color: Colors.white70,
+                ),
+              ),
+            ),
+          ],
+
+          const SizedBox(width: 14),
+
+          // Manual Ticket Code Input Button
+          InkWell(
+            onTap: _showManualEntrySheet,
+            borderRadius: BorderRadius.circular(50),
+            child: Container(
+              height: 50,
+              width: 50,
+              decoration: BoxDecoration(
+                color: const Color(0xFF222838),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.25),
+                  width: 1.5,
+                ),
+              ),
+              child: const Icon(
+                Icons.keyboard_alt_outlined,
+                size: 22,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 4. Telemetry Footer Bar ────────────────────────────────────────
   Widget _buildFooter() {
     final telemetry = widget.state.telemetry;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: AppTheme.surface,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141924),
         border: Border(
-          top: BorderSide(color: AppTheme.surfaceBorder, width: 1),
+          top: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
         ),
       ),
       child: Row(
         children: [
-          // Total Checked In Counter
+          // Accepted Scans Counter Pill
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
-              color: AppTheme.statusSuccess.withValues(alpha: 0.12),
+              color: AppTheme.eventxproSuccess.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: AppTheme.statusSuccess.withValues(alpha: 0.35),
+                color: AppTheme.eventxproSuccess.withValues(alpha: 0.35),
               ),
             ),
             child: Row(
@@ -822,16 +1645,16 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
               children: [
                 const Icon(
                   Icons.how_to_reg_rounded,
-                  size: 16,
-                  color: AppTheme.statusSuccess,
+                  size: 15,
+                  color: AppTheme.eventxproSuccess,
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '${telemetry.acceptedCount} Checked In',
+                  '${telemetry.acceptedCount} Scanned',
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
-                    color: AppTheme.statusSuccess,
+                    color: AppTheme.eventxproSuccess,
                   ),
                 ),
               ],
@@ -840,20 +1663,22 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
           const Spacer(),
 
-          // Clean Gate Identifier Pill
+          // Gate Identifier Pill
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: AppTheme.surfaceElevated,
+              color: const Color(0xFF202636),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppTheme.surfaceBorder),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
             ),
             child: Text(
               'Gate #${widget.state.gateId}',
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textMuted,
+                color: AppTheme.textSecondary,
               ),
             ),
           ),
@@ -863,7 +1688,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
   }
 }
 
-/// Custom painter for the 4 stylish corner brackets on the simple scanner viewfinder.
+/// Custom painter for the 4 signature corner brackets on the scanner viewfinder.
 class _CornerBracketPainter extends CustomPainter {
   final Color color;
   final double bracketLength;

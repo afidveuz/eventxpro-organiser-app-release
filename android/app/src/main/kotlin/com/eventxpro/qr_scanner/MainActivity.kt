@@ -90,7 +90,9 @@ class MainActivity : FlutterActivity() {
 
     private fun handleScanIntent(intent: Intent?) {
         if (intent == null) return
+        Log.d(TAG, "Received scan intent action: ${intent.action}")
         val value = intent.getStringExtra("com.symbol.datawedge.data_string")
+            ?: intent.getStringExtra("data") // Honeywell standard data extra
             ?: intent.getStringExtra("data_string")
             ?: intent.getStringExtra("barcode_data")
             ?: intent.getStringExtra("com.symbol.datawedge.decode_data")
@@ -117,21 +119,18 @@ class MainActivity : FlutterActivity() {
         }
 
         val filter = IntentFilter().apply {
-            addAction(scanAction)
+            addAction(scanAction) // com.eventxpro.SCAN
             addAction("com.symbol.datawedge.api.RESULT_ACTION")
-        }
-
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.RECEIVER_EXPORTED
-        } else {
-            0
+            // Honeywell default broadcast actions
+            addAction("com.honeywell.sample.action.BARCODE_DATA")
+            addAction("com.honeywell.decode.intent.action.EDIT_DATA")
         }
 
         ContextCompat.registerReceiver(
             this,
             receiver,
             filter,
-            flags
+            ContextCompat.RECEIVER_EXPORTED
         )
     }
 
@@ -153,7 +152,7 @@ class MainActivity : FlutterActivity() {
             val profileConfig = Bundle().apply {
                 putString("PROFILE_NAME", PROFILE_NAME)
                 putString("PROFILE_ENABLED", "true")
-                putString("CONFIG_MODE", "UPDATE")
+                putString("CONFIG_MODE", "CREATE_IF_NOT_EXIST")
 
                 // Associate app with this profile
                 val appConfig = Bundle().apply {

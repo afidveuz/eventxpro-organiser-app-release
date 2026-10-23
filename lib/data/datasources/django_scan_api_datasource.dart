@@ -56,16 +56,20 @@ class DjangoScanApiDatasource {
     final isDigitsOnly = RegExp(r'^\d+$').hasMatch(qrInput);
     int scanType = isDigitsOnly ? 1 : 0;
 
-    const String punchType = 'check_in';
+    final cleanType = request.scanType.toLowerCase().trim();
+    final punchType = (cleanType == 'check_out' || cleanType == 'exit')
+        ? 'check_out'
+        : 'check_in';
 
     Map<String, dynamic> payload = {
-      'event_id': 1,
+      'event_id': request.eventId > 0 ? request.eventId : 1,
       'type': punchType,
       'user_latitude': 11.0,
       'user_longitude': 12.0,
       'user_city': '',
       'user_input': qrInput,
       'scan_type': scanType,
+      if (request.gateId > 0) 'entrance_id': request.gateId,
     };
 
     final headers = <String, String>{
@@ -247,12 +251,25 @@ class DjangoScanApiDatasource {
 
     // 5. Already Checked In check
     if (_admittedTokens.contains(token) || token.contains('USED')) {
-      return ScanResponse(
-        status: 'WARNING',
-        code: ScanDecisionCode.alreadyCheckedIn,
-        message: 'Warning: Badge already admitted (Entry Limited)',
-        checkInId: 'chk-${request.scanRequestId.length >= 8 ? request.scanRequestId.substring(0, 8) : request.scanRequestId}',
-        serverTime: DateTime.now(),
+      return ScanResponse.fromJson(
+        {
+          'status': false,
+          'alert_type': 'warning',
+          'message': 'Already Checked In',
+          'punch_time': '14:20',
+          'last_checkin_session': 'Main Gate',
+          'last_checkin_time': '14:20:00',
+          'user_data': {
+            'firstname': 'Victoria',
+            'lastname': 'Sterling',
+            'ticket_type_cat': 'VIP Speaker',
+            'company_name': 'Quantum Analytics',
+            'unique_id': 'TICK-${token.hashCode.abs() % 100000}',
+            'reg_cat': 'VIP',
+          },
+          'check_in_id': 'chk-${request.scanRequestId.length >= 8 ? request.scanRequestId.substring(0, 8) : request.scanRequestId}',
+          'server_time': DateTime.now().toUtc().toIso8601String(),
+        },
         latencyMs: latency,
         scanRequestId: request.scanRequestId,
       );
@@ -264,28 +281,43 @@ class DjangoScanApiDatasource {
     String attendeeName = 'Alex Mercer';
     String badgeType = 'VIP Attendee';
     String company = 'EventX Global Corp';
+    String regCat = 'DELEGATE';
 
     if (token.contains('VIP')) {
       attendeeName = 'Victoria Sterling';
       badgeType = 'VIP Speaker';
       company = 'Quantum Analytics';
+      regCat = 'VIP';
     } else if (token.contains('EXH')) {
       attendeeName = 'Marcus Vance';
       badgeType = 'Exhibitor';
       company = 'Partner Exhibitor';
+      regCat = 'EXHIBITOR';
     }
 
     return ScanResponse.fromJson(
       {
         'status': true,
+        'alert_type': 'success',
         'message': 'Checked In Successfully!',
+        'punch_time': '15:30',
+        'last_checkin_session': 'Main Entrance',
+        'last_checkin_time': '12:00:00',
         'user_data': {
           'firstname': attendeeName.split(' ').first,
           'lastname': attendeeName.split(' ').length > 1 ? attendeeName.split(' ').last : '',
           'ticket_type_cat': badgeType,
           'company_name': company,
-          'unique_id': token,
+          'unique_id': 'TICK-${token.hashCode.abs() % 100000}',
+          'reg_cat': regCat,
         },
+        'session_access': [
+          {
+            'title': 'Keynote Conference',
+            'start_tm': '10:00',
+            'hall_name': 'Hall 1',
+          },
+        ],
         'check_in_id': 'chk-${request.scanRequestId.length >= 8 ? request.scanRequestId.substring(0, 8) : request.scanRequestId}',
         'server_time': DateTime.now().toUtc().toIso8601String(),
       },
@@ -297,4 +329,134 @@ class DjangoScanApiDatasource {
   void resetSimulatedDatabase() {
     _admittedTokens.clear();
   }
+
+  /// High-performance chunked batch synchronization matching Django endpoints.
+  /// Sends up to 100 records in a single payload.
+  Future<BatchSyncResult> syncOfflineBatch({
+    required String section,
+    required int eventId,
+    required List<dynamic> chunk, // List<CheckinRecord>
+  }) async {
+    if (chunk.isEmpty) {
+      return const BatchSyncResult();
+    }
+
+    final token = _authLocalStorage?.getToken();
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+
+    // Determine endpoint & id key based on section
+    String endpoint;
+    String idKey;
+
+    switch (section.toLowerCase()) {
+      case 'hall':
+        endpoint = 'organizer/offline-mode-hall-action';
+        idKey = 'hall_id';
+        break;
+      case 'agenda':
+        endpoint = 'organizer/offline-mode-agenda-action';
+        idKey = 'agenda_id';
+        break;
+      case 'session':
+        endpoint = 'organizer/offline-mode-sessiontype-action';
+        idKey = 'sessiontype_id';
+        break;
+      case 'entrances':
+      default:
+        endpoint = 'organizer/offline-mode-entrance-action';
+        idKey = 'entrance_id';
+        break;
+    }
+
+    final formPayload = chunk.map((item) {
+      final date = item.timestamp as DateTime;
+      final dateStr =
+          '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      final timeStr =
+          '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      final datetimeStr = '$dateStr $timeStr';
+
+      return {
+        'app_id': item.id,
+        'user_input': item.code,
+        'action_type': item.scanType,
+        'event_id': eventId,
+        'new_date': dateStr,
+        'new_time': timeStr,
+        'datetime_string': datetimeStr,
+        idKey: item.entranceId,
+        'location': item.entranceLocation,
+      };
+    }).toList();
+
+    try {
+      final response = await _dio.post(
+        endpoint,
+        data: formPayload,
+        options: Options(
+          headers: headers,
+          validateStatus: (status) => true,
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data is String
+            ? jsonDecode(response.data as String) as Map<String, dynamic>
+            : (response.data as Map<String, dynamic>);
+
+        int parseId(dynamic val) {
+          if (val == null) return 0;
+          if (val is num) return val.toInt();
+          if (val is String) return int.tryParse(val) ?? 0;
+          return 0;
+        }
+
+        final updatedList = (data['updated_records_app_id'] as List<dynamic>?)
+                ?.map(parseId)
+                .where((id) => id > 0)
+                .toList() ??
+            [];
+        final notExistsList = (data['not_exists_users_app_id'] as List<dynamic>?)
+                ?.map(parseId)
+                .where((id) => id > 0)
+                .toList() ??
+            [];
+
+        return BatchSyncResult(
+          updatedRecordsAppId: updatedList,
+          notExistsUsersAppId: notExistsList,
+          isSuccess: true,
+        );
+      } else {
+        return BatchSyncResult(
+          isSuccess: false,
+          errorMessage: 'Server responded with status: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      debugPrint('[DjangoScanApiDatasource] ❌ syncOfflineBatch error: $e');
+      return BatchSyncResult(
+        isSuccess: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+}
+
+class BatchSyncResult {
+  final List<int> updatedRecordsAppId;
+  final List<int> notExistsUsersAppId;
+  final bool isSuccess;
+  final String? errorMessage;
+
+  const BatchSyncResult({
+    this.updatedRecordsAppId = const [],
+    this.notExistsUsersAppId = const [],
+    this.isSuccess = true,
+    this.errorMessage,
+  });
 }

@@ -14,6 +14,8 @@ class ScanResponse extends Equatable {
   final int? decodeToEventMs;
   final String? scanRequestId;
   final String? testApiResponse;
+  final String? alertType;
+  final String? punchTime;
 
   const ScanResponse({
     required this.status,
@@ -26,7 +28,14 @@ class ScanResponse extends Equatable {
     this.decodeToEventMs,
     this.scanRequestId,
     this.testApiResponse,
+    this.alertType,
+    this.punchTime,
   });
+
+  bool get isAlertSuccess => alertType == 'success' || code.isSuccess;
+  bool get isAlertWarning => alertType == 'warning' || code.isWarning;
+  bool get isAlertDanger => alertType == 'danger' || code.isRejected;
+  bool get isAlertInfo => alertType == 'info';
 
   factory ScanResponse.fromJson(
     Map<String, dynamic> json, {
@@ -35,6 +44,12 @@ class ScanResponse extends Equatable {
     String? scanRequestId,
   }) {
     final rawCode = json['code'] as String?;
+    final alertType = json['alert_type'] as String?;
+    final punchTime = json['punch_time'] as String?;
+    final lastCheckinSession = json['last_checkin_session'] as String?;
+    final lastCheckinTime = json['last_checkin_time'] as String?;
+    final checkinDt = json['checkin_dt'] as String?;
+
     ScanDecisionCode decisionCode;
 
     if (rawCode != null) {
@@ -43,9 +58,9 @@ class ScanResponse extends Equatable {
       final isStatusTrue = json['status'] == true;
       final msg = (json['message'] as String? ?? json['detail'] as String? ?? '').toLowerCase();
 
-      if (isStatusTrue) {
+      if (isStatusTrue || alertType == 'success') {
         decisionCode = ScanDecisionCode.entryAllowed;
-      } else if (msg.contains('limited') || msg.contains('already')) {
+      } else if (msg.contains('limited') || msg.contains('already') || alertType == 'warning') {
         decisionCode = ScanDecisionCode.alreadyCheckedIn;
       } else if (msg.contains('not found') || msg.contains('valid code') || msg.contains('invalid')) {
         decisionCode = ScanDecisionCode.invalidBadge;
@@ -56,20 +71,60 @@ class ScanResponse extends Equatable {
       }
     }
 
+    // Parse Session Access agenda list
+    List<SessionAccessItem>? accessList;
+    final rawAccess = json['session_access'] ??
+        (json['data'] is Map ? json['data']['session_access'] : null);
+    if (rawAccess is List) {
+      accessList = rawAccess
+          .whereType<Map<String, dynamic>>()
+          .map((item) => SessionAccessItem.fromJson(item))
+          .toList();
+    }
+
+    // Locate attendee / user dictionary
     Attendee? parsedAttendee;
-    if (json['attendee'] != null && json['attendee'] is Map<String, dynamic>) {
-      parsedAttendee = Attendee.fromJson(json['attendee'] as Map<String, dynamic>);
-    } else if (json['user_data'] != null && json['user_data'] is Map<String, dynamic>) {
-      final u = json['user_data'] as Map<String, dynamic>;
-      final fn = (u['firstname'] as String? ?? '').trim();
-      final ln = (u['lastname'] as String? ?? '').trim();
+    Map<String, dynamic>? userMap;
+    if (json['user_data'] is Map<String, dynamic>) {
+      userMap = json['user_data'] as Map<String, dynamic>;
+    } else if (json['user_details'] is Map<String, dynamic>) {
+      userMap = json['user_details'] as Map<String, dynamic>;
+    } else if (json['data'] is Map && json['data']['user_data'] is Map<String, dynamic>) {
+      userMap = json['data']['user_data'] as Map<String, dynamic>;
+    } else if (json['data'] is Map && json['data']['user_details'] is Map<String, dynamic>) {
+      userMap = json['data']['user_details'] as Map<String, dynamic>;
+    }
+
+    if (userMap != null) {
+      final fn = (userMap['firstname'] as String? ?? userMap['first_name'] as String? ?? '').trim();
+      final ln = (userMap['lastname'] as String? ?? userMap['last_name'] as String? ?? '').trim();
       final fullName = '$fn $ln'.trim();
+
       parsedAttendee = Attendee(
-        name: fullName.isNotEmpty ? fullName : 'Attendee',
-        badgeType: u['ticket_type_cat'] as String? ?? u['display_ticket_name'] as String? ?? 'Authorized Badge',
-        company: u['company_name'] as String?,
-        category: u['reg_cat'] as String?,
+        name: fullName.isNotEmpty
+            ? fullName
+            : (userMap['name'] as String? ?? 'Authorized Attendee'),
+        badgeType: userMap['ticket_type_cat'] as String? ??
+            userMap['display_ticket_name'] as String? ??
+            userMap['badge_type'] as String? ??
+            userMap['reg_cat'] as String? ??
+            'General Admission',
+        company: userMap['company_name'] as String? ?? userMap['company'] as String?,
+        category: userMap['reg_cat'] as String? ?? userMap['category'] as String?,
+        ticketId: userMap['unique_id']?.toString() ?? userMap['ticket_id']?.toString(),
+        photoUrl: userMap['register_user_photo'] as String? ??
+            userMap['user_image'] as String? ??
+            userMap['photo_url'] as String?,
+        punchTime: punchTime ?? userMap['punch_time'] as String?,
+        lastCheckinSession: lastCheckinSession ?? userMap['last_checkin_session'] as String?,
+        lastCheckinTime: lastCheckinTime ?? userMap['last_checkin_time'] as String?,
+        checkinDt: checkinDt ?? userMap['checkin_dt'] as String?,
+        alertType: alertType,
+        badgeIssue: userMap['badge_issue'] == true,
+        sessionAccess: accessList,
       );
+    } else if (json['attendee'] is Map<String, dynamic>) {
+      parsedAttendee = Attendee.fromJson(json['attendee'] as Map<String, dynamic>);
     }
 
     DateTime? parsedServerTime;
@@ -87,8 +142,8 @@ class ScanResponse extends Equatable {
         json['message'] as String? ?? json['detail'] as String? ?? 'Processed';
 
     final String? resolvedCheckInId = json['check_in_id'] as String? ??
-        (json['user_data'] is Map && json['user_data']['unique_id'] != null
-            ? 'chk-${json['user_data']['unique_id']}'
+        (userMap != null && userMap['unique_id'] != null
+            ? 'chk-${userMap['unique_id']}'
             : null);
 
     return ScanResponse(
@@ -102,6 +157,8 @@ class ScanResponse extends Equatable {
       decodeToEventMs: decodeToEventMs,
       scanRequestId: scanRequestId,
       testApiResponse: json['test_api_response'] as String?,
+      alertType: alertType,
+      punchTime: punchTime,
     );
   }
 
@@ -119,6 +176,7 @@ class ScanResponse extends Equatable {
       latencyMs: latencyMs,
       scanRequestId: scanRequestId,
       testApiResponse: testApiResponse,
+      alertType: 'danger',
     );
   }
 
@@ -135,6 +193,7 @@ class ScanResponse extends Equatable {
       latencyMs: latencyMs,
       scanRequestId: scanRequestId,
       testApiResponse: testApiResponse,
+      alertType: 'warning',
     );
   }
 
@@ -149,6 +208,8 @@ class ScanResponse extends Equatable {
     int? decodeToEventMs,
     String? scanRequestId,
     String? testApiResponse,
+    String? alertType,
+    String? punchTime,
   }) {
     return ScanResponse(
       status: status ?? this.status,
@@ -161,6 +222,8 @@ class ScanResponse extends Equatable {
       decodeToEventMs: decodeToEventMs ?? this.decodeToEventMs,
       scanRequestId: scanRequestId ?? this.scanRequestId,
       testApiResponse: testApiResponse ?? this.testApiResponse,
+      alertType: alertType ?? this.alertType,
+      punchTime: punchTime ?? this.punchTime,
     );
   }
 
@@ -176,5 +239,7 @@ class ScanResponse extends Equatable {
         decodeToEventMs,
         scanRequestId,
         testApiResponse,
+        alertType,
+        punchTime,
       ];
 }

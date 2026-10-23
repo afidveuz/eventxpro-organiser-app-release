@@ -17,6 +17,9 @@ class ScannerLocalStorage {
   static const String _keyTestUsername = 'scanner_test_username';
   static const String _keySimpleUiMode = 'scanner_simple_ui_mode';
   static const String _keyCameraEnabled = 'scanner_camera_enabled';
+  static const String _keyTopLevelTickets = 'scanner_top_level_tickets';
+  static const String _keyShortToast = 'scanner_short_toast';
+  static const String _keyOfflineData = 'scanner_offline_data';
 
   final SharedPreferences _prefs;
 
@@ -65,6 +68,35 @@ class ScannerLocalStorage {
   bool get isCameraEnabled => _prefs.getBool(_keyCameraEnabled) ?? false;
   Future<void> setCameraEnabled(bool enabled) =>
       _prefs.setBool(_keyCameraEnabled, enabled);
+
+  bool get isTopLevelTicketsEnabled =>
+      _prefs.getBool(_keyTopLevelTickets) ?? false;
+  Future<void> setTopLevelTickets(bool enabled) =>
+      _prefs.setBool(_keyTopLevelTickets, enabled);
+
+  bool get isShortToastEnabled => _prefs.getBool(_keyShortToast) ?? false;
+  Future<void> setShortToast(bool enabled) =>
+      _prefs.setBool(_keyShortToast, enabled);
+
+  String? getOfflineData() => _prefs.getString(_keyOfflineData);
+  Future<void> setOfflineData(String data) =>
+      _prefs.setString(_keyOfflineData, data);
+
+  /// Retrieves the event ticket encryption key from offline cached permissions, or fallback default
+  String getTicketEncryptionKey() {
+    final rawData = getOfflineData();
+    if (rawData != null && rawData.isNotEmpty) {
+      try {
+        final map = jsonDecode(rawData) as Map<String, dynamic>;
+        final permission = map['permission'] as Map<String, dynamic>?;
+        final key = permission?['ticket_encryption_key'] as String?;
+        if (key != null && key.trim().isNotEmpty) {
+          return key.trim();
+        }
+      } catch (_) {}
+    }
+    return AppConstants.defaultTicketEncryptionKey;
+  }
 
   String getServerUrl() =>
       _prefs.getString(_keyServerUrl) ?? AppConstants.defaultBaseUrl;
