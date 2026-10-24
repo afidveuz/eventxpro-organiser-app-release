@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/config/app_constants.dart';
 import '../models/user_model.dart';
@@ -13,28 +14,113 @@ class AuthLocalStorage {
   static const String _keyEventName = 'auth_event_name';
 
   final SharedPreferences _prefs;
+  final FlutterSecureStorage _secureStorage;
 
-  AuthLocalStorage(this._prefs);
+  // In-memory cache for ultra-fast, zero-latency synchronous access
+  String? _cachedToken;
+  String? _cachedRefreshToken;
 
-  static Future<AuthLocalStorage> create() async {
+  AuthLocalStorage(
+    this._prefs, {
+    FlutterSecureStorage? secureStorage,
+    String? initialToken,
+    String? initialRefreshToken,
+  })  : _secureStorage = secureStorage ??
+            const FlutterSecureStorage(
+              aOptions: AndroidOptions(
+                resetOnError: true,
+              ),
+              iOptions: IOSOptions(
+                accessibility: KeychainAccessibility.first_unlock,
+              ),
+            ),
+        _cachedToken = initialToken,
+        _cachedRefreshToken = initialRefreshToken;
+
+  static Future<AuthLocalStorage> create({
+    FlutterSecureStorage? secureStorage,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
-    return AuthLocalStorage(prefs);
+    final storage = secureStorage ??
+        const FlutterSecureStorage(
+          aOptions: AndroidOptions(
+            resetOnError: true,
+          ),
+          iOptions: IOSOptions(
+            accessibility: KeychainAccessibility.first_unlock,
+          ),
+        );
+
+    // 1. Read token & refresh token securely from Hardware KeyStore / Keychain
+    String? token = await storage.read(key: _keyToken);
+    String? refreshToken = await storage.read(key: _keyRefreshToken);
+
+    // 2. Migration: If legacy tokens exist in unencrypted SharedPreferences, migrate them
+    if (token == null || token.isEmpty) {
+      final legacyToken = prefs.getString(_keyToken);
+      if (legacyToken != null && legacyToken.isNotEmpty) {
+        token = legacyToken;
+        await storage.write(key: _keyToken, value: token);
+      }
+    }
+    if (refreshToken == null || refreshToken.isEmpty) {
+      final legacyRefresh = prefs.getString(_keyRefreshToken);
+      if (legacyRefresh != null && legacyRefresh.isNotEmpty) {
+        refreshToken = legacyRefresh;
+        await storage.write(key: _keyRefreshToken, value: refreshToken);
+      }
+    }
+
+    // 3. Remove plaintext tokens from SharedPreferences completely
+    await prefs.remove(_keyToken);
+    await prefs.remove(_keyRefreshToken);
+
+    // 4. Sanitize legacy user model in SharedPreferences to ensure no tokens exist in auth_user JSON
+    final rawUser = prefs.getString(_keyUser);
+    if (rawUser != null && rawUser.isNotEmpty) {
+      try {
+        final map = jsonDecode(rawUser) as Map<String, dynamic>;
+        if (map.containsKey('token') || map.containsKey('refreshToken')) {
+          map.remove('token');
+          map.remove('refreshToken');
+          await prefs.setString(_keyUser, jsonEncode(map));
+        }
+      } catch (_) {}
+    }
+
+    return AuthLocalStorage(
+      prefs,
+      secureStorage: storage,
+      initialToken: token,
+      initialRefreshToken: refreshToken,
+    );
   }
 
-  // Token Management
-  String? getToken() => _prefs.getString(_keyToken);
-  Future<void> setToken(String token) => _prefs.setString(_keyToken, token);
+  // Token Management (Hardware Keystore / Keychain secured)
+  String? getToken() => _cachedToken;
 
-  String? getRefreshToken() => _prefs.getString(_keyRefreshToken);
-  Future<void> setRefreshToken(String refreshToken) =>
-      _prefs.setString(_keyRefreshToken, refreshToken);
+  Future<void> setToken(String token) async {
+    _cachedToken = token;
+    await _secureStorage.write(key: _keyToken, value: token);
+    // Guarantee no plaintext copy is left behind in SharedPreferences
+    await _prefs.remove(_keyToken);
+  }
+
+  String? getRefreshToken() => _cachedRefreshToken;
+
+  Future<void> setRefreshToken(String refreshToken) async {
+    _cachedRefreshToken = refreshToken;
+    await _secureStorage.write(key: _keyRefreshToken, value: refreshToken);
+    // Guarantee no plaintext copy is left behind in SharedPreferences
+    await _prefs.remove(_keyRefreshToken);
+  }
 
   bool get isLoggedIn {
     final token = getToken();
     return token != null && token.trim().isNotEmpty;
   }
 
-  // User Profile
+  // User Profile (Tokens are never saved in cleartext SharedPreferences JSON)
   UserModel? getUser() {
     final raw = _prefs.getString(_keyUser);
     if (raw == null || raw.isEmpty) return null;
@@ -51,7 +137,13 @@ class AuthLocalStorage {
   }
 
   Future<void> setUser(UserModel user) async {
-    await _prefs.setString(_keyUser, jsonEncode(user.toJson()));
+    // Only persist non-sensitive profile info to SharedPreferences
+    final safeUserMap = {
+      'username': user.username,
+      'name': user.name,
+      'isAdmin': user.isAdmin,
+    };
+    await _prefs.setString(_keyUser, jsonEncode(safeUserMap));
   }
 
   // Countries Cache
@@ -73,7 +165,12 @@ class AuthLocalStorage {
   Future<void> setBaseUrl(String url) async {
     final clean = url.trim().endsWith('/') ? url.trim() : '${url.trim()}/';
     await _prefs.setString(_keyBaseUrl, clean);
-    await _prefs.setString(_keyMediaUrl, url.trim().endsWith('/') ? url.trim().substring(0, url.trim().length - 1) : url.trim());
+    await _prefs.setString(
+      _keyMediaUrl,
+      url.trim().endsWith('/')
+          ? url.trim().substring(0, url.trim().length - 1)
+          : url.trim(),
+    );
   }
 
   Future<void> clearBaseUrl() async {
@@ -103,6 +200,10 @@ class AuthLocalStorage {
 
   // Logout / Clear
   Future<void> clearSession() async {
+    _cachedToken = null;
+    _cachedRefreshToken = null;
+    await _secureStorage.delete(key: _keyToken);
+    await _secureStorage.delete(key: _keyRefreshToken);
     await _prefs.remove(_keyToken);
     await _prefs.remove(_keyRefreshToken);
     await _prefs.remove(_keyUser);

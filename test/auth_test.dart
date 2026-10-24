@@ -1,3 +1,4 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qr_scanner/core/config/app_constants.dart';
 import 'package:qr_scanner/core/network/api_client.dart';
@@ -60,6 +61,7 @@ void main() {
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
     authLocalStorage = await AuthLocalStorage.create();
     apiClient = ApiClient(localStorage: authLocalStorage);
     remoteDatasource = MockAuthRemoteDatasource(apiClient: apiClient);
@@ -125,9 +127,58 @@ void main() {
       expect(authLocalStorage.getRefreshToken(), 'refresh-456');
       expect(authLocalStorage.getUser()?.username, 'organizer@test.com');
 
+      // Security Verification: Plain SharedPreferences MUST NOT contain raw tokens!
+      final rawPrefs = await SharedPreferences.getInstance();
+      expect(rawPrefs.containsKey('auth_token'), isFalse);
+      expect(rawPrefs.containsKey('auth_refresh_token'), isFalse);
+
+      // Verify auth_user in SharedPreferences does not leak tokens
+      final rawUser = rawPrefs.getString('auth_user');
+      expect(rawUser, isNotNull);
+      expect(rawUser!.contains('token-123'), isFalse);
+      expect(rawUser.contains('refresh-456'), isFalse);
+
+      // Verify FlutterSecureStorage actually holds the encrypted tokens
+      const secureStorage = FlutterSecureStorage();
+      final secureToken = await secureStorage.read(key: 'auth_token');
+      final secureRefresh = await secureStorage.read(key: 'auth_refresh_token');
+      expect(secureToken, 'token-123');
+      expect(secureRefresh, 'refresh-456');
+
       await authLocalStorage.clearSession();
       expect(authLocalStorage.isLoggedIn, false);
       expect(authLocalStorage.getToken(), null);
+      expect(await secureStorage.read(key: 'auth_token'), null);
+      expect(await secureStorage.read(key: 'auth_refresh_token'), null);
+    });
+
+    test('Migrates legacy plaintext tokens from SharedPreferences to FlutterSecureStorage and deletes them from SharedPreferences', () async {
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'legacy-plain-token',
+        'auth_refresh_token': 'legacy-plain-refresh',
+        'auth_user': '{"username":"old@test.com","name":"Old User","isAdmin":false,"token":"legacy-plain-token"}',
+      });
+      FlutterSecureStorage.setMockInitialValues({});
+
+      // Initialize storage, triggering automatic migration
+      final migratedStorage = await AuthLocalStorage.create();
+
+      // Verified: In-memory & Secure Storage have the tokens
+      expect(migratedStorage.getToken(), 'legacy-plain-token');
+      expect(migratedStorage.getRefreshToken(), 'legacy-plain-refresh');
+
+      const secureStorage = FlutterSecureStorage();
+      expect(await secureStorage.read(key: 'auth_token'), 'legacy-plain-token');
+      expect(await secureStorage.read(key: 'auth_refresh_token'), 'legacy-plain-refresh');
+
+      // Verified: Plaintext SharedPreferences is completely wiped of tokens
+      final rawPrefs = await SharedPreferences.getInstance();
+      expect(rawPrefs.containsKey('auth_token'), isFalse);
+      expect(rawPrefs.containsKey('auth_refresh_token'), isFalse);
+
+      final userJson = rawPrefs.getString('auth_user');
+      expect(userJson, isNotNull);
+      expect(userJson!.contains('legacy-plain-token'), isFalse);
     });
 
     test('Handles dynamic base URL and resets to default', () async {

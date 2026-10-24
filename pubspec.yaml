@@ -47,6 +47,7 @@ dependencies:
   path: ^1.9.1
   dart_des: ^1.0.2
   audioplayers: ^6.7.1
+  flutter_secure_storage: ^11.2.0
 
 dev_dependencies:
   flutter_test:
