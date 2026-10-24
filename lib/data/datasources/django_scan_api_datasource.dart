@@ -53,8 +53,9 @@ class DjangoScanApiDatasource {
 
     final token = _authLocalStorage?.getToken();
     final qrInput = request.qrToken.trim();
-    final isDigitsOnly = RegExp(r'^\d+$').hasMatch(qrInput);
-    int scanType = isDigitsOnly ? 1 : 0;
+    // In EventXPro, scanner input (QR / barcode / badge code) is always scan_type: 0
+    // (scan_type: 1 is exclusively used for attendee table lookup by internal unique_id)
+    int scanType = 0;
 
     final cleanType = request.scanType.toLowerCase().trim();
     final punchType = (cleanType == 'check_out' || cleanType == 'exit')
@@ -113,16 +114,16 @@ class DjangoScanApiDatasource {
               ? response.data as Map<String, dynamic>
               : <String, dynamic>{'raw': response.data.toString()});
 
-      // If user not found with scan_type 1 (numeric), retry once with scan_type 0 (or vice versa)
+      // If user not found with scan_type 0 and input looks like an ID, fallback once with scan_type 1
       final String msg = (data['message'] as String? ??
               data['detail'] as String? ??
               '')
           .toLowerCase();
 
-      if (msg.contains('not found') && isDigitsOnly) {
-        payload['scan_type'] = 0;
+      if (data['status'] != true && msg.contains('not found') && RegExp(r'^\d+$').hasMatch(qrInput)) {
+        payload['scan_type'] = 1;
         final retryResponse = await _dio.post(
-          AppConstants.eventEntranceEndpoint,
+          endpoint,
           data: payload,
           options: Options(
             headers: headers,
@@ -143,7 +144,7 @@ class DjangoScanApiDatasource {
           '[HTTP ${response.statusCode}]: ${data['message'] ?? data['detail'] ?? (data['status'] == true ? 'OK' : 'FAILED')}';
 
       _printScanApiResponse(
-        url: '${_dio.options.baseUrl}${AppConstants.eventEntranceEndpoint}',
+        url: '${_dio.options.baseUrl}$endpoint',
         headers: headers,
         payload: payload,
         statusCode: response.statusCode ?? 200,

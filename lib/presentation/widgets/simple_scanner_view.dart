@@ -790,6 +790,8 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                               }
                               _lastCameraScannedToken = rawVal;
                               _lastCameraScanTime = now;
+                              debugPrint('[CAMERA SCAN DETECTED] 📷 Scanned barcode: "$rawVal"');
+                              HapticFeedback.lightImpact();
                               context
                                   .read<ScannerBloc>()
                                   .add(ScannerRawBarcodeReceived(rawVal));
