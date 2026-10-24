@@ -46,6 +46,8 @@ class _HomeScreenState extends State<HomeScreen>
   List<Map<String, dynamic>> _eventList = [];
   bool _isOffline = false;
   int? _expandedEventPk;
+  final Map<int, Map<String, dynamic>> _eventPermissions = {};
+  final Set<int> _loadingPermissions = {};
 
   late final AnimationController _blinkController;
   late final Animation<double> _blinkAnimation;
@@ -122,6 +124,12 @@ class _HomeScreenState extends State<HomeScreen>
       if (rawOffline != null && rawOffline.isNotEmpty) {
         final parsed = jsonDecode(rawOffline) as Map<String, dynamic>;
         final event = parsed['event'] as Map<String, dynamic>?;
+        if (event != null && parsed['permission'] is Map<String, dynamic>) {
+          final pk = (event['pk'] ?? event['id']) as int?;
+          if (pk != null) {
+            _eventPermissions[pk] = parsed['permission'] as Map<String, dynamic>;
+          }
+        }
 
         setState(() {
           _totalEvents = event != null ? 1 : 0;
@@ -174,6 +182,9 @@ class _HomeScreenState extends State<HomeScreen>
                   'permission': permRes.data,
                 };
                 await scannerLocalStorage.setOfflineData(jsonEncode(permData));
+                if (permRes.data is Map<String, dynamic>) {
+                  _eventPermissions[evtPk as int] = permRes.data as Map<String, dynamic>;
+                }
               }
             } catch (permErr) {
               debugPrint('[HomeScreen] ⚠️ Permission fetch error: $permErr');
@@ -213,6 +224,54 @@ class _HomeScreenState extends State<HomeScreen>
       debugPrint('[HomeScreen] ⚠️ Online fetch failed, falling back to offline: $e');
       await _loadOfflineData(scannerLocalStorage, dbHelper);
     }
+  }
+
+  Future<void> _fetchPermissionsForEvent(int eventPk) async {
+    if (_eventPermissions.containsKey(eventPk) || _loadingPermissions.contains(eventPk)) {
+      return;
+    }
+
+    _loadingPermissions.add(eventPk);
+
+    // 1. Check local offline cache
+    final scannerLocalStorage = context.read<ScannerLocalStorage>();
+    final rawOffline = scannerLocalStorage.getOfflineData();
+    if (rawOffline != null && rawOffline.isNotEmpty) {
+      try {
+        final parsed = jsonDecode(rawOffline) as Map<String, dynamic>;
+        final event = parsed['event'] as Map<String, dynamic>?;
+        final cachedPk = event?['pk'] ?? event?['id'];
+        if (cachedPk == eventPk && parsed['permission'] is Map<String, dynamic>) {
+          if (mounted) {
+            setState(() {
+              _eventPermissions[eventPk] = parsed['permission'] as Map<String, dynamic>;
+            });
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. If online, fetch latest permission from server
+    if (!_isOffline) {
+      try {
+        final apiClient = context.read<ApiClient>();
+        final res = await apiClient.dio.get('organizer/event-permission/$eventPk');
+        if (res.statusCode == 200 && res.data != null) {
+          final perm = res.data is Map<String, dynamic>
+              ? res.data as Map<String, dynamic>
+              : jsonDecode(res.data.toString()) as Map<String, dynamic>;
+          if (mounted) {
+            setState(() {
+              _eventPermissions[eventPk] = perm;
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('[HomeScreen] ⚠️ Error loading permissions for event $eventPk: $e');
+      }
+    }
+
+    _loadingPermissions.remove(eventPk);
   }
 
   void _handleSessionExpired(String reason) {
@@ -272,12 +331,16 @@ class _HomeScreenState extends State<HomeScreen>
     required int eventId,
     String? gateName,
     String? eventName,
+    String section = 'entrances',
+    String? sectionLocation,
   }) {
     context.read<ScannerBloc>().add(
           ScannerConfigChanged(
             scanType: punchType,
             gateId: gateId,
             eventId: eventId,
+            section: section,
+            sectionLocation: sectionLocation,
           ),
         );
 
@@ -292,6 +355,8 @@ class _HomeScreenState extends State<HomeScreen>
           initialEventId: eventId,
           gateName: gateName,
           eventName: eventName,
+          section: section,
+          sectionLocation: sectionLocation,
         ),
       ),
     )
@@ -810,7 +875,12 @@ class _HomeScreenState extends State<HomeScreen>
                       borderRadius: BorderRadius.circular(6),
                       onTap: () {
                         setState(() {
-                          _expandedEventPk = isExpanded ? null : eventPk;
+                          if (isExpanded) {
+                            _expandedEventPk = null;
+                          } else {
+                            _expandedEventPk = eventPk;
+                            _fetchPermissionsForEvent(eventPk);
+                          }
                         });
                       },
                       child: Container(
@@ -877,24 +947,78 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  /// Know More Box for Check-In and Check-Out (Matching RN OfflineEventSection.jsx)
+  /// Know More Box for Check-In and Check-Out matching React Native EventXPro:
+  /// - OfflineEventDetails.jsx / EventDetails.jsx
+  /// - Supports 4 session categories: Entrances, Halls, Agendas, and Sessions
   Widget _buildKnowMoreBox(int eventId, String eventName) {
     final scannerLocalStorage = context.read<ScannerLocalStorage>();
-    final rawOffline = scannerLocalStorage.getOfflineData();
-    List<Map<String, dynamic>> entranceList = [];
 
-    if (rawOffline != null && rawOffline.isNotEmpty) {
-      try {
-        final parsed = jsonDecode(rawOffline) as Map<String, dynamic>;
-        final permission = parsed['permission'] as Map<String, dynamic>?;
-        final entrancePerm = permission?['entrance_permission'] as Map<String, dynamic>?;
-        final rawList = entrancePerm?['entrance_list'] as List<dynamic>? ?? [];
-        entranceList = rawList.whereType<Map<String, dynamic>>().toList();
-      } catch (_) {}
+    // 1. Resolve permissions: preferentially from per-event cache, or offline cached data
+    Map<String, dynamic>? permission = _eventPermissions[eventId];
+    if (permission == null) {
+      final rawOffline = scannerLocalStorage.getOfflineData();
+      if (rawOffline != null && rawOffline.isNotEmpty) {
+        try {
+          final parsed = jsonDecode(rawOffline) as Map<String, dynamic>;
+          final event = parsed['event'] as Map<String, dynamic>?;
+          final cachedPk = event?['pk'] ?? event?['id'];
+          if (cachedPk == eventId || _eventList.length == 1) {
+            permission = parsed['permission'] as Map<String, dynamic>?;
+          }
+        } catch (_) {}
+      }
     }
 
-    // Fallback default entrance if no specific entrance list in permissions
-    if (entranceList.isEmpty) {
+    // 2. Parse ENTRANCES (matching React Native entrance_permission / entrance)
+    List<Map<String, dynamic>> entranceList = [];
+    final entrancePerm = permission?['entrance_permission'] as Map<String, dynamic>?;
+    if (entrancePerm != null && entrancePerm['access'] != false) {
+      final rawList = entrancePerm['entrance_list'] as List<dynamic>? ?? [];
+      entranceList = rawList.whereType<Map<String, dynamic>>().toList();
+    }
+    // Fallback single entrance permission object (parsedData?.permission?.entrance?.access)
+    if (entranceList.isEmpty && permission != null && permission['entrance'] is Map) {
+      final ent = permission['entrance'] as Map<String, dynamic>;
+      if (ent['access'] == true) {
+        entranceList = [
+          {
+            'entrance_id': scannerLocalStorage.getGateId(),
+            'entrance_name': 'Main Entrance',
+            'location': 'Gate #${scannerLocalStorage.getGateId()}',
+            'entrance_in_access': ent['checkin'] != false,
+            'entrance_out_access': ent['checkout'] != false,
+          }
+        ];
+      }
+    }
+
+    // 3. Parse HALLS (matching React Native hall_permission.hall_list)
+    List<Map<String, dynamic>> hallList = [];
+    final hallPerm = permission?['hall_permission'] as Map<String, dynamic>?;
+    if (hallPerm != null && hallPerm['access'] == true) {
+      final rawList = hallPerm['hall_list'] as List<dynamic>? ?? [];
+      hallList = rawList.whereType<Map<String, dynamic>>().toList();
+    }
+
+    // 4. Parse AGENDAS (matching React Native agenda_permission.agenda_list)
+    List<Map<String, dynamic>> agendaList = [];
+    final agendaPerm = permission?['agenda_permission'] as Map<String, dynamic>?;
+    if (agendaPerm != null && agendaPerm['access'] == true) {
+      final rawList = agendaPerm['agenda_list'] as List<dynamic>? ?? [];
+      agendaList = rawList.whereType<Map<String, dynamic>>().toList();
+    }
+
+    // 5. Parse SESSIONS (matching React Native sessiontype_permission.sessiontype_list)
+    List<Map<String, dynamic>> sessionList = [];
+    final sessionPerm = permission?['sessiontype_permission'] as Map<String, dynamic>?;
+    if (sessionPerm != null && sessionPerm['access'] == true) {
+      final rawList = sessionPerm['sessiontype_list'] as List<dynamic>? ?? [];
+      sessionList = rawList.whereType<Map<String, dynamic>>().toList();
+    }
+
+    // If completely empty (e.g. offline with zero permissions configured), default to 1 entrance
+    final bool allEmpty = entranceList.isEmpty && hallList.isEmpty && agendaList.isEmpty && sessionList.isEmpty;
+    if (allEmpty) {
       entranceList = [
         {
           'entrance_id': scannerLocalStorage.getGateId(),
@@ -909,68 +1033,196 @@ class _HomeScreenState extends State<HomeScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            const Icon(
-              Icons.meeting_room_rounded,
-              size: 16,
-              color: AppTheme.eventxproAccent,
-            ),
-            const SizedBox(width: 6),
-            const Text(
-              'ENTRANCES & GATES',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-                letterSpacing: 0.8,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              '${entranceList.length} Available',
-              style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
+        // ── 1. ENTRANCES & GATES ──────────────────────────────
+        if (entranceList.isNotEmpty) ...[
+          _buildCategoryHeader(
+            title: 'ENTRANCES & GATES',
+            icon: Icons.meeting_room_rounded,
+            count: entranceList.length,
+          ),
+          const SizedBox(height: 10),
+          ...entranceList.map((item) {
+            final int entranceId = (item['entrance_id'] as num?)?.toInt() ?? 1;
+            final String title = item['entrance_name']?.toString() ?? 'Entrance';
+            final String? loc = item['location']?.toString();
+            final String displayTitle = loc != null && loc.isNotEmpty ? '$title - $loc' : title;
+            final bool inAccess = item['entrance_in_access'] != false;
+            final bool outAccess = item['entrance_out_access'] != false;
 
-        ...entranceList.map((item) {
-          final int entranceId = (item['entrance_id'] as num?)?.toInt() ?? 1;
-          final String title = item['entrance_name']?.toString() ?? 'Entrance';
-          final String? loc = item['location']?.toString();
-          final String displayTitle = loc != null && loc.isNotEmpty ? '$title - $loc' : title;
-          final bool inAccess = item['entrance_in_access'] != false;
-          final bool outAccess = item['entrance_out_access'] != false;
+            return _buildSessionPunchCard(
+              eventId: eventId,
+              eventName: eventName,
+              sessionId: entranceId,
+              title: displayTitle,
+              section: 'entrances',
+              sectionLocation: loc ?? title,
+              hasInAccess: inAccess,
+              hasOutAccess: outAccess,
+            );
+          }),
+          if (hallList.isNotEmpty || agendaList.isNotEmpty || sessionList.isNotEmpty)
+            const SizedBox(height: 16),
+        ],
 
-          return _buildEntranceSectionCard(
-            eventId: eventId,
-            eventName: eventName,
-            entranceId: entranceId,
-            title: displayTitle,
-            hasInAccess: inAccess,
-            hasOutAccess: outAccess,
-          );
-        }),
+        // ── 2. HALLS (Matching OfflineEventDetails.jsx & EventDetails.jsx) ──
+        if (hallList.isNotEmpty) ...[
+          _buildCategoryHeader(
+            title: 'HALLS',
+            icon: Icons.domain_rounded,
+            count: hallList.length,
+          ),
+          const SizedBox(height: 10),
+          ...hallList.map((item) {
+            final int hallId = (item['hall_id'] as num?)?.toInt() ?? 0;
+            final String title = item['hall_name']?.toString() ?? 'Hall';
+            final bool inAccess = item['hall_in_access'] == true;
+            final bool outAccess = item['hall_out_access'] == true;
+
+            return _buildSessionPunchCard(
+              eventId: eventId,
+              eventName: eventName,
+              sessionId: hallId,
+              title: title,
+              section: 'hall',
+              sectionLocation: title,
+              hasInAccess: inAccess,
+              hasOutAccess: outAccess,
+            );
+          }),
+          if (agendaList.isNotEmpty || sessionList.isNotEmpty)
+            const SizedBox(height: 16),
+        ],
+
+        // ── 3. AGENDAS (Matching OfflineAgendaInOutCard.jsx & AgendaInOutCard.jsx) ──
+        if (agendaList.isNotEmpty) ...[
+          _buildCategoryHeader(
+            title: 'AGENDAS',
+            icon: Icons.event_note_rounded,
+            count: agendaList.length,
+          ),
+          const SizedBox(height: 10),
+          ...agendaList.map((item) {
+            final int agendaId = (item['agenda_id'] as num?)?.toInt() ?? 0;
+            final String rawName = item['agendaname']?.toString() ?? 'Agenda';
+            final dynamic day = item['day'];
+            final String title = day != null ? 'Day-$day $rawName' : rawName;
+            final String? date = item['agenda_dt']?.toString();
+            final String? start = item['start_tm']?.toString();
+            final String? end = item['end_tm']?.toString();
+            final String? agendaType = item['agendatype']?.toString();
+            final bool inAccess = item['agenda_in_access'] == true;
+            final bool outAccess = item['agenda_out_access'] == true;
+
+            return _buildAgendaPunchCard(
+              eventId: eventId,
+              eventName: eventName,
+              agendaId: agendaId,
+              title: title,
+              date: date,
+              start: start,
+              end: end,
+              agendaType: agendaType,
+              hasInAccess: inAccess,
+              hasOutAccess: outAccess,
+            );
+          }),
+          if (sessionList.isNotEmpty)
+            const SizedBox(height: 16),
+        ],
+
+        // ── 4. SESSIONS (Matching OfflineSessionInOutCard.jsx & SessionInOutCard.jsx) ──
+        if (sessionList.isNotEmpty) ...[
+          _buildCategoryHeader(
+            title: 'SESSIONS',
+            icon: Icons.co_present_rounded,
+            count: sessionList.length,
+          ),
+          const SizedBox(height: 10),
+          ...sessionList.map((item) {
+            final int sessId = ((item['session_type_id'] ?? item['sessiontype_id']) as num?)?.toInt() ?? 0;
+            final String title = (item['sessiontype_name'] ?? item['session_type_name'])?.toString() ?? 'Session';
+            final bool inAccess = item['sessiontype_in_access'] == true;
+            final bool outAccess = item['sessiontype_out_access'] == true;
+
+            return _buildSessionPunchCard(
+              eventId: eventId,
+              eventName: eventName,
+              sessionId: sessId,
+              title: title,
+              section: 'session',
+              sectionLocation: title,
+              hasInAccess: inAccess,
+              hasOutAccess: outAccess,
+            );
+          }),
+        ],
       ],
     );
   }
 
-  /// Exact replica of OfflineEventSection.jsx in React Native
-  Widget _buildEntranceSectionCard({
+  /// Section Header matching React Native EveSectionWrapper
+  Widget _buildCategoryHeader({
+    required String title,
+    required IconData icon,
+    required int count,
+  }) {
+    return Container(
+      padding: const EdgeInsets.only(bottom: 6),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: AppTheme.eventxproBorder,
+            width: 1.5,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppTheme.eventxproAccent),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '$count Available',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Exact replica of OfflineEventSection.jsx / OfflineSessionInOutCard.jsx in React Native
+  Widget _buildSessionPunchCard({
     required int eventId,
     required String eventName,
-    required int entranceId,
+    required int sessionId,
     required String title,
+    required String section,
+    required String sectionLocation,
     required bool hasInAccess,
     required bool hasOutAccess,
   }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
@@ -1006,10 +1258,12 @@ class _HomeScreenState extends State<HomeScreen>
                     arrowColor: Colors.black,
                     onTap: () => _launchScanner(
                       punchType: 'check_in',
-                      gateId: entranceId,
+                      gateId: sessionId,
                       eventId: eventId,
                       gateName: title,
                       eventName: eventName,
+                      section: section,
+                      sectionLocation: sectionLocation,
                     ),
                   ),
                 ),
@@ -1025,10 +1279,148 @@ class _HomeScreenState extends State<HomeScreen>
                     arrowColor: Colors.white,
                     onTap: () => _launchScanner(
                       punchType: 'check_out',
-                      gateId: entranceId,
+                      gateId: sessionId,
                       eventId: eventId,
                       gateName: title,
                       eventName: eventName,
+                      section: section,
+                      sectionLocation: sectionLocation,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Exact replica of OfflineAgendaInOutCard.jsx in React Native
+  Widget _buildAgendaPunchCard({
+    required int eventId,
+    required String eventName,
+    required int agendaId,
+    required String title,
+    String? date,
+    String? start,
+    String? end,
+    String? agendaType,
+    required bool hasInAccess,
+    required bool hasOutAccess,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: AppTheme.eventxproBorder,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  title.toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+              if (agendaType != null && agendaType.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppTheme.eventxproAccent.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: AppTheme.eventxproAccent, width: 0.8),
+                  ),
+                  child: Text(
+                    agendaType.toUpperCase(),
+                    style: const TextStyle(
+                      color: AppTheme.eventxproAccent,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          // Date & Time metadata row
+          if (date != null || start != null || end != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                if (date != null && date.isNotEmpty) ...[
+                  const Icon(Icons.calendar_today_rounded, size: 12, color: Colors.white60),
+                  const SizedBox(width: 4),
+                  Text(
+                    date,
+                    style: const TextStyle(color: Colors.white60, fontSize: 11),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                if (start != null || end != null) ...[
+                  const Icon(Icons.access_time_rounded, size: 12, color: Colors.white60),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${start ?? ''}${start != null && end != null ? ' - ' : ''}${end ?? ''}',
+                    style: const TextStyle(color: Colors.white60, fontSize: 11),
+                  ),
+                ],
+              ],
+            ),
+          ],
+
+          const SizedBox(height: 12),
+
+          // Check-in & Check-out Buttons Row
+          Row(
+            children: [
+              if (hasInAccess)
+                Expanded(
+                  child: _buildPunchButton(
+                    label: 'CHECK-IN',
+                    badgeColor: AppTheme.eventxproSuccess,
+                    arrowColor: Colors.black,
+                    onTap: () => _launchScanner(
+                      punchType: 'check_in',
+                      gateId: agendaId,
+                      eventId: eventId,
+                      gateName: title,
+                      eventName: eventName,
+                      section: 'agenda',
+                      sectionLocation: title,
+                    ),
+                  ),
+                ),
+
+              if (hasInAccess && hasOutAccess) const SizedBox(width: 10),
+
+              if (hasOutAccess)
+                Expanded(
+                  child: _buildPunchButton(
+                    label: 'CHECK-OUT',
+                    badgeColor: AppTheme.eventxproDanger,
+                    arrowColor: Colors.white,
+                    onTap: () => _launchScanner(
+                      punchType: 'check_out',
+                      gateId: agendaId,
+                      eventId: eventId,
+                      gateName: title,
+                      eventName: eventName,
+                      section: 'agenda',
+                      sectionLocation: title,
                     ),
                   ),
                 ),

@@ -61,6 +61,7 @@ class DjangoScanApiDatasource {
         ? 'check_out'
         : 'check_in';
 
+    String endpoint = AppConstants.eventEntranceEndpoint;
     Map<String, dynamic> payload = {
       'event_id': request.eventId > 0 ? request.eventId : 1,
       'type': punchType,
@@ -69,8 +70,24 @@ class DjangoScanApiDatasource {
       'user_city': '',
       'user_input': qrInput,
       'scan_type': scanType,
-      if (request.gateId > 0) 'entrance_id': request.gateId,
     };
+
+    if (request.section == 'hall') {
+      endpoint = 'organizer/event-hall-entrance';
+      payload['hall_id'] = request.gateId;
+    } else if (request.section == 'agenda') {
+      endpoint = 'organizer/event-agenda-entrance';
+      payload['agenda_id'] = request.gateId;
+    } else if (request.section == 'session') {
+      endpoint = 'organizer/event-sessiontype-entrance';
+      payload['sessiontype_id'] = request.gateId;
+    } else {
+      endpoint = AppConstants.eventEntranceEndpoint;
+      if (request.gateId > 0) payload['entrance_id'] = request.gateId;
+      if (request.sectionLocation != null && request.sectionLocation!.isNotEmpty) {
+        payload['location'] = request.sectionLocation;
+      }
+    }
 
     final headers = <String, String>{
       'Content-Type': 'application/json',
@@ -82,7 +99,7 @@ class DjangoScanApiDatasource {
 
     try {
       Response response = await _dio.post(
-        AppConstants.eventEntranceEndpoint,
+        endpoint,
         data: payload,
         options: Options(
           headers: headers,

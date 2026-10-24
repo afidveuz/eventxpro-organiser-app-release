@@ -152,6 +152,8 @@ class ScannerBloc extends Bloc<ScannerEvent, ScannerState> {
       deviceId: _localStorage.getDeviceId(),
       scanRequestId: scanRequestId,
       scannedAt: DateTime.now(),
+      section: _localStorage.getSection(),
+      sectionLocation: _localStorage.getSectionLocation(),
     );
 
     _lastLogicalRequest = request;
@@ -228,7 +230,11 @@ class ScannerBloc extends Bloc<ScannerEvent, ScannerState> {
 
     // Start auto-reset timer back to ready-to-scan state
     _feedbackResetTimer?.cancel();
-    _feedbackResetTimer = Timer(AppConstants.feedbackDisplayDuration, () {
+    final isShortToast = _localStorage.isShortToastEnabled;
+    final holdDuration = isShortToast
+        ? const Duration(milliseconds: 1800)
+        : AppConstants.feedbackDisplayDuration;
+    _feedbackResetTimer = Timer(holdDuration, () {
       if (!isClosed) {
         add(const ScannerFeedbackTimeout());
       }
@@ -359,6 +365,12 @@ class ScannerBloc extends Bloc<ScannerEvent, ScannerState> {
     }
     if (event.testUsername != null) {
       await _localStorage.setTestUsername(event.testUsername!);
+    }
+    if (event.section != null) {
+      await _localStorage.setSection(event.section!);
+    }
+    if (event.sectionLocation != null) {
+      await _localStorage.setSectionLocation(event.sectionLocation);
     }
 
     emit(ScannerReadyState(

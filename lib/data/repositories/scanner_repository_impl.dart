@@ -120,9 +120,9 @@ class ScannerRepositoryImpl implements IScannerRepository {
             : qr,
         code: validationResult.normalizedCode,
         entranceId: request.gateId,
-        entranceLocation: 'Gate ${request.gateId}',
+        entranceLocation: request.sectionLocation ?? 'Gate ${request.gateId}',
         scanType: punchType,
-        section: 'entrances',
+        section: request.section.isNotEmpty ? request.section : 'entrances',
         timestamp: request.scannedAt,
         eventId: request.eventId > 0 ? request.eventId : 1,
       );

@@ -20,6 +20,8 @@ class ScannerLocalStorage {
   static const String _keyTopLevelTickets = 'scanner_top_level_tickets';
   static const String _keyShortToast = 'scanner_short_toast';
   static const String _keyOfflineData = 'scanner_offline_data';
+  static const String _keySection = 'scanner_section';
+  static const String _keySectionLocation = 'scanner_section_location';
 
   final SharedPreferences _prefs;
 
@@ -56,6 +58,13 @@ class ScannerLocalStorage {
       _prefs.getString(_keyScanType) ?? AppConstants.defaultScanType;
   Future<void> setScanType(String value) =>
       _prefs.setString(_keyScanType, value);
+
+  String getSection() => _prefs.getString(_keySection) ?? 'entrances';
+  Future<void> setSection(String value) => _prefs.setString(_keySection, value);
+
+  String? getSectionLocation() => _prefs.getString(_keySectionLocation);
+  Future<void> setSectionLocation(String? value) =>
+      value != null ? _prefs.setString(_keySectionLocation, value) : _prefs.remove(_keySectionLocation);
 
   bool get isOfflineModeEnabled => _prefs.getBool(_keyOfflineMode) ?? false;
   Future<void> setOfflineMode(bool enabled) =>

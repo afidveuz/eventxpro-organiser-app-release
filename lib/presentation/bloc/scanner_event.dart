@@ -54,6 +54,8 @@ class ScannerConfigChanged extends ScannerEvent {
   final int? suppressionMs;
   final bool? offlineModeEnabled;
   final String? testUsername;
+  final String? section;
+  final String? sectionLocation;
 
   const ScannerConfigChanged({
     this.eventId,
@@ -62,6 +64,8 @@ class ScannerConfigChanged extends ScannerEvent {
     this.suppressionMs,
     this.offlineModeEnabled,
     this.testUsername,
+    this.section,
+    this.sectionLocation,
   });
 
   @override
@@ -72,6 +76,8 @@ class ScannerConfigChanged extends ScannerEvent {
         suppressionMs,
         offlineModeEnabled,
         testUsername,
+        section,
+        sectionLocation,
       ];
 }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -54,6 +55,12 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
   bool _isTorchOn = false;
   bool _hasLoadedCameraPref = false;
 
+  bool _isShortToast = false;
+  ScannerDecisionState? _currentToastDecision;
+  Timer? _toastDismissTimer;
+  String? _lastCameraScannedToken;
+  DateTime? _lastCameraScanTime;
+
   @override
   void initState() {
     super.initState();
@@ -101,7 +108,33 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
         if (enabled) {
           _initCamera();
         }
+        _isShortToast = storage.isShortToastEnabled;
+        if (_isShortToast && widget.state is ScannerDecisionState) {
+          _currentToastDecision = widget.state as ScannerDecisionState;
+        }
       } catch (_) {}
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant SimpleScannerView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.state is ScannerDecisionState && widget.state != oldWidget.state) {
+      if (_isShortToast) {
+        _currentToastDecision = widget.state as ScannerDecisionState;
+        _toastDismissTimer?.cancel();
+        _toastDismissTimer = Timer(const Duration(milliseconds: 3500), () {
+          if (mounted) {
+            setState(() {
+              _currentToastDecision = null;
+            });
+          }
+        });
+      }
+    } else if (widget.state is ScannerReadyState && oldWidget.state is ScannerDecisionState) {
+      if (!_isShortToast) {
+        _currentToastDecision = null;
+      }
     }
   }
 
@@ -391,6 +424,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
   @override
   void dispose() {
+    _toastDismissTimer?.cancel();
     _cameraController?.dispose();
     _laserController.dispose();
     _pulseController.dispose();
@@ -401,6 +435,8 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
   @override
   Widget build(BuildContext context) {
     final isCheckOut = widget.state.scanType == 'check_out';
+    final topBannerOffset = MediaQuery.of(context).padding.top +
+        (widget.state.isOfflineMode ? 96.0 : 70.0);
 
     return Stack(
       children: [
@@ -456,6 +492,15 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             ],
           ),
         ),
+
+        // ── 3. Short Toast Floating Notification (Rush Mode) ──────
+        if (_isShortToast && _currentToastDecision != null)
+          Positioned(
+            top: topBannerOffset,
+            left: 16,
+            right: 16,
+            child: _buildShortToastBanner(_currentToastDecision!),
+          ),
       ],
     );
   }
@@ -576,11 +621,21 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
           // Action: Settings Button
           InkWell(
-            onTap: () {
+            onTap: () async {
               HapticFeedback.lightImpact();
-              Navigator.of(context).push(
+              await Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const SettingsScreen()),
               );
+              if (mounted) {
+                final storage = context.read<ScannerLocalStorage>();
+                setState(() {
+                  _isShortToast = storage.isShortToastEnabled;
+                  if (!_isShortToast) {
+                    _currentToastDecision = null;
+                    _toastDismissTimer?.cancel();
+                  }
+                });
+              }
             },
             borderRadius: BorderRadius.circular(50),
             child: Container(
@@ -646,15 +701,15 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
   // ── 2. Main Body (State-driven) ───────────────────────────────────
   Widget _buildBody(bool isCheckOut) {
-    if (widget.state is ScannerProcessingState) {
+    if (widget.state is ScannerProcessingState && !_isShortToast) {
       return _buildProcessingCard(widget.state as ScannerProcessingState);
     }
 
-    if (widget.state is ScannerDecisionState) {
+    if (widget.state is ScannerDecisionState && !_isShortToast) {
       return _buildDecisionCard(widget.state as ScannerDecisionState);
     }
 
-    // Default: Ready Viewfinder
+    // Default: Ready Viewfinder (stays continuously active if _isShortToast is true)
     return _buildReadyViewfinder(isCheckOut);
   }
 
@@ -720,10 +775,21 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                       MobileScanner(
                         controller: _cameraController!,
                         onDetect: (BarcodeCapture capture) {
-                          if (widget.state is! ScannerReadyState) return;
+                          if (widget.state is ScannerProcessingState) return;
+                          if (!_isShortToast && widget.state is! ScannerReadyState) return;
+
                           for (final barcode in capture.barcodes) {
                             final rawVal = barcode.rawValue?.trim();
                             if (rawVal != null && rawVal.isNotEmpty) {
+                              final now = DateTime.now();
+                              if (_lastCameraScannedToken == rawVal && _lastCameraScanTime != null) {
+                                final elapsed = now.difference(_lastCameraScanTime!).inMilliseconds;
+                                if (elapsed < 1500) {
+                                  return; // suppress rapid duplicate frame of identical token
+                                }
+                              }
+                              _lastCameraScannedToken = rawVal;
+                              _lastCameraScanTime = now;
                               context
                                   .read<ScannerBloc>()
                                   .add(ScannerRawBarcodeReceived(rawVal));
@@ -988,7 +1054,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
   // ── 2C. Authoritative Decision Card (Success / Warning / Rejected) ─
   // ── 2C. Authoritative Decision Card (Matching React Native AttendeeSheet.jsx) ─
-  Widget _buildDecisionCard(ScannerDecisionState decState) {
+  Widget _buildDecisionCard(ScannerDecisionState decState, {bool isModal = false}) {
     Color headerColor;
     IconData iconData;
     final alertType = decState.response.alertType;
@@ -1072,7 +1138,11 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                   child: InkWell(
                     onTap: () {
                       HapticFeedback.lightImpact();
-                      widget.onResetToReady();
+                      if (isModal) {
+                        Navigator.of(context).pop();
+                      } else {
+                        widget.onResetToReady();
+                      }
                     },
                     borderRadius: BorderRadius.circular(50),
                     child: Container(
@@ -1274,12 +1344,19 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                   child: ElevatedButton.icon(
                     onPressed: () {
                       HapticFeedback.lightImpact();
-                      widget.onResetToReady();
+                      if (isModal) {
+                        Navigator.of(context).pop();
+                      } else {
+                        widget.onResetToReady();
+                      }
                     },
-                    icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                    label: const Text(
-                      'Ready For Next Attendee',
-                      style: TextStyle(
+                    icon: Icon(
+                      isModal ? Icons.check_rounded : Icons.arrow_forward_rounded,
+                      size: 18,
+                    ),
+                    label: Text(
+                      isModal ? 'Done & Return To Scanner' : 'Ready For Next Attendee',
+                      style: const TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.3,
@@ -1478,6 +1555,286 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
 
 
+  void _showAttendeeDetailsSheet(ScannerDecisionState decState) {
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetCtx).size.height * 0.85,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Sheet handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 10, bottom: 6),
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: _buildDecisionCard(decState, isModal: true),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _toggleRushMode() async {
+    HapticFeedback.mediumImpact();
+    final nextState = !_isShortToast;
+    try {
+      await context.read<ScannerLocalStorage>().setShortToast(nextState);
+    } catch (_) {}
+    setState(() {
+      _isShortToast = nextState;
+      if (!nextState) {
+        _currentToastDecision = null;
+        _toastDismissTimer?.cancel();
+      }
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                nextState ? Icons.bolt_rounded : Icons.pause_circle_outline_rounded,
+                color: nextState ? Colors.amberAccent : Colors.white70,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  nextState
+                      ? 'Rush Mode Enabled: Continuous fast scanning with brief notifications'
+                      : 'Rush Mode Disabled: Full attendee card modal on each scan',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF1E2638),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(milliseconds: 2000),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+  }
+
+  Widget _buildShortToastBanner(ScannerDecisionState decState) {
+    Color alertColor;
+    IconData alertIcon;
+    final alertType = decState.response.alertType;
+    final isSuccess = decState.response.isAlertSuccess;
+    final isWarning = decState.response.isAlertWarning;
+
+    if (alertType == 'success' || (alertType == null && isSuccess)) {
+      alertColor = const Color(0xFF23A618); // #23A618 Vibrant Green
+      alertIcon = decState.request.scanType.toLowerCase() == 'check_out'
+          ? Icons.logout_rounded
+          : Icons.check_circle_rounded;
+    } else if (alertType == 'warning' || (alertType == null && isWarning)) {
+      alertColor = const Color(0xFFFF8450); // Warning Orange
+      alertIcon = Icons.warning_amber_rounded;
+    } else if (alertType == 'info' || decState.response.isAlertInfo) {
+      alertColor = const Color(0xFF00A0D2); // Info Sky Blue
+      alertIcon = Icons.info_outline_rounded;
+    } else {
+      alertColor = const Color(0xFFFF4343); // Error Red
+      alertIcon = Icons.error_outline_rounded;
+    }
+
+    final attendee = decState.response.attendee;
+    final name = attendee != null && attendee.fullName.trim().isNotEmpty
+        ? attendee.fullName.toUpperCase()
+        : (isSuccess ? 'ADMISSION GRANTED' : 'SCAN NOTIFICATION');
+    final msg = decState.response.message;
+    final punchTime = decState.response.punchTime ?? attendee?.punchTime;
+    final formattedTime = _formatPunchTime(punchTime);
+
+    return Material(
+      color: Colors.transparent,
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _showAttendeeDetailsSheet(decState);
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            color: alertColor,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: alertColor.withValues(alpha: 0.45),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+              ),
+            ],
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.28),
+              width: 1.2,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Circular White Icon
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  width: 38,
+                  height: 38,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Icon(alertIcon, size: 22, color: alertColor),
+                  ),
+                ),
+
+                // Name & Status Subtitle
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          formattedTime.isNotEmpty ? '$msg • $formattedTime' : msg,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.95),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (attendee?.category != null && attendee!.category!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.22),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              attendee.category!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Details Button
+                Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Details',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded, color: Colors.white, size: 16),
+                    ],
+                  ),
+                ),
+
+                // Close Button
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      setState(() {
+                        _currentToastDecision = null;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(50),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 10),
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    )
+        .animate()
+        .fadeIn(duration: 180.ms)
+        .slideY(begin: -0.25, end: 0, duration: 200.ms, curve: Curves.easeOutQuad);
+  }
+
   // ── 3. Floating Control Dock (SwitchBtn.jsx & InfraredBtn.jsx style) ─
   Widget _buildControlDock() {
     return Container(
@@ -1586,6 +1943,50 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
           const SizedBox(width: 14),
 
+          // Rush Mode (Continuous Scanning) Fast Toggle Button
+          Tooltip(
+            message: _isShortToast
+                ? 'Rush Mode (Continuous Scanning): ON'
+                : 'Rush Mode: OFF (Tap to enable continuous scan)',
+            child: InkWell(
+              onTap: _toggleRushMode,
+              borderRadius: BorderRadius.circular(50),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                height: 50,
+                width: 50,
+                decoration: BoxDecoration(
+                  color: _isShortToast
+                      ? Colors.amber.withValues(alpha: 0.22)
+                      : const Color(0xFF222838),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: _isShortToast
+                        ? Colors.amberAccent
+                        : Colors.white.withValues(alpha: 0.2),
+                    width: 1.5,
+                  ),
+                  boxShadow: _isShortToast
+                      ? [
+                          BoxShadow(
+                            color: Colors.amberAccent.withValues(alpha: 0.35),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Icon(
+                  Icons.bolt_rounded,
+                  size: 24,
+                  color: _isShortToast ? Colors.amberAccent : Colors.white70,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 14),
+
           // Manual Ticket Code Input Button
           InkWell(
             onTap: _showManualEntrySheet,
@@ -1664,21 +2065,25 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
           const Spacer(),
 
           // Gate Identifier Pill
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: const Color(0xFF202636),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.12),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFF202636),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.12),
+                ),
               ),
-            ),
-            child: Text(
-              'Gate #${widget.state.gateId}',
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.textSecondary,
+              child: Text(
+                _resolveGateName(),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textSecondary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ),

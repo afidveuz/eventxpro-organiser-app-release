@@ -22,6 +22,8 @@ class KioskScannerScreen extends StatefulWidget {
 
   final String? gateName;
   final String? eventName;
+  final String? section;
+  final String? sectionLocation;
 
   KioskScannerScreen({
     super.key,
@@ -32,6 +34,8 @@ class KioskScannerScreen extends StatefulWidget {
     this.initialEventId,
     this.gateName,
     this.eventName,
+    this.section,
+    this.sectionLocation,
   })  : zebraAdapter = zebraAdapter ?? ZebraDataWedgeAdapter(),
         simulatorAdapter = simulatorAdapter ?? SimulatedHardwareAdapter();
 
@@ -46,12 +50,15 @@ class _KioskScannerScreenState extends State<KioskScannerScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.initialPunchType != null ||
           widget.initialGateId != null ||
-          widget.initialEventId != null) {
+          widget.initialEventId != null ||
+          widget.section != null) {
         context.read<ScannerBloc>().add(
               ScannerConfigChanged(
                 scanType: widget.initialPunchType,
                 gateId: widget.initialGateId,
                 eventId: widget.initialEventId,
+                section: widget.section,
+                sectionLocation: widget.sectionLocation,
               ),
             );
       }

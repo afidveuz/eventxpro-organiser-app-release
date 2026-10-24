@@ -136,8 +136,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _showConfirmDialog(
       title: nextState ? 'Enable Short Toast' : 'Disable Short Toast',
       message: nextState
-          ? 'Are you sure you want to enable short toast notifications?'
-          : 'Are you sure you want to disable short toast notifications?',
+          ? 'Enable short toast for rush periods? This keeps the scanner live for continuous rapid scanning and shows brief top notifications.'
+          : 'Disable short toast? This will display the full attendee profile card after every scan.',
       onConfirm: () async {
         final storage = context.read<ScannerLocalStorage>();
         await storage.setShortToast(nextState);
@@ -303,7 +303,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               _buildSettingRow(
                 title: _isShortToast ? 'Disable short toast' : 'Enable short toast',
-                subtitle: 'Control notification visibility duration',
+                subtitle: _isShortToast
+                    ? 'Continuous rush scanning active: brief top notifications'
+                    : 'Full attendee details card modal shown after each scan',
                 value: _isShortToast,
                 onTap: _toggleShortToast,
               ),

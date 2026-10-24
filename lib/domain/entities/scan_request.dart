@@ -11,6 +11,9 @@ class ScanRequest extends Equatable {
   final DateTime scannedAt;
   final DateTime hardwareReceivedAt;
 
+  final String section;
+  final String? sectionLocation;
+
   ScanRequest({
     required this.qrToken,
     required this.eventId,
@@ -20,6 +23,8 @@ class ScanRequest extends Equatable {
     required this.scanRequestId,
     DateTime? scannedAt,
     DateTime? hardwareReceivedAt,
+    this.section = 'entrances',
+    this.sectionLocation,
   })  : scannedAt = scannedAt ?? DateTime.now(),
         hardwareReceivedAt = hardwareReceivedAt ?? DateTime.now();
 
@@ -32,6 +37,8 @@ class ScanRequest extends Equatable {
       'device_id': deviceId,
       'scan_request_id': scanRequestId,
       'scanned_at': scannedAt.toUtc().toIso8601String(),
+      'section': section,
+      'section_location': sectionLocation,
     };
   }
 
@@ -44,5 +51,7 @@ class ScanRequest extends Equatable {
         deviceId,
         scanRequestId,
         scannedAt,
+        section,
+        sectionLocation,
       ];
 }
