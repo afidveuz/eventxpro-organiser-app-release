@@ -22,6 +22,11 @@ class ScannerLocalStorage {
   static const String _keyOfflineData = 'scanner_offline_data';
   static const String _keySection = 'scanner_section';
   static const String _keySectionLocation = 'scanner_section_location';
+  static const String _keyDeviceManufacturer = 'scanner_device_manufacturer';
+  static const String _keyDeviceModel = 'scanner_device_model';
+  static const String _keyDeviceBrand = 'scanner_device_brand';
+  static const String _keyDeviceType = 'scanner_device_type';
+  static const String _keyScannerEngine = 'scanner_scanner_engine';
 
   final SharedPreferences _prefs;
 
@@ -86,6 +91,21 @@ class ScannerLocalStorage {
   bool get isShortToastEnabled => _prefs.getBool(_keyShortToast) ?? false;
   Future<void> setShortToast(bool enabled) =>
       _prefs.setBool(_keyShortToast, enabled);
+
+  String getDeviceManufacturer() => _prefs.getString(_keyDeviceManufacturer) ?? '';
+  Future<void> setDeviceManufacturer(String value) => _prefs.setString(_keyDeviceManufacturer, value);
+
+  String getDeviceModel() => _prefs.getString(_keyDeviceModel) ?? '';
+  Future<void> setDeviceModel(String value) => _prefs.setString(_keyDeviceModel, value);
+
+  String getDeviceBrand() => _prefs.getString(_keyDeviceBrand) ?? '';
+  Future<void> setDeviceBrand(String value) => _prefs.setString(_keyDeviceBrand, value);
+
+  String getDeviceType() => _prefs.getString(_keyDeviceType) ?? 'GENERIC_ANDROID';
+  Future<void> setDeviceType(String value) => _prefs.setString(_keyDeviceType, value);
+
+  String getScannerEngine() => _prefs.getString(_keyScannerEngine) ?? 'Auto-Detect';
+  Future<void> setScannerEngine(String value) => _prefs.setString(_keyScannerEngine, value);
 
   String? getOfflineData() => _prefs.getString(_keyOfflineData);
   Future<void> setOfflineData(String data) =>

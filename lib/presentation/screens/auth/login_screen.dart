@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/config/app_constants.dart';
+import '../../../core/services/device_detection_service.dart';
+import '../../../data/datasources/scanner_local_storage.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
 import '../../bloc/auth/auth_state.dart';
@@ -54,6 +56,10 @@ class _LoginScreenState extends State<LoginScreen> {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthAuthenticated) {
+          // Check device OEM (Honeywell / Zebra) immediately after login
+          final storage = context.read<ScannerLocalStorage>();
+          DeviceDetectionService().detectDevice(storage: storage);
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Welcome, ${state.user.name.isNotEmpty ? state.user.name : state.user.username}!'),

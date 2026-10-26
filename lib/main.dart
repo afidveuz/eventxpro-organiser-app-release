@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'core/cache/scan_memory_cache.dart';
 import 'core/network/api_client.dart';
+import 'core/services/device_detection_service.dart';
 import 'core/theme/app_theme.dart';
 import 'data/adapters/simulated_hardware_adapter.dart';
 import 'data/adapters/zebra_datawedge_adapter.dart';
@@ -38,6 +39,9 @@ void main() async {
   // Initialize persistent local storages
   final scannerLocalStorage = await ScannerLocalStorage.create();
   final authLocalStorage = await AuthLocalStorage.create();
+
+  // Detect OEM device (Honeywell vs Zebra) on launch
+  await DeviceDetectionService().detectDevice(storage: scannerLocalStorage);
 
   // Initialize API Network Client & Auth Stack
   final apiClient = ApiClient(localStorage: authLocalStorage);

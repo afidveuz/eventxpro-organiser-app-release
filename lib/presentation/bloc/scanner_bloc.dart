@@ -228,19 +228,21 @@ class ScannerBloc extends Bloc<ScannerEvent, ScannerState> {
 
     _isProcessing = false;
 
-    // Start auto-reset timer back to ready-to-scan state
+    // Start auto-reset timer back to ready-to-scan state only if queue is empty
     _feedbackResetTimer?.cancel();
-    final isShortToast = _localStorage.isShortToastEnabled;
-    final holdDuration = isShortToast
-        ? const Duration(milliseconds: 1800)
-        : AppConstants.feedbackDisplayDuration;
-    _feedbackResetTimer = Timer(holdDuration, () {
-      if (!isClosed) {
-        add(const ScannerFeedbackTimeout());
-      }
-    });
+    if (_pendingQueue.isEmpty) {
+      final isShortToast = _localStorage.isShortToastEnabled;
+      final holdDuration = isShortToast
+          ? const Duration(milliseconds: 1800)
+          : AppConstants.feedbackDisplayDuration;
+      _feedbackResetTimer = Timer(holdDuration, () {
+        if (!isClosed) {
+          add(const ScannerFeedbackTimeout());
+        }
+      });
+    }
 
-    // Check if more items queued in FIFO
+    // Check if more items queued in FIFO - process immediately for continuous high-speed flow
     if (_pendingQueue.isNotEmpty) {
       await _processQueue(emit);
     }

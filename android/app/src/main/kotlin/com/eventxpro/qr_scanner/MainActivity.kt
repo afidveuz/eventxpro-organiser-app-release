@@ -22,10 +22,21 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val TAG = "EventXProScanner"
-        private const val PROFILE_NAME = "EventXPro_Scanner"
-        private const val DATAWEDGE_ACTION = "com.symbol.datawedge.api.ACTION"
-        private const val EXTRA_CREATE_PROFILE = "com.symbol.datawedge.api.CREATE_PROFILE"
-        private const val EXTRA_SET_CONFIG = "com.symbol.datawedge.api.SET_CONFIG"
+
+        // Zebra DataWedge API Constants
+        private const val ZEBRA_PROFILE_NAME = "EventXPro_Scanner"
+        private const val ZEBRA_ACTION = "com.symbol.datawedge.api.ACTION"
+        private const val ZEBRA_EXTRA_CREATE_PROFILE = "com.symbol.datawedge.api.CREATE_PROFILE"
+        private const val ZEBRA_EXTRA_SET_CONFIG = "com.symbol.datawedge.api.SET_CONFIG"
+
+        // Honeywell AIDC Constants
+        private const val HONEYWELL_ACTION_CLAIM = "com.honeywell.aidc.action.ACTION_CLAIM_SCANNER"
+        private const val HONEYWELL_ACTION_RELEASE = "com.honeywell.aidc.action.ACTION_RELEASE_SCANNER"
+        private const val HONEYWELL_PACKAGE = "com.intermec.datacollectionservice"
+        private const val HONEYWELL_EXTRA_SCANNER = "com.honeywell.aidc.extra.EXTRA_SCANNER"
+        private const val HONEYWELL_EXTRA_PROFILE = "com.honeywell.aidc.extra.EXTRA_PROFILE"
+        private const val HONEYWELL_EXTRA_PROPERTIES = "com.honeywell.aidc.extra.EXTRA_PROPERTIES"
+        private const val HONEYWELL_PROFILE_NAME = "EventXPro_Profile"
     }
 
     override fun configureFlutterEngine(engine: FlutterEngine) {
@@ -37,8 +48,8 @@ class MainActivity : FlutterActivity() {
                 override fun onListen(args: Any?, events: EventChannel.EventSink?) {
                     scanSink = events
                     registerScanner()
-                    // Auto-configure Zebra DataWedge Profile on connection
-                    createAndConfigureDataWedgeProfile()
+                    // Auto-configure hardware scanner profile for detected device
+                    provisionHardwareScanner()
                 }
 
                 override fun onCancel(args: Any?) {
@@ -47,21 +58,57 @@ class MainActivity : FlutterActivity() {
                 }
             })
 
-        // MethodChannel: Query hardware scanner status & control DataWedge
+        // MethodChannel: Query hardware scanner status & control scanner
         MethodChannel(engine.dartExecutor.binaryMessenger, controlChannelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "isScannerAvailable" -> {
                         result.success(true)
                     }
+                    "getDeviceInfo" -> {
+                        val manufacturer = Build.MANUFACTURER ?: "Unknown"
+                        val model = Build.MODEL ?: "Unknown"
+                        val brand = Build.BRAND ?: "Unknown"
+                        val device = Build.DEVICE ?: "Unknown"
+                        val release = Build.VERSION.RELEASE ?: "Unknown"
+                        val sdkInt = Build.VERSION.SDK_INT
+                        val devType = getDeviceType()
+
+                        val scannerEngine = when (devType) {
+                            "HONEYWELL" -> "Honeywell Data Collection Service"
+                            "ZEBRA" -> "Zebra DataWedge API"
+                            else -> "Generic / Camera Simulator"
+                        }
+
+                        val infoMap = mapOf(
+                            "manufacturer" to manufacturer,
+                            "model" to model,
+                            "brand" to brand,
+                            "device" to device,
+                            "osRelease" to release,
+                            "sdkInt" to sdkInt,
+                            "deviceType" to devType,
+                            "scannerEngine" to scannerEngine,
+                            "isHardwareScannerCapable" to (devType != "GENERIC_ANDROID")
+                        )
+                        result.success(infoMap)
+                    }
+                    "provisionScanner" -> {
+                        provisionHardwareScanner()
+                        result.success(true)
+                    }
                     "provisionDataWedge" -> {
                         createAndConfigureDataWedgeProfile()
+                        result.success(true)
+                    }
+                    "provisionHoneywell" -> {
+                        provisionHoneywellScanner()
                         result.success(true)
                     }
                     "sendDataWedgeCommand" -> {
                         val command = call.argument<String>("command")
                         val extra = call.argument<String>("parameter")
-                        val dwIntent = Intent(DATAWEDGE_ACTION)
+                        val dwIntent = Intent(ZEBRA_ACTION)
                         if (command != null && extra != null) {
                             dwIntent.putExtra(command, extra)
                         }
@@ -80,7 +127,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
-        createAndConfigureDataWedgeProfile()
+        provisionHardwareScanner()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -88,18 +135,78 @@ class MainActivity : FlutterActivity() {
         handleScanIntent(intent)
     }
 
+    private fun getDeviceType(): String {
+        val manufacturer = (Build.MANUFACTURER ?: "").lowercase()
+        val brand = (Build.BRAND ?: "").lowercase()
+        val model = (Build.MODEL ?: "").lowercase()
+
+        return when {
+            manufacturer.contains("honeywell") ||
+            brand.contains("honeywell") ||
+            model.contains("eda") ||
+            model.contains("ct40") ||
+            model.contains("ct60") ||
+            model.contains("ck65") ||
+            model.contains("rt10") -> "HONEYWELL"
+
+            manufacturer.contains("zebra") ||
+            brand.contains("zebra") ||
+            manufacturer.contains("symbol") ||
+            manufacturer.contains("motorola solutions") ||
+            model.contains("tc") -> "ZEBRA"
+
+            else -> "GENERIC_ANDROID"
+        }
+    }
+
+    private fun provisionHardwareScanner() {
+        val type = getDeviceType()
+        Log.d(TAG, "Detected device type: $type (Manufacturer: ${Build.MANUFACTURER}, Model: ${Build.MODEL})")
+
+        when (type) {
+            "HONEYWELL" -> {
+                provisionHoneywellScanner()
+            }
+            "ZEBRA" -> {
+                createAndConfigureDataWedgeProfile()
+            }
+            else -> {
+                // Unknown / Generic: attempt both safely to ensure broadcast works on any clone or hybrid
+                provisionHoneywellScanner()
+                createAndConfigureDataWedgeProfile()
+            }
+        }
+    }
+
     private fun handleScanIntent(intent: Intent?) {
         if (intent == null) return
-        Log.d(TAG, "Received scan intent action: ${intent.action}")
-        val value = intent.getStringExtra("com.symbol.datawedge.data_string")
-            ?: intent.getStringExtra("data") // Honeywell standard data extra
-            ?: intent.getStringExtra("data_string")
+        val action = intent.action ?: "Unknown"
+        Log.d(TAG, "Received scan intent action: $action")
+
+        // 1. Extract text from Honeywell, Zebra, and generic intent extras
+        var value: String? = intent.getStringExtra("data") // Honeywell primary decoded string
+            ?: intent.getStringExtra("com.symbol.datawedge.data_string") // Zebra primary
+            ?: intent.getStringExtra("data_string") // Honeywell / third-party
+            ?: intent.getStringExtra("com.honeywell.decode.intent.extra.DATA_STRING")
             ?: intent.getStringExtra("barcode_data")
             ?: intent.getStringExtra("com.symbol.datawedge.decode_data")
-            ?: return
 
-        if (value.isNotEmpty()) {
-            emitBarcode(value)
+        // 2. Fallback to Honeywell raw dataBytes if string extra is null
+        if (value.isNullOrEmpty()) {
+            val rawBytes = intent.getByteArrayExtra("dataBytes")
+                ?: intent.getByteArrayExtra("com.honeywell.decode.intent.extra.DATA_BYTES")
+            if (rawBytes != null && rawBytes.isNotEmpty()) {
+                val charsetName = intent.getStringExtra("charset") ?: "UTF-8"
+                try {
+                    value = String(rawBytes, java.nio.charset.Charset.forName(charsetName))
+                } catch (_: Exception) {
+                    value = String(rawBytes, Charsets.UTF_8)
+                }
+            }
+        }
+
+        if (!value.isNullOrEmpty()) {
+            emitBarcode(value.trim())
         }
     }
 
@@ -120,10 +227,12 @@ class MainActivity : FlutterActivity() {
 
         val filter = IntentFilter().apply {
             addAction(scanAction) // com.eventxpro.SCAN
+            addCategory(Intent.CATEGORY_DEFAULT)
             addAction("com.symbol.datawedge.api.RESULT_ACTION")
             // Honeywell default broadcast actions
-            addAction("com.honeywell.sample.action.BARCODE_DATA")
             addAction("com.honeywell.decode.intent.action.EDIT_DATA")
+            addAction("com.honeywell.sample.action.BARCODE_DATA")
+            addAction("com.honeywell.action.BARCODE_DATA")
         }
 
         ContextCompat.registerReceiver(
@@ -132,17 +241,56 @@ class MainActivity : FlutterActivity() {
             filter,
             ContextCompat.RECEIVER_EXPORTED
         )
+        Log.d(TAG, "Registered unified scanner receiver for $scanAction + Honeywell + Zebra actions")
     }
 
     /**
-     * Programmatically provisions the Zebra DataWedge profile so the TC15
+     * Programmatically claims and provisions Honeywell Data Collection Service (AIDC)
+     * so devices like ScanPal EDA51, CT40, etc. immediately broadcast scan results.
+     */
+    private fun provisionHoneywellScanner() {
+        try {
+            val properties = Bundle().apply {
+                putBoolean("DPR_DATA_INTENT", true)
+                putString("DPR_DATA_INTENT_ACTION", scanAction)
+                putString("DPR_DATA_INTENT_CATEGORY", Intent.CATEGORY_DEFAULT)
+                putBoolean("DPR_WEDGE", false) // disable keystroke typing to eliminate UI lag
+            }
+
+            val claimIntent = Intent(HONEYWELL_ACTION_CLAIM).apply {
+                setPackage(HONEYWELL_PACKAGE)
+                putExtra(HONEYWELL_EXTRA_SCANNER, "dcs.scanner.imager")
+                putExtra(HONEYWELL_EXTRA_PROFILE, HONEYWELL_PROFILE_NAME)
+                putExtra(HONEYWELL_EXTRA_PROPERTIES, properties)
+            }
+            sendBroadcast(claimIntent)
+            Log.d(TAG, "Sent Honeywell AIDC claim intent for $scanAction")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to auto-configure Honeywell scanner: ${e.message}")
+        }
+    }
+
+    private fun releaseHoneywellScanner() {
+        try {
+            val releaseIntent = Intent(HONEYWELL_ACTION_RELEASE).apply {
+                setPackage(HONEYWELL_PACKAGE)
+            }
+            sendBroadcast(releaseIntent)
+            Log.d(TAG, "Sent Honeywell AIDC release intent")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to release Honeywell scanner: ${e.message}")
+        }
+    }
+
+    /**
+     * Programmatically provisions the Zebra DataWedge profile so the TC15 / TC21
      * immediately starts broadcasting scan results to com.eventxpro.SCAN.
      */
     private fun createAndConfigureDataWedgeProfile() {
         try {
             // 1. Create profile if it doesn't exist
-            val createIntent = Intent(DATAWEDGE_ACTION).apply {
-                putExtra(EXTRA_CREATE_PROFILE, PROFILE_NAME)
+            val createIntent = Intent(ZEBRA_ACTION).apply {
+                putExtra(ZEBRA_EXTRA_CREATE_PROFILE, ZEBRA_PROFILE_NAME)
                 putExtra("SEND_RESULT", "LAST_RESULT")
                 putExtra("COMMAND_IDENTIFIER", "CREATE_PROFILE_CMD")
             }
@@ -150,7 +298,7 @@ class MainActivity : FlutterActivity() {
 
             // 2. Configure the profile (Associate with app, Enable Intent broadcast, Disable Keystroke)
             val profileConfig = Bundle().apply {
-                putString("PROFILE_NAME", PROFILE_NAME)
+                putString("PROFILE_NAME", ZEBRA_PROFILE_NAME)
                 putString("PROFILE_ENABLED", "true")
                 putString("CONFIG_MODE", "CREATE_IF_NOT_EXIST")
 
@@ -197,13 +345,13 @@ class MainActivity : FlutterActivity() {
                 putParcelableArrayList("PLUGIN_CONFIG", arrayListOf(barcodeProps, intentProps, keystrokeProps))
             }
 
-            val setConfigIntent = Intent(DATAWEDGE_ACTION).apply {
-                putExtra(EXTRA_SET_CONFIG, profileConfig)
+            val setConfigIntent = Intent(ZEBRA_ACTION).apply {
+                putExtra(ZEBRA_EXTRA_SET_CONFIG, profileConfig)
                 putExtra("SEND_RESULT", "LAST_RESULT")
                 putExtra("COMMAND_IDENTIFIER", "SET_CONFIG_CMD")
             }
             sendBroadcast(setConfigIntent)
-            Log.d(TAG, "Sent Zebra DataWedge auto-provisioning intents for $PROFILE_NAME")
+            Log.d(TAG, "Sent Zebra DataWedge auto-provisioning intents for $ZEBRA_PROFILE_NAME")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to auto-configure DataWedge: ${e.message}")
         }
@@ -221,6 +369,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        releaseHoneywellScanner()
         unregisterScanner()
         scanSink = null
         super.onDestroy()

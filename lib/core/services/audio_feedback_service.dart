@@ -59,7 +59,11 @@ class AudioFeedbackService {
         await _playAsset('sounds/errorSound.mp3');
         break;
       case AudioTone.scanBeep:
-        // Raw barcode captured: only play feedback after server/offline verification completes
+        // Instant low-latency hardware decode acknowledgment (< 5ms)
+        try {
+          await SystemSound.play(SystemSoundType.click);
+          await HapticFeedback.lightImpact();
+        } catch (_) {}
         break;
     }
   }

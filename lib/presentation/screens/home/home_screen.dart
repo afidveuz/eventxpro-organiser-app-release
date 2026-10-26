@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/services/device_detection_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/adapters/simulated_hardware_adapter.dart';
 import '../../../data/adapters/zebra_datawedge_adapter.dart';
@@ -48,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen>
   int? _expandedEventPk;
   final Map<int, Map<String, dynamic>> _eventPermissions = {};
   final Set<int> _loadingPermissions = {};
+  DeviceInfoResult? _deviceInfo;
 
   late final AnimationController _blinkController;
   late final Animation<double> _blinkAnimation;
@@ -65,6 +67,19 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     _loadDashboardData();
+    _initDeviceInfo();
+  }
+
+  Future<void> _initDeviceInfo() async {
+    try {
+      final storage = context.read<ScannerLocalStorage>();
+      final info = await DeviceDetectionService().detectDevice(storage: storage);
+      if (mounted) {
+        setState(() {
+          _deviceInfo = info;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -422,8 +437,11 @@ class _HomeScreenState extends State<HomeScreen>
 
   // ── Top Header / App Bar ─────────────────────────────────────────
   Widget _buildTopBar() {
+    final dev = _deviceInfo;
+    final hasStatusBadges = _isOffline || (dev != null && dev.isHardwareScannerCapable);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: AppTheme.eventxproBg.withValues(alpha: 0.8),
         border: Border(
@@ -433,128 +451,194 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Logo & Branding
           Row(
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: AppTheme.eventxproAccent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.qr_code_2_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Logo & Branding
+              Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    'EVENTXPRO',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: AppTheme.eventxproAccent,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ),
-                  Text(
-                    'ORGANISER',
-                    style: TextStyle(
-                      color: AppTheme.eventxproAccent.withValues(alpha: 0.9),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const Spacer(),
-
-          // Pulsing Offline Mode Badge (Matching RN Background.jsx)
-          if (_isOffline) ...[
-            GestureDetector(
-              onTap: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const OfflineSessionsScreen()),
-                );
-                _loadDashboardData();
-              },
-              child: FadeTransition(
-                opacity: _blinkAnimation,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF3B30),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFF3B30).withValues(alpha: 0.5),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
+                    child: const Center(
+                      child: Icon(
+                        Icons.qr_code_2_rounded,
+                        color: Colors.white,
+                        size: 20,
                       ),
-                    ],
+                    ),
                   ),
-                  child: const Row(
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.wifi_off_rounded, size: 12, color: Colors.white),
-                      SizedBox(width: 4),
-                      Text(
-                        'Offline Mode',
+                      const Text(
+                        'EVENTXPRO',
                         style: TextStyle(
                           color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 10.5,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      Text(
+                        'ORGANISER',
+                        style: TextStyle(
+                          color: AppTheme.eventxproAccent.withValues(alpha: 0.9),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.0,
                         ),
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
+              const Spacer(),
+
+              // Refresh Action
+              IconButton(
+                tooltip: 'Refresh',
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: const EdgeInsets.all(6),
+                icon: const Icon(Icons.refresh_rounded, color: Colors.white70, size: 20),
+                onPressed: _loadDashboardData,
+              ),
+
+              // Settings Action
+              IconButton(
+                tooltip: 'Settings',
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: const EdgeInsets.all(6),
+                icon: const Icon(Icons.settings_outlined, color: Colors.white70, size: 20),
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  );
+                  _loadDashboardData();
+                },
+              ),
+
+              // Logout Action
+              IconButton(
+                tooltip: 'Log Out',
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                padding: const EdgeInsets.all(6),
+                icon: const Icon(Icons.logout_rounded, color: AppTheme.eventxproDanger, size: 20),
+                onPressed: _handleLogout,
+              ),
+            ],
+          ),
+
+          // Sub-row for Status Badges (Hardware Device & Offline Mode)
+          if (hasStatusBadges) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (dev != null && dev.isHardwareScannerCapable)
+                  InkWell(
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                      );
+                      _loadDashboardData();
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: dev.isHoneywell
+                            ? const Color(0xFFD32F2F).withValues(alpha: 0.15)
+                            : const Color(0xFF0288D1).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: dev.isHoneywell
+                              ? const Color(0xFFEF5350).withValues(alpha: 0.6)
+                              : const Color(0xFF29B6F6).withValues(alpha: 0.6),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.qr_code_scanner_rounded,
+                            size: 12,
+                            color: dev.isHoneywell
+                                ? const Color(0xFFFF8A80)
+                                : const Color(0xFF81D4FA),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            dev.displayName,
+                            style: TextStyle(
+                              color: dev.isHoneywell
+                                  ? const Color(0xFFFF8A80)
+                                  : const Color(0xFF81D4FA),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                const Spacer(),
+
+                // Pulsing Offline Mode Badge (Matching RN Background.jsx)
+                if (_isOffline)
+                  GestureDetector(
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const OfflineSessionsScreen()),
+                      );
+                      _loadDashboardData();
+                    },
+                    child: FadeTransition(
+                      opacity: _blinkAnimation,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF3B30),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFFF3B30).withValues(alpha: 0.5),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.wifi_off_rounded, size: 12, color: Colors.white),
+                            SizedBox(width: 4),
+                            Text(
+                              'Offline Mode',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 10.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(width: 8),
           ],
-
-          // Refresh Action
-          IconButton(
-            tooltip: 'Refresh',
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white70, size: 22),
-            onPressed: _loadDashboardData,
-          ),
-
-          // Settings Action
-          IconButton(
-            tooltip: 'Settings',
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            icon: const Icon(Icons.settings_outlined, color: Colors.white70, size: 22),
-            onPressed: () async {
-              await Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
-              _loadDashboardData();
-            },
-          ),
-
-          // Logout Action
-          IconButton(
-            tooltip: 'Log Out',
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            icon: const Icon(Icons.logout_rounded, color: AppTheme.eventxproDanger, size: 22),
-            onPressed: _handleLogout,
-          ),
         ],
       ),
     );
@@ -1444,7 +1528,7 @@ class _HomeScreenState extends State<HomeScreen>
         onTap: onTap,
         borderRadius: BorderRadius.circular(50),
         child: Container(
-          padding: const EdgeInsets.only(left: 14, right: 6, top: 4, bottom: 4),
+          padding: const EdgeInsets.only(left: 10, right: 4, top: 4, bottom: 4),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.12), // defaultTrans
             borderRadius: BorderRadius.circular(50),
@@ -1456,18 +1540,23 @@ class _HomeScreenState extends State<HomeScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
-                  letterSpacing: 0.5,
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11.5,
+                    letterSpacing: 0.3,
+                  ),
                 ),
               ),
+              const SizedBox(width: 4),
               Container(
-                width: 28,
-                height: 28,
+                width: 26,
+                height: 26,
                 decoration: BoxDecoration(
                   color: badgeColor,
                   shape: BoxShape.circle,
@@ -1475,7 +1564,7 @@ class _HomeScreenState extends State<HomeScreen>
                 child: Center(
                   child: Icon(
                     Icons.arrow_forward_rounded,
-                    size: 15,
+                    size: 14,
                     color: arrowColor,
                   ),
                 ),

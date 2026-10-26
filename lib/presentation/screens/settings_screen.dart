@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/network/api_client.dart';
+import '../../core/services/device_detection_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/datasources/offline_database_helper.dart';
 import '../../data/datasources/scanner_local_storage.dart';
@@ -34,6 +35,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isOfflineMode = false;
   bool _isSyncingData = false;
   int _unsyncedCount = 0;
+  DeviceInfoResult? _deviceInfo;
 
   @override
   void initState() {
@@ -46,6 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final db = context.read<OfflineDatabaseHelper>();
 
     final unsynced = await db.getUnsyncedCount();
+    final info = await DeviceDetectionService().detectDevice(storage: storage);
 
     if (mounted) {
       setState(() {
@@ -53,6 +56,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _isShortToast = storage.isShortToastEnabled;
         _isOfflineMode = storage.isOfflineModeEnabled;
         _unsyncedCount = unsynced;
+        _deviceInfo = info;
       });
     }
   }
@@ -319,10 +323,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // ── Section 2: Offline Sessions Navigation ────────────────────
               _buildOfflineSessionsTile(),
 
-              const SizedBox(height: 24),
-
-              // ── Section 3: Gate & Device System Information ───────────────
-              _buildSystemInfoCard(state),
+              // ── Section 3: Gate & Device System Information (Hidden for employee build) ──
+              // const SizedBox(height: 24),
+              // _buildSystemInfoCard(state),
             ],
           );
         },
@@ -563,7 +566,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildSystemInfoCard(ScannerState state) {
+    final dev = _deviceInfo;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -574,12 +579,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.info_outline_rounded, color: AppTheme.textMuted, size: 18),
-              SizedBox(width: 8),
-              Text(
-                'Hardware & Gate Diagnostics',
+              const Icon(Icons.qr_code_scanner_rounded, color: AppTheme.accentIndigo, size: 18),
+              const SizedBox(width: 8),
+              const Text(
+                'Hardware & Scanner Diagnostics',
                 style: TextStyle(
                   color: AppTheme.textSecondary,
                   fontSize: 13,
@@ -587,13 +592,238 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   letterSpacing: 0.5,
                 ),
               ),
+              const Spacer(),
+              if (dev != null && dev.isHardwareScannerCapable)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: dev.isHoneywell
+                        ? const Color(0xFFEF5350).withValues(alpha: 0.2)
+                        : const Color(0xFF0288D1).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: dev.isHoneywell ? const Color(0xFFEF5350) : const Color(0xFF0288D1),
+                    ),
+                  ),
+                  child: Text(
+                    dev.isHoneywell ? 'HONEYWELL' : 'ZEBRA',
+                    style: TextStyle(
+                      color: dev.isHoneywell ? const Color(0xFFFF8A80) : const Color(0xFF81D4FA),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 12),
+          _buildInfoRow('Device Model', dev?.displayName ?? 'Android Device'),
+          _buildInfoRow('Scanner Engine', dev?.scannerEngine ?? state.adapterName),
+          if (dev != null && dev.osRelease.isNotEmpty)
+            _buildInfoRow('Operating System', 'Android ${dev.osRelease} (API ${dev.sdkInt})'),
           _buildInfoRow('Event ID', 'Event #${state.eventId}'),
           _buildInfoRow('Gate / Scan Type', 'Gate #${state.gateId} (${state.scanType})'),
-          _buildInfoRow('Active Scanner', state.adapterName),
           _buildInfoRow('Device UUID', state.deviceId),
+          const SizedBox(height: 14),
+
+          // Diagnostic Action Buttons
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              // Re-provision Scanner Button
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: AppTheme.surfaceBorder),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                ),
+                icon: const Icon(Icons.sync_rounded, size: 15, color: AppTheme.accentIndigo),
+                label: const Text('Re-provision', style: TextStyle(fontSize: 12)),
+                onPressed: _reprovisionScanner,
+              ),
+
+              // Test Scanner Beam Button
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: AppTheme.surfaceBorder),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                ),
+                icon: const Icon(Icons.play_circle_outline_rounded, size: 15, color: AppTheme.statusSuccess),
+                label: const Text('Test Beam', style: TextStyle(fontSize: 12)),
+                onPressed: _showScannerTestDialog,
+              ),
+
+              // Honeywell Setup Guide (if Honeywell device or requested)
+              if (dev == null || dev.isHoneywell)
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFFF8A80),
+                    side: const BorderSide(color: Color(0xFFEF5350)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
+                  icon: const Icon(Icons.help_outline_rounded, size: 15, color: Color(0xFFFF8A80)),
+                  label: const Text('EDA51 Setup Guide', style: TextStyle(fontSize: 12)),
+                  onPressed: _showHoneywellGuideDialog,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _reprovisionScanner() async {
+    final success = await DeviceDetectionService().reprovisionScanner();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success
+              ? 'Scanner Profile Re-provisioned successfully'
+              : 'Re-provision command sent to hardware engine'),
+          backgroundColor: AppTheme.accentIndigo,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _showScannerTestDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) {
+        String testScannedCode = 'Ready! Pull hardware trigger button or scan a QR code...';
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return BlocListener<ScannerBloc, ScannerState>(
+              listener: (context, state) {
+                if (state is ScannerDecisionState) {
+                  setDialogState(() {
+                    testScannedCode = 'Decoded: ${state.request.qrToken}\nResult: ${state.response.code.code}\nStatus: ${state.response.status}';
+                  });
+                }
+              },
+              child: AlertDialog(
+                backgroundColor: AppTheme.surfaceElevated,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: AppTheme.surfaceBorder),
+                ),
+                title: const Row(
+                  children: [
+                    Icon(Icons.qr_code_scanner_rounded, color: AppTheme.accentIndigo, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Scanner Beam Test',
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.surfaceBorder),
+                      ),
+                      child: Text(
+                        testScannedCode,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Scans are decoded in real-time through the native hardware intent pipeline.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogCtx).pop(),
+                    child: const Text('Done', style: TextStyle(color: Colors.white70)),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showHoneywellGuideDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceElevated,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppTheme.surfaceBorder),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.tune_rounded, color: Color(0xFFEF5350), size: 20),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Honeywell EDA51 Settings',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'EventXPro automatically claims the Honeywell scanner engine. If your device MDM requires manual confirmation, verify these settings:',
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, height: 1.4),
+              ),
+              SizedBox(height: 12),
+              _StepRow(step: '1', text: 'Open Android Settings on device'),
+              _StepRow(step: '2', text: 'Select "Honeywell Settings" > "Scanning"'),
+              _StepRow(step: '3', text: 'Tap "Internal Scanner" > "Default Profile"'),
+              _StepRow(step: '4', text: 'Open "Data Processing Settings"'),
+              _StepRow(step: '5', text: 'Enable "Data Intent"'),
+              _StepRow(step: '6', text: 'Set Action to: com.eventxpro.SCAN'),
+              _StepRow(step: '7', text: 'Disable "Wedge" (prevents typing delay)'),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF5350),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Understood', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
     );
@@ -622,6 +852,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 fontFamily: 'monospace',
               ),
               overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepRow extends StatelessWidget {
+  final String step;
+  final String text;
+
+  const _StepRow({required this.step, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEF5350).withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                step,
+                style: const TextStyle(
+                  color: Color(0xFFFF8A80),
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(color: Colors.white70, fontSize: 12.5),
             ),
           ),
         ],

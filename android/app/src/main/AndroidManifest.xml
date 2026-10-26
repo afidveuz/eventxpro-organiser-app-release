@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.CAMERA"/>
     <!-- Zebra DataWedge API Permission (Required on Android 11+ / TC15) -->
     <uses-permission android:name="com.symbol.datawedge.permission.DATAWEDGE"/>
+    <!-- Honeywell Data Collection permissions (Required on Android 10/11+ / EDA51) -->
+    <uses-permission android:name="com.honeywell.decode.permission.DECODE"/>
 
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
@@ -55,5 +57,8 @@
         </intent>
         <!-- Allow queries to Zebra DataWedge service on Android 11+ -->
         <package android:name="com.symbol.datawedge"/>
+        <!-- Allow queries to Honeywell Data Collection service on Android 11+ -->
+        <package android:name="com.intermec.datacollectionservice"/>
+        <package android:name="com.honeywell.aidc"/>
     </queries>
 </manifest>
