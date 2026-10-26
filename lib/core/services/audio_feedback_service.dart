@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -13,27 +14,31 @@ enum AudioTone {
 class AudioFeedbackService {
   static final AudioFeedbackService _instance = AudioFeedbackService._internal();
   factory AudioFeedbackService() => _instance;
-  AudioFeedbackService._internal();
+  AudioFeedbackService._internal() {
+    // Disable native audio player creation in headless test environments where platform channels are not mocked
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      isAudioEnabled = false;
+    } else {
+      _applyGlobalAudioContext();
+    }
+  }
 
   bool isAudioEnabled = true;
   AudioPlayer? _player;
 
-  AudioPlayer _getOrCreatePlayer() {
-    if (_player != null) return _player!;
-    final player = AudioPlayer();
+  static void _applyGlobalAudioContext() {
     try {
-      player.setReleaseMode(ReleaseMode.stop);
-      player.setAudioContext(
+      AudioPlayer.global.setAudioContext(
         AudioContext(
           android: const AudioContextAndroid(
-            isSpeakerphoneOn: false,
+            isSpeakerphoneOn: true,
             stayAwake: false,
-            contentType: AndroidContentType.sonification,
-            usageType: AndroidUsageType.assistanceSonification,
+            contentType: AndroidContentType.music,
+            usageType: AndroidUsageType.media,
             audioFocus: AndroidAudioFocus.none,
           ),
           iOS: AudioContextIOS(
-            category: AVAudioSessionCategory.ambient,
+            category: AVAudioSessionCategory.playback,
             options: const {
               AVAudioSessionOptions.mixWithOthers,
             },
@@ -41,10 +46,38 @@ class AudioFeedbackService {
         ),
       );
     } catch (e) {
-      debugPrint('[AUDIO] setAudioContext notice: $e');
+      debugPrint('[AUDIO] global setAudioContext notice: $e');
     }
-    _player = player;
-    return player;
+  }
+
+  AudioPlayer? _getOrCreatePlayer() {
+    if (_player != null) return _player!;
+    try {
+      final player = AudioPlayer();
+      player.setReleaseMode(ReleaseMode.stop);
+      player.setAudioContext(
+        AudioContext(
+          android: const AudioContextAndroid(
+            isSpeakerphoneOn: true,
+            stayAwake: false,
+            contentType: AndroidContentType.music,
+            usageType: AndroidUsageType.media,
+            audioFocus: AndroidAudioFocus.none,
+          ),
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: const {
+              AVAudioSessionOptions.mixWithOthers,
+            },
+          ),
+        ),
+      );
+      _player = player;
+      return player;
+    } catch (e) {
+      debugPrint('[AUDIO] Error initializing AudioPlayer: $e');
+      return null;
+    }
   }
 
   Future<void> playTone(AudioTone tone) async {
@@ -69,17 +102,21 @@ class AudioFeedbackService {
   }
 
   Future<void> _playAsset(String path) async {
+    if (!isAudioEnabled) return;
     debugPrint('[AUDIO] Requesting playback: $path');
     try {
       final player = _getOrCreatePlayer();
+      if (player == null) {
+        throw Exception('AudioPlayer not available');
+      }
+      await player.stop();
+      await player.setVolume(1.0);
       await player.play(AssetSource(path));
       debugPrint('[AUDIO] Successfully dispatched sound: $path');
     } catch (e) {
       debugPrint('[AUDIO ERROR] Failed to play "$path": $e');
-      if (e.toString().contains('MissingPluginException')) {
-        debugPrint(
-            '[AUDIO CAUTION] ⚠️ "audioplayers" native binary not linked in currently running APK. Stop and re-run "flutter run" to compile native audio support into APK.');
-      }
+      _player?.dispose();
+      _player = null;
       try {
         await SystemSound.play(SystemSoundType.click);
         await HapticFeedback.mediumImpact();
@@ -92,3 +129,4 @@ class AudioFeedbackService {
     _player = null;
   }
 }
+
