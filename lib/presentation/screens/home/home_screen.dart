@@ -52,6 +52,11 @@ class _HomeScreenState extends State<HomeScreen>
   final Set<int> _loadingPermissions = {};
   DeviceInfoResult? _deviceInfo;
 
+  /// Throttle & Cache management for dashboard API requests
+  DateTime? _lastDashboardFetchTime;
+  bool _isDashboardFetching = false;
+  static const Duration _dashboardThrottleDuration = Duration(seconds: 30);
+
   late final AnimationController _blinkController;
   late final Animation<double> _blinkAnimation;
 
@@ -118,21 +123,71 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<void> _loadDashboardData() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadDashboardData({
+    bool forceRefresh = false,
+    bool silent = false,
+  }) async {
+    // 1. Prevent concurrent overlapping executions
+    if (_isDashboardFetching) return;
 
     final scannerLocalStorage = context.read<ScannerLocalStorage>();
     final dbHelper = context.read<OfflineDatabaseHelper>();
     final isOfflineEnabled = scannerLocalStorage.isOfflineModeEnabled;
 
-    setState(() {
-      _isOffline = isOfflineEnabled;
-    });
+    if (mounted) {
+      setState(() {
+        _isOffline = isOfflineEnabled;
+      });
+    }
 
+    // 2. Offline Mode Handling
     if (isOfflineEnabled) {
+      if (!silent) {
+        setState(() => _isLoading = true);
+      }
       await _loadOfflineData(scannerLocalStorage, dbHelper);
-    } else {
+      return;
+    }
+
+    // 3. Online Mode: Throttling / TTL Check
+    final now = DateTime.now();
+    final isThrottled = !forceRefresh &&
+        _lastDashboardFetchTime != null &&
+        now.difference(_lastDashboardFetchTime!) < _dashboardThrottleDuration;
+
+    if (isThrottled) {
+      final elapsed = now.difference(_lastDashboardFetchTime!).inSeconds;
+      debugPrint(
+        '[HomeScreen] ⏳ Dashboard API throttled (${elapsed}s elapsed, min ${_dashboardThrottleDuration.inSeconds}s). '
+        'Pull down to refresh or tap refresh icon to force update.',
+      );
+
+      // Even when throttled, refresh local offline scanned metrics immediately
+      try {
+        final totalScanned = await dbHelper.getTotalScannedCount();
+        if (mounted && totalScanned > 0 && _totalScannedCount != totalScanned) {
+          setState(() {
+            _totalScannedCount = totalScanned;
+          });
+        }
+      } catch (_) {}
+      return;
+    }
+
+    // 4. Show loading state like previous when not silent
+    if (!silent) {
+      setState(() => _isLoading = true);
+    }
+
+    _isDashboardFetching = true;
+    try {
       await _loadOnlineData(scannerLocalStorage, dbHelper);
+      _lastDashboardFetchTime = DateTime.now();
+    } finally {
+      _isDashboardFetching = false;
+      if (mounted && _isLoading) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -385,7 +440,8 @@ class _HomeScreenState extends State<HomeScreen>
     )
         .then((_) {
       // Re-fetch dashboard count upon returning from scanning session
-      _loadDashboardData();
+      // Throttled (30s) and silent to prevent screen flicker and duplicate network requests
+      _loadDashboardData(forceRefresh: false, silent: true);
     });
   }
 
@@ -412,7 +468,7 @@ class _HomeScreenState extends State<HomeScreen>
                 child: RefreshIndicator(
                   color: AppTheme.eventxproAccent,
                   backgroundColor: AppTheme.surfaceElevated,
-                  onRefresh: _loadDashboardData,
+                  onRefresh: () => _loadDashboardData(forceRefresh: true, silent: true),
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -517,8 +573,19 @@ class _HomeScreenState extends State<HomeScreen>
                 tooltip: 'Refresh',
                 constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                 padding: const EdgeInsets.all(6),
-                icon: const Icon(Icons.refresh_rounded, color: Colors.white70, size: 20),
-                onPressed: _loadDashboardData,
+                icon: _isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.eventxproAccent),
+                        ),
+                      )
+                    : const Icon(Icons.refresh_rounded, color: Colors.white70, size: 20),
+                onPressed: _isLoading
+                    ? null
+                    : () => _loadDashboardData(forceRefresh: true, silent: false),
               ),
 
               // Settings Action
@@ -531,7 +598,7 @@ class _HomeScreenState extends State<HomeScreen>
                   await Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SettingsScreen()),
                   );
-                  _loadDashboardData();
+                  _loadDashboardData(forceRefresh: false, silent: true);
                 },
               ),
 
@@ -557,7 +624,7 @@ class _HomeScreenState extends State<HomeScreen>
                       await Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const SettingsScreen()),
                       );
-                      _loadDashboardData();
+                      _loadDashboardData(forceRefresh: false, silent: true);
                     },
                     borderRadius: BorderRadius.circular(10),
                     child: Container(
@@ -609,7 +676,7 @@ class _HomeScreenState extends State<HomeScreen>
                       await Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const OfflineSessionsScreen()),
                       );
-                      _loadDashboardData();
+                      _loadDashboardData(forceRefresh: false, silent: true);
                     },
                     child: FadeTransition(
                       opacity: _blinkAnimation,
@@ -674,7 +741,7 @@ class _HomeScreenState extends State<HomeScreen>
               await Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const OfflineSessionsScreen()),
               );
-              _loadDashboardData();
+              _loadDashboardData(forceRefresh: false, silent: true);
             },
             child: _buildMetricCard(
               title: 'SCANNED USER',
@@ -694,7 +761,7 @@ class _HomeScreenState extends State<HomeScreen>
         await Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const OfflineSessionsScreen()),
         );
-        _loadDashboardData();
+        _loadDashboardData(forceRefresh: false, silent: true);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
