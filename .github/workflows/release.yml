@@ -35,10 +35,14 @@ jobs:
       - name: Build Release APK
         run: flutter build apk --release
 
+      - name: Rename APK with Tag
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/eventxpro-scanner-${{ github.ref_name }}.apk
+
       - name: Create GitHub Release and Upload APK
         uses: softprops/action-gh-release@v2
         with:
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: build/app/outputs/flutter-apk/eventxpro-scanner-${{ github.ref_name }}.apk
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false

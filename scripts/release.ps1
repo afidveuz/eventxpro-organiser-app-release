@@ -231,11 +231,19 @@ if (-not (Test-Path $apkPath)) {
     exit 1
 }
 
-$apkItem = Get-Item $apkPath
+# Copy and rename to branded versioned name (e.g. eventxpro-scanner-v1.0.1.apk)
+$versionClean = ($selectedVersion -split "\+")[0]
+$namedApkName = "eventxpro-scanner-v$versionClean.apk"
+$namedApkPath = Join-Path $projectRoot "build\app\outputs\flutter-apk\$namedApkName"
+
+Copy-Item -Path $apkPath -Destination $namedApkPath -Force
+$apkItem = Get-Item $namedApkPath
 $apkSizeMB = [math]::Round($apkItem.Length / 1MB, 2)
+
 Write-Host "`n==========================================" -ForegroundColor Green
 Write-Host "  Build Succeeded!" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Green
+Write-Host "APK Name     : $namedApkName" -ForegroundColor White
 Write-Host "APK Location : $($apkItem.FullName)" -ForegroundColor White
 Write-Host "APK Size     : $apkSizeMB MB" -ForegroundColor White
 Write-Host "Last Modified: $($apkItem.LastWriteTime)" -ForegroundColor White
@@ -245,7 +253,7 @@ $remoteUrl = (git config --get remote.origin.url)
 $repoWebUrl = $remoteUrl -replace "\.git$", "" -replace "^git@github\.com:", "https://github.com/"
 
 $githubReleaseUrl = "$repoWebUrl/releases/new?tag=$Tag"
-$directDownloadUrl = "$repoWebUrl/releases/download/$Tag/app-release.apk"
+$directDownloadUrl = "$repoWebUrl/releases/download/$Tag/$namedApkName"
 
 Write-Host "`n------------------------------------------" -ForegroundColor Cyan
 Write-Host "  Next Steps for GitHub Release" -ForegroundColor Cyan
@@ -261,7 +269,7 @@ if ($ghInstalled) {
     Write-Host "`nGitHub CLI detected. Attempting direct upload..." -ForegroundColor Green
     try {
         $ghNotes = if ($Notes) { $Notes } else { "Release $Tag - EventXPro App" }
-        gh release create $Tag $apkPath --title "$Tag" --notes $ghNotes
+        gh release create $Tag $namedApkPath --title "$Tag" --notes $ghNotes
         Write-Host "Release created and APK uploaded automatically via GitHub CLI!" -ForegroundColor Green
         return
     } catch {
@@ -271,11 +279,11 @@ if ($ghInstalled) {
 
 # 12. Open Explorer & Browser
 Write-Host "`nOpening APK folder in Windows Explorer..." -ForegroundColor Gray
-Start-Process explorer.exe -ArgumentList "/select,`"$apkPath`""
+Start-Process explorer.exe -ArgumentList "/select,`"$namedApkPath`""
 
 if (-not $NoBrowser) {
     Write-Host "Opening GitHub Release page in browser..." -ForegroundColor Gray
     Start-Process $githubReleaseUrl
 }
 
-Write-Host "`nDone! Drag 'app-release.apk' into the GitHub release page and click 'Publish release'." -ForegroundColor Green
+Write-Host "`nDone! Drag '$namedApkName' into the GitHub release page and click 'Publish release'." -ForegroundColor Green
