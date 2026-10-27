@@ -26,7 +26,7 @@ class AppConstants {
 
   // Debug Test Credentials
   static const String debugUsername = 'flutterveuz';
-  static const String debugPassword = 'Flutterveuz@321';
+  static const String debugPassword =       'Flutterveuz@321';
 
   // Branding Colors matching React Native theme
   static const Color brandAccent = Color(0xFFC10067); // rgba(193, 0, 103, 1)
