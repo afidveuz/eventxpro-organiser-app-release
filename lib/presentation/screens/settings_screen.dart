@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/network/api_client.dart';
+import '../../core/services/app_update_service.dart';
 import '../../core/services/device_detection_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/datasources/offline_database_helper.dart';
@@ -323,6 +324,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // ── Section 2: Offline Sessions Navigation ────────────────────
               _buildOfflineSessionsTile(),
 
+              const SizedBox(height: 16),
+
+              // ── Section 3: App Update Check ──────────────────────────────
+              _buildCheckUpdateTile(),
+
               // ── Section 3: Gate & Device System Information (Hidden for employee build) ──
               // const SizedBox(height: 24),
               // _buildSystemInfoCard(state),
@@ -561,6 +567,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           );
           _loadSettings();
+        },
+      ),
+    );
+  }
+
+  Widget _buildCheckUpdateTile() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceElevated,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.surfaceBorder),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppTheme.eventxproAccent.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(
+            Icons.system_update_rounded,
+            color: AppTheme.eventxproAccent,
+            size: 24,
+          ),
+        ),
+        title: const Text(
+          'Check for Updates',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: const Text(
+          'Verify latest version on Firebase',
+          style: TextStyle(
+            color: AppTheme.textMuted,
+            fontSize: 12,
+          ),
+        ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios_rounded,
+          color: AppTheme.textMuted,
+          size: 16,
+        ),
+        onTap: () async {
+          await AppUpdateService().checkAndPromptUpdate(
+            context,
+            showLatestToast: true,
+          );
         },
       ),
     );
