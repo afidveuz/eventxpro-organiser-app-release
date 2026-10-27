@@ -254,64 +254,105 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
                   // ── Recent Offline Scans Feed ───────────────
                   _buildRecentScansSection(),
 
-                  const SizedBox(height: 24),
-
-                  // ── Bottom Action Buttons (Matching React Native OfflineSection) ──
-                  if (_totalUnsynced > 0) ...[
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.eventxproAccent,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                      onPressed: _isSyncing ? null : _syncAll,
-                      icon: _isSyncing
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.cloud_upload_rounded),
-                      label: Text(
-                        _isSyncing
-                            ? 'Syncing records to server...'
-                            : 'Sync All ($_totalUnsynced Pending)',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  if (_totalScans > _totalUnsynced)
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.textSecondary,
-                        side: const BorderSide(color: AppTheme.surfaceBorder),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: _clearSyncedRecords,
-                      icon: const Icon(Icons.cleaning_services_outlined, size: 18),
-                      label: const Text(
-                        'Clean Up Synced Records',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                      ),
-                    ),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
+      bottomNavigationBar: _buildBottomBar(),
+    );
+  }
+
+  Widget? _buildBottomBar() {
+    final hasPending = _totalUnsynced > 0 || _isSyncing;
+    final hasSyncedToClean = _totalScans > _totalUnsynced;
+
+    if (!hasPending && !hasSyncedToClean) return null;
+
+    final syncButton = SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppTheme.eventxproAccent,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppTheme.eventxproAccent.withValues(alpha: 0.6),
+          disabledForegroundColor: Colors.white70,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          elevation: 0,
+        ),
+        onPressed: _isSyncing ? null : _syncAll,
+        icon: _isSyncing
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.cloud_upload_rounded),
+        label: Text(
+          _isSyncing
+              ? 'Syncing records to server...'
+              : 'Sync All ($_totalUnsynced Pending)',
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+
+    final cleanButton = SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppTheme.textSecondary,
+          side: const BorderSide(color: AppTheme.surfaceBorder),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        onPressed: _clearSyncedRecords,
+        icon: const Icon(Icons.cleaning_services_outlined, size: 18),
+        label: const Text(
+          'Clean Up Synced Records',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        border: const Border(
+          top: BorderSide(color: AppTheme.surfaceBorder, width: 1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 10,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (hasPending) syncButton,
+              if (hasPending && hasSyncedToClean) const SizedBox(height: 8),
+              if (hasSyncedToClean) cleanButton,
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -472,20 +513,25 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.qr_code_2_rounded, color: AppTheme.eventxproAccent, size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    'RECENT OFFLINE SCANS',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
+              const Expanded(
+                child: Row(
+                  children: [
+                    Icon(Icons.qr_code_2_rounded, color: AppTheme.eventxproAccent, size: 18),
+                    SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'RECENT OFFLINE SCANS',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               if (_recentCheckins.isNotEmpty)
                 Container(
@@ -542,32 +588,39 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: isCheckIn
-                                    ? AppTheme.eventxproSuccess.withValues(alpha: 0.15)
-                                    : const Color(0xFFFF6767).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                isCheckIn ? 'Check-in' : 'Check-out',
-                                style: TextStyle(
-                                  color: isCheckIn ? AppTheme.eventxproSuccess : const Color(0xFFFF6767),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: isCheckIn
+                                      ? AppTheme.eventxproSuccess.withValues(alpha: 0.15)
+                                      : const Color(0xFFFF6767).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  isCheckIn ? 'Check-in' : 'Check-out',
+                                  style: TextStyle(
+                                    color: isCheckIn ? AppTheme.eventxproSuccess : const Color(0xFFFF6767),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Gate #${record.entranceId} (${record.section.toUpperCase()})',
-                              style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
-                            ),
-                          ],
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Gate #${record.entranceId} (${record.section.toUpperCase()})',
+                                  style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         Text(
                           formattedTime,
                           style: const TextStyle(color: AppTheme.textMuted, fontSize: 10),

@@ -753,20 +753,28 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.meeting_room_outlined, size: 13, color: AppTheme.textMuted),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Gate #${record.entranceId} (${record.entranceLocation.isNotEmpty ? record.entranceLocation : widget.sessionTitle})',
-                        style: const TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontSize: 11.5,
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const Icon(Icons.meeting_room_outlined, size: 13, color: AppTheme.textMuted),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Gate #${record.entranceId} (${record.entranceLocation.isNotEmpty ? record.entranceLocation : widget.sessionTitle})',
+                            style: const TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 11.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(Icons.schedule_rounded, size: 12, color: AppTheme.textMuted),
                       const SizedBox(width: 4),
