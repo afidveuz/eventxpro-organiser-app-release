@@ -1,16 +1,18 @@
 <#
 .SYNOPSIS
-    Automated Release Script for EventXPro Organiser App.
+    Automated Interactive Release Script for EventXPro Organiser App.
 .DESCRIPTION
-    1. Reads or bumps version in pubspec.yaml.
-    2. Commits and pushes branch to GitHub.
-    3. Creates and pushes a Git tag (e.g. v1.0.1).
-    4. Builds the release APK (`flutter build apk --release`).
-    5. Opens the release folder and GitHub Releases web page for instant drag & drop upload.
-    6. If GitHub CLI (`gh`) is available, it can automatically upload the APK directly.
+    1. Prompts for version update (Patch / Bug Fix, Minor / Feature, Major, Custom, or Keep).
+    2. Updates pubspec.yaml with the new version and build number.
+    3. Prompts for optional release notes / description.
+    4. Commits and pushes branch to GitHub.
+    5. Creates and pushes a Git tag (e.g. v1.0.2).
+    6. Builds the release APK (`flutter build apk --release`).
+    7. Opens the APK folder and GitHub Releases web page for instant drag & drop upload.
 .EXAMPLE
-    .\scripts\release.ps1
-    .\scripts\release.ps1 -Version "1.0.2+3"
+    .\release.ps1
+    .\release.ps1 -Type patch
+    .\release.ps1 -Version "1.0.2+3"
 #>
 
 [CmdletBinding()]
@@ -19,10 +21,17 @@ param(
     [string]$Version,
 
     [Parameter(Mandatory = $false)]
+    [ValidateSet("patch", "minor", "major", "build", "keep", "custom")]
+    [string]$Type,
+
+    [Parameter(Mandatory = $false)]
     [string]$Tag,
 
     [Parameter(Mandatory = $false)]
     [string]$Branch,
+
+    [Parameter(Mandatory = $false)]
+    [string]$Notes,
 
     [Parameter(Mandatory = $false)]
     [switch]$SkipBuild,
@@ -40,22 +49,12 @@ if (-not (Test-Path "$projectRoot\pubspec.yaml")) {
 }
 Set-Location $projectRoot
 
-Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host "  EventXPro Flutter App Release Script    " -ForegroundColor Cyan
+Write-Host "`n==========================================" -ForegroundColor Cyan
+Write-Host "   EventXPro Release & Build Assistant    " -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "Project directory: $projectRoot" -ForegroundColor Gray
 
-# 1. Detect current branch
-if (-not $Branch) {
-    $currentBranch = (git branch --show-current).Trim()
-    if (-not $currentBranch) {
-        $currentBranch = "test"
-    }
-    $Branch = $currentBranch
-}
-Write-Host "Active Git Branch: $Branch" -ForegroundColor Yellow
-
-# 2. Get / Update Version in pubspec.yaml
+# 1. Read Current Version from pubspec.yaml
 $pubspecPath = Join-Path $projectRoot "pubspec.yaml"
 $pubspecContent = Get-Content $pubspecPath -Raw
 
@@ -66,44 +65,143 @@ if ($pubspecContent -match "version:\s*([0-9]+\.[0-9]+\.[0-9]+\+[0-9]+)") {
     exit 1
 }
 
-Write-Host "Current pubspec.yaml version: $currentVersion" -ForegroundColor Gray
+Write-Host "Current App Version: " -NoNewline -ForegroundColor White
+Write-Host $currentVersion -ForegroundColor Green
+
+# Parse components
+if ($currentVersion -match "^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)\+(?<build>\d+)$") {
+    $major = [int]$matches['major']
+    $minor = [int]$matches['minor']
+    $patch = [int]$matches['patch']
+    $build = [int]$matches['build']
+
+    $nextPatch = "$major.$minor.$($patch + 1)+$($build + 1)"
+    $nextMinor = "$major.$($minor + 1).0+$($build + 1)"
+    $nextMajor = "$($major + 1).0.0+$($build + 1)"
+    $nextBuild = "$major.$minor.$patch+$($build + 1)"
+} else {
+    $nextPatch = "$currentVersion"
+    $nextMinor = "$currentVersion"
+    $nextMajor = "$currentVersion"
+    $nextBuild = "$currentVersion"
+}
+
+# 2. Determine New Version (Interactive or Parameter)
+$selectedVersion = ""
 
 if ($Version) {
-    Write-Host "Updating version to: $Version" -ForegroundColor Green
-    $pubspecContent = $pubspecContent -replace "version:\s*[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+", "version: $Version"
-    Set-Content -Path $pubspecPath -Value $pubspecContent -NoNewline
-    $appVersion = $Version
+    $selectedVersion = $Version
+} elseif ($Type) {
+    switch ($Type.ToLower()) {
+        "patch"  { $selectedVersion = $nextPatch }
+        "minor"  { $selectedVersion = $nextMinor }
+        "major"  { $selectedVersion = $nextMajor }
+        "build"  { $selectedVersion = $nextBuild }
+        "keep"   { $selectedVersion = $currentVersion }
+        "custom" {
+            $selectedVersion = Read-Host "Enter custom version (e.g. 1.0.2+3)"
+        }
+    }
 } else {
-    $appVersion = $currentVersion
+    # Interactive Menu
+    Write-Host "`nSelect version update type:" -ForegroundColor Yellow
+    Write-Host "  [1] Patch / Bug Fix      -> $nextPatch (Default)" -ForegroundColor White
+    Write-Host "  [2] Minor / New Feature  -> $nextMinor" -ForegroundColor White
+    Write-Host "  [3] Major / Breaking     -> $nextMajor" -ForegroundColor White
+    Write-Host "  [4] Build Bump Only      -> $nextBuild" -ForegroundColor White
+    Write-Host "  [5] Keep Current Version -> $currentVersion" -ForegroundColor White
+    Write-Host "  [6] Custom Version       -> (Enter manually)" -ForegroundColor White
+
+    $choice = Read-Host "`nEnter option [1-6] (Press Enter for [1] Patch)"
+    if ([string]::IsNullOrWhiteSpace($choice)) {
+        $choice = "1"
+    }
+
+    switch ($choice.Trim()) {
+        "1" { $selectedVersion = $nextPatch }
+        "2" { $selectedVersion = $nextMinor }
+        "3" { $selectedVersion = $nextMajor }
+        "4" { $selectedVersion = $nextBuild }
+        "5" { $selectedVersion = $currentVersion }
+        "6" {
+            $inputVer = Read-Host "Enter custom version (e.g. 1.0.2+3)"
+            while (-not ($inputVer -match "^\d+\.\d+\.\d+\+\d+$")) {
+                Write-Host "Invalid format. Must be format X.Y.Z+B (e.g. 1.0.2+3)." -ForegroundColor Red
+                $inputVer = Read-Host "Enter custom version"
+            }
+            $selectedVersion = $inputVer
+        }
+        default {
+            Write-Host "Defaulting to Patch ($nextPatch)..." -ForegroundColor Gray
+            $selectedVersion = $nextPatch
+        }
+    }
 }
 
-# 3. Determine Tag (e.g., v1.0.1 from 1.0.1+2)
+Write-Host "`nSelected Target Version: " -NoNewline -ForegroundColor White
+Write-Host $selectedVersion -ForegroundColor Green
+
+# 3. Update pubspec.yaml if version changed
+if ($selectedVersion -ne $currentVersion) {
+    Write-Host "Updating pubspec.yaml..." -ForegroundColor Cyan
+    $pubspecContent = $pubspecContent -replace "version:\s*[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+", "version: $selectedVersion"
+    Set-Content -Path $pubspecPath -Value $pubspecContent -NoNewline
+    Write-Host "pubspec.yaml updated to $selectedVersion." -ForegroundColor Green
+} else {
+    Write-Host "Keeping version $currentVersion unchanged in pubspec.yaml." -ForegroundColor Gray
+}
+
+# 4. Optional Release Notes
+if (-not $PSBoundParameters.ContainsKey('Notes') -or [string]::IsNullOrWhiteSpace($Notes)) {
+    $enteredNotes = Read-Host "`nEnter release notes or summary (Optional - press Enter to skip)"
+    if (-not [string]::IsNullOrWhiteSpace($enteredNotes)) {
+        $Notes = $enteredNotes.Trim()
+    }
+}
+
+# 5. Detect Branch & Tag
+if (-not $Branch) {
+    $currentBranch = (git branch --show-current).Trim()
+    if (-not $currentBranch) {
+        $currentBranch = "test"
+    }
+    $Branch = $currentBranch
+}
+
 if (-not $Tag) {
-    $versionNameOnly = ($appVersion -split "\+")[0]
+    $versionNameOnly = ($selectedVersion -split "\+")[0]
     $Tag = "v$versionNameOnly"
 }
-Write-Host "Release Tag: $Tag" -ForegroundColor Magenta
 
-# 4. Check for unstaged changes in pubspec or repo
-$status = (git status --porcelain).Trim()
-if ($status) {
-    Write-Host "Staging and committing changes..." -ForegroundColor Yellow
-    git add pubspec.yaml
-    git commit -m "chore: release $Tag (version $appVersion)"
+Write-Host "`nBranch  : " -NoNewline -ForegroundColor White
+Write-Host $Branch -ForegroundColor Yellow
+Write-Host "Git Tag : " -NoNewline -ForegroundColor White
+Write-Host $Tag -ForegroundColor Magenta
+if ($Notes) {
+    Write-Host "Notes   : $Notes" -ForegroundColor Gray
 }
 
-# 5. Push branch
-Write-Host "Pushing branch '$Branch' to origin..." -ForegroundColor Yellow
+# 6. Commit any changes
+$status = (git status --porcelain).Trim()
+if ($status) {
+    Write-Host "`nStaging and committing changes..." -ForegroundColor Yellow
+    git add pubspec.yaml
+    $commitMsg = if ($Notes) { "chore: release $Tag - $Notes" } else { "chore: release $Tag (version $selectedVersion)" }
+    git commit -m $commitMsg
+}
+
+# 7. Push Branch to Origin
+Write-Host "`nPushing branch '$Branch' to origin..." -ForegroundColor Yellow
 git push origin $Branch
 
-# 6. Create & Push Git Tag
-Write-Host "Checking if tag '$Tag' exists locally..." -ForegroundColor Gray
+# 8. Create and Push Git Tag
 $tagExistsLocally = git tag -l $Tag
 if ($tagExistsLocally) {
     Write-Host "Tag '$Tag' already exists locally." -ForegroundColor Yellow
 } else {
-    Write-Host "Creating tag '$Tag'..." -ForegroundColor Green
-    git tag -a $Tag -m "Release $Tag"
+    $tagMsg = if ($Notes) { "Release $Tag: $Notes" } else { "Release $Tag" }
+    Write-Host "Creating git tag '$Tag'..." -ForegroundColor Green
+    git tag -a $Tag -m $tagMsg
 }
 
 Write-Host "Pushing tag '$Tag' to GitHub..." -ForegroundColor Yellow
@@ -114,11 +212,13 @@ try {
     Write-Host "Tag push note: $($_.Exception.Message)" -ForegroundColor Gray
 }
 
-# 7. Build Release APK
+# 9. Build Release APK
 $apkPath = Join-Path $projectRoot "build\app\outputs\flutter-apk\app-release.apk"
 
 if (-not $SkipBuild) {
-    Write-Host "`nBuilding release APK (flutter build apk --release)..." -ForegroundColor Cyan
+    Write-Host "`n------------------------------------------" -ForegroundColor Cyan
+    Write-Host "  Building Release APK (flutter build apk --release)" -ForegroundColor Cyan
+    Write-Host "------------------------------------------" -ForegroundColor Cyan
     flutter build apk --release
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Flutter build failed with exit code $LASTEXITCODE."
@@ -140,9 +240,8 @@ Write-Host "APK Location : $($apkItem.FullName)" -ForegroundColor White
 Write-Host "APK Size     : $apkSizeMB MB" -ForegroundColor White
 Write-Host "Last Modified: $($apkItem.LastWriteTime)" -ForegroundColor White
 
-# 8. GitHub Remote Repo Information
+# 10. URLs for GitHub Release & Firebase Remote Config
 $remoteUrl = (git config --get remote.origin.url)
-# Clean git@github.com:User/Repo.git or https://github.com/User/Repo.git
 $repoWebUrl = $remoteUrl -replace "\.git$", "" -replace "^git@github\.com:", "https://github.com/"
 
 $githubReleaseUrl = "$repoWebUrl/releases/new?tag=$Tag"
@@ -151,26 +250,27 @@ $directDownloadUrl = "$repoWebUrl/releases/download/$Tag/app-release.apk"
 Write-Host "`n------------------------------------------" -ForegroundColor Cyan
 Write-Host "  Next Steps for GitHub Release" -ForegroundColor Cyan
 Write-Host "------------------------------------------" -ForegroundColor Cyan
-Write-Host "1. Create Release on GitHub:" -ForegroundColor Yellow
+Write-Host "1. Create / View Release on GitHub:" -ForegroundColor Yellow
 Write-Host "   $githubReleaseUrl" -ForegroundColor White
 Write-Host "2. Direct APK Download URL (for Firebase Remote Config):" -ForegroundColor Yellow
 Write-Host "   $directDownloadUrl" -ForegroundColor White
 
-# 9. Automatic GitHub CLI Upload if installed
+# 11. GitHub CLI Auto-Upload if available
 $ghInstalled = Get-Command gh -ErrorAction SilentlyContinue
 if ($ghInstalled) {
-    Write-Host "`nGitHub CLI (gh) detected. Attempting automatic release creation..." -ForegroundColor Green
+    Write-Host "`nGitHub CLI detected. Attempting direct upload..." -ForegroundColor Green
     try {
-        gh release create $Tag $apkPath --title "$Tag" --notes "Release $Tag - EventXPro App"
-        Write-Host "Release created and APK uploaded automatically!" -ForegroundColor Green
+        $ghNotes = if ($Notes) { $Notes } else { "Release $Tag - EventXPro App" }
+        gh release create $Tag $apkPath --title "$Tag" --notes $ghNotes
+        Write-Host "Release created and APK uploaded automatically via GitHub CLI!" -ForegroundColor Green
         return
     } catch {
-        Write-Host "Could not auto-upload via gh CLI. Opening browser instead..." -ForegroundColor Yellow
+        Write-Host "Could not auto-upload via gh CLI ($($_.Exception.Message)). Opening browser..." -ForegroundColor Yellow
     }
 }
 
-# 10. Open folder and browser for easy drag & drop
-Write-Host "`nOpening APK folder in Explorer..." -ForegroundColor Gray
+# 12. Open Explorer & Browser
+Write-Host "`nOpening APK folder in Windows Explorer..." -ForegroundColor Gray
 Start-Process explorer.exe -ArgumentList "/select,`"$apkPath`""
 
 if (-not $NoBrowser) {
@@ -178,4 +278,4 @@ if (-not $NoBrowser) {
     Start-Process $githubReleaseUrl
 }
 
-Write-Host "`nDone! Just drag 'app-release.apk' into the GitHub release page and click 'Publish release'." -ForegroundColor Green
+Write-Host "`nDone! Drag 'app-release.apk' into the GitHub release page and click 'Publish release'." -ForegroundColor Green

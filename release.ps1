@@ -4,10 +4,17 @@ param(
     [string]$Version,
 
     [Parameter(Mandatory = $false)]
+    [ValidateSet("patch", "minor", "major", "build", "keep", "custom")]
+    [string]$Type,
+
+    [Parameter(Mandatory = $false)]
     [string]$Tag,
 
     [Parameter(Mandatory = $false)]
     [string]$Branch,
+
+    [Parameter(Mandatory = $false)]
+    [string]$Notes,
 
     [Parameter(Mandatory = $false)]
     [switch]$SkipBuild,
