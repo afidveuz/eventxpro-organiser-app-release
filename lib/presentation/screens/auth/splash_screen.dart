@@ -7,6 +7,9 @@ import '../../bloc/auth/auth_state.dart';
 import '../../widgets/app_background.dart';
 import 'login_screen.dart';
 
+import '../../../core/services/app_update_service.dart';
+import '../../widgets/update_dialog.dart';
+
 class SplashScreen extends StatefulWidget {
   final Widget authenticatedHome;
 
@@ -17,19 +20,50 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  bool _checkingUpdate = true;
+
   @override
   void initState() {
     super.initState();
-    // Dispatch check auth status
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthBloc>().add(const CheckAuthStatus());
+      _checkUpdateAndProceed();
     });
+  }
+
+  Future<void> _checkUpdateAndProceed() async {
+    // 1. Check for app updates via Firebase Remote Config
+    final updateInfo = await AppUpdateService().checkForUpdate();
+
+    if (!mounted) return;
+
+    if (updateInfo.isForceUpdate) {
+      // Force update: show non-dismissible dialog and halt progression
+      debugPrint('[SplashScreen] 🚨 Triggering Force Update dialog');
+      await UpdateDialog.show(context, updateInfo);
+      return;
+    }
+
+    if (updateInfo.isRegularUpdate) {
+      // Regular update: show prompt with "Later" option
+      debugPrint('[SplashScreen] ℹ️ Triggering Regular Update dialog');
+      await UpdateDialog.show(context, updateInfo);
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _checkingUpdate = false;
+    });
+
+    // 2. Proceed to check auth status and navigate
+    context.read<AuthBloc>().add(const CheckAuthStatus());
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
+        if (_checkingUpdate) return; // Prevent navigation while update check is active
         if (state is AuthAuthenticated) {
           Navigator.of(context).pushReplacement(
             PageRouteBuilder(

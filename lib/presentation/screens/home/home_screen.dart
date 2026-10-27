@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/services/app_update_service.dart';
 import '../../../core/services/device_detection_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/adapters/simulated_hardware_adapter.dart';
@@ -68,6 +69,13 @@ class _HomeScreenState extends State<HomeScreen>
 
     _loadDashboardData();
     _initDeviceInfo();
+
+    // Check for app updates on home screen load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        AppUpdateService().checkAndPromptUpdate(context);
+      }
+    });
   }
 
   Future<void> _initDeviceInfo() async {
