@@ -25,8 +25,8 @@ class AppConstants {
   static const String defaultTicketEncryptionKey = 'yGm7P48x50k=';
 
   // Debug Test Credentials
-  static const String debugUsername = 'amar';
-  static const String debugPassword = 'Amar@1234788';
+  static const String debugUsername = 'flutterveuz';
+  static const String debugPassword =       'Flutterveuz@321';
 
   // Branding Colors matching React Native theme
   static const Color brandAccent = Color(0xFFC10067); // rgba(193, 0, 103, 1)
