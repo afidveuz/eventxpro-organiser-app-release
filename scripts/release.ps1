@@ -204,12 +204,26 @@ if ($tagExistsLocally) {
     git tag -a $Tag -m $tagMsg
 }
 
-Write-Host "Pushing tag '$Tag' to GitHub..." -ForegroundColor Yellow
+Write-Host "Pushing tag '$Tag' to code repo (origin)..." -ForegroundColor Yellow
 try {
     git push origin $Tag
-    Write-Host "Tag '$Tag' pushed successfully." -ForegroundColor Green
+    Write-Host "Tag '$Tag' pushed to origin." -ForegroundColor Green
 } catch {
-    Write-Host "Tag push note: $($_.Exception.Message)" -ForegroundColor Gray
+    Write-Host "Origin tag push note: $($_.Exception.Message)" -ForegroundColor Gray
+}
+
+# Ensure 'release' remote exists for public releases
+$releaseRemoteUrl = git remote get-url release 2>$null
+if (-not $releaseRemoteUrl) {
+    git remote add release https://github.com/afidveuz/eventxpro-organiser-app-release.git
+}
+
+Write-Host "Pushing tag '$Tag' to public release repo..." -ForegroundColor Yellow
+try {
+    git push release $Tag
+    Write-Host "Tag '$Tag' pushed to public release repo." -ForegroundColor Green
+} catch {
+    Write-Host "Public release tag push note: $($_.Exception.Message)" -ForegroundColor Gray
 }
 
 # 9. Build Release APK
@@ -248,20 +262,19 @@ Write-Host "APK Location : $($apkItem.FullName)" -ForegroundColor White
 Write-Host "APK Size     : $apkSizeMB MB" -ForegroundColor White
 Write-Host "Last Modified: $($apkItem.LastWriteTime)" -ForegroundColor White
 
-# 10. URLs for GitHub Release & Firebase Remote Config
-$remoteUrl = (git config --get remote.origin.url)
-$repoWebUrl = $remoteUrl -replace "\.git$", "" -replace "^git@github\.com:", "https://github.com/"
+# 10. URLs for Public GitHub Release & Firebase Remote Config
+$publicReleaseRepoWebUrl = "https://github.com/afidveuz/eventxpro-organiser-app-release"
 
-$githubReleaseUrl = "$repoWebUrl/releases/new?tag=$Tag"
-$directDownloadUrl = "$repoWebUrl/releases/download/$Tag/$namedApkName"
+$githubReleaseUrl = "$publicReleaseRepoWebUrl/releases/new?tag=$Tag"
+$directDownloadUrl = "$publicReleaseRepoWebUrl/releases/download/$Tag/$namedApkName"
 
 Write-Host "`n------------------------------------------" -ForegroundColor Cyan
-Write-Host "  Next Steps for GitHub Release" -ForegroundColor Cyan
+Write-Host "  Next Steps for Public GitHub Release" -ForegroundColor Cyan
 Write-Host "------------------------------------------" -ForegroundColor Cyan
-Write-Host "1. Create / View Release on GitHub:" -ForegroundColor Yellow
+Write-Host "1. Create / View Release on Public GitHub Repo:" -ForegroundColor Yellow
 Write-Host "   $githubReleaseUrl" -ForegroundColor White
-Write-Host "2. Direct APK Download URL (for Firebase Remote Config):" -ForegroundColor Yellow
-Write-Host "   $directDownloadUrl" -ForegroundColor White
+Write-Host "2. Public Direct Download URL (Works without login in Firebase Remote Config):" -ForegroundColor Yellow
+Write-Host "   $directDownloadUrl" -ForegroundColor Green
 
 # 11. GitHub CLI Auto-Upload if available
 $ghInstalled = Get-Command gh -ErrorAction SilentlyContinue
