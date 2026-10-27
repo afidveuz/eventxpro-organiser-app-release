@@ -199,7 +199,7 @@ $tagExistsLocally = git tag -l $Tag
 if ($tagExistsLocally) {
     Write-Host "Tag '$Tag' already exists locally." -ForegroundColor Yellow
 } else {
-    $tagMsg = if ($Notes) { "Release $Tag: $Notes" } else { "Release $Tag" }
+    $tagMsg = if ($Notes) { "Release $Tag - $Notes" } else { "Release $Tag" }
     Write-Host "Creating git tag '$Tag'..." -ForegroundColor Green
     git tag -a $Tag -m $tagMsg
 }
