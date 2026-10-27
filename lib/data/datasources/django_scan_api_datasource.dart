@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../core/config/app_constants.dart';
+import '../../core/services/remote_config_service.dart';
 import '../../domain/entities/scan_decision_code.dart';
 import '../../domain/entities/scan_request.dart';
 import '../../domain/entities/scan_response.dart';
@@ -22,7 +23,8 @@ class DjangoScanApiDatasource {
         _dio = dio ??
             Dio(
               BaseOptions(
-                baseUrl: authLocalStorage?.getBaseUrl() ?? AppConstants.defaultBaseUrl,
+                baseUrl: authLocalStorage?.getBaseUrl() ??
+                    RemoteConfigService().getDefaultBaseUrl(),
                 connectTimeout: AppConstants.defaultNetworkTimeout,
                 receiveTimeout: AppConstants.defaultNetworkTimeout,
                 headers: {

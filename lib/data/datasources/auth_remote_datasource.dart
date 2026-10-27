@@ -29,33 +29,14 @@ class AuthRemoteDatasource {
 
       return data;
     } on DioException catch (dioErr) {
-      if (dioErr.response?.data != null) {
-        final data = dioErr.response!.data;
-        if (data is Map<String, dynamic>) {
-          return {
-            'status': false,
-            'message': data['message'] ?? data['detail'] ?? 'Login failed. Please verify credentials.',
-          };
-        } else if (data is String) {
-          try {
-            final parsed = jsonDecode(data);
-            if (parsed is Map<String, dynamic>) {
-              return {
-                'status': false,
-                'message': parsed['message'] ?? parsed['detail'] ?? 'Login failed.',
-              };
-            }
-          } catch (_) {}
-        }
-      }
       return {
         'status': false,
-        'message': 'Network connection issue: ${dioErr.message ?? 'Please check internet'}',
+        'message': ApiClient.formatDioError(dioErr),
       };
     } catch (e) {
       return {
         'status': false,
-        'message': 'Unexpected error: $e',
+        'message': 'Unexpected error occurred. Please try again.',
       };
     }
   }
@@ -90,14 +71,15 @@ class AuthRemoteDatasource {
           : response.data as Map<String, dynamic>;
       return data;
     } on DioException catch (dioErr) {
-      final data = dioErr.response?.data;
-      String msg = 'Failed to generate OTP';
-      if (data is Map && data['message'] != null) {
-        msg = data['message'].toString();
-      }
-      return {'status': false, 'message': msg};
+      return {
+        'status': false,
+        'message': ApiClient.formatDioError(dioErr),
+      };
     } catch (e) {
-      return {'status': false, 'message': e.toString()};
+      return {
+        'status': false,
+        'message': 'Unexpected error occurred. Please try again.',
+      };
     }
   }
 }

@@ -4,11 +4,7 @@ import 'package:flutter/services.dart';
 import '../../data/datasources/scanner_local_storage.dart';
 import '../config/app_constants.dart';
 
-enum DeviceManufacturerType {
-  honeywell,
-  zebra,
-  generic,
-}
+enum DeviceManufacturerType { honeywell, zebra, generic }
 
 class DeviceInfoResult {
   final String manufacturer;
@@ -50,10 +46,12 @@ class DeviceInfoResult {
 }
 
 class DeviceDetectionService {
-  static const MethodChannel _controlChannel =
-      MethodChannel(AppConstants.scannerControlChannel);
+  static const MethodChannel _controlChannel = MethodChannel(
+    AppConstants.scannerControlChannel,
+  );
 
-  static final DeviceDetectionService _instance = DeviceDetectionService._internal();
+  static final DeviceDetectionService _instance =
+      DeviceDetectionService._internal();
   factory DeviceDetectionService() => _instance;
   DeviceDetectionService._internal();
 
@@ -78,14 +76,15 @@ class DeviceDetectionService {
           final osRelease = raw['osRelease']?.toString() ?? '';
           final sdkInt = (raw['sdkInt'] as num?)?.toInt() ?? 0;
           final rawType = raw['deviceType']?.toString() ?? 'GENERIC_ANDROID';
-          final scannerEngine = raw['scannerEngine']?.toString() ?? 'Auto-Detect';
+          final scannerEngine =
+              raw['scannerEngine']?.toString() ?? 'Auto-Detect';
           final isCapable = raw['isHardwareScannerCapable'] == true;
 
           final type = rawType == 'HONEYWELL'
               ? DeviceManufacturerType.honeywell
               : rawType == 'ZEBRA'
-                  ? DeviceManufacturerType.zebra
-                  : DeviceManufacturerType.generic;
+              ? DeviceManufacturerType.zebra
+              : DeviceManufacturerType.generic;
 
           final result = DeviceInfoResult(
             manufacturer: manufacturer,
@@ -110,11 +109,14 @@ class DeviceDetectionService {
           }
 
           debugPrint(
-              '[DeviceDetectionService] 📱 Detected Device: ${result.displayName} | Type: $rawType | Engine: $scannerEngine');
+            '[DeviceDetectionService] 📱 Detected Device: ${result.displayName} | Type: $rawType | Engine: $scannerEngine',
+          );
           return result;
         }
       } catch (e) {
-        debugPrint('[DeviceDetectionService] ⚠️ Native device query failed: $e');
+        debugPrint(
+          '[DeviceDetectionService] ⚠️ Native device query failed: $e',
+        );
       }
     }
 

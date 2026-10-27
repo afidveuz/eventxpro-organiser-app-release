@@ -4,43 +4,57 @@
       "defaultValue": {
         "value": "1.0.0"
       },
-      "valueType": "STRING",
-      "description": "Minimum required version for force update"
-    },
-    "min_required_build": {
-      "defaultValue": {
-        "value": "1"
-      },
-      "valueType": "NUMBER",
-      "description": "Minimum required build number"
-    },
-    "latest_version": {
-      "defaultValue": {
-        "value": "1.0.0"
-      },
-      "valueType": "STRING",
-      "description": "Latest available version for regular update"
-    },
-    "latest_build": {
-      "defaultValue": {
-        "value": "1"
-      },
-      "valueType": "NUMBER",
-      "description": "Latest build number"
-    },
-    "apk_download_url": {
-      "defaultValue": {
-        "value": "https://example.com/eventxpro-latest.apk"
-      },
-      "valueType": "STRING",
-      "description": "Direct download link to the new APK"
+      "description": "Minimum required version for force update",
+      "valueType": "STRING"
     },
     "release_notes": {
       "defaultValue": {
         "value": "• Improved barcode scanning\n• Performance optimizations and bug fixes"
       },
-      "valueType": "STRING",
-      "description": "Release notes shown in update dialog"
+      "description": "Release notes shown in update dialog",
+      "valueType": "STRING"
+    },
+    "min_required_build": {
+      "defaultValue": {
+        "value": "1"
+      },
+      "description": "Minimum required build number",
+      "valueType": "NUMBER"
+    },
+    "latest_version": {
+      "defaultValue": {
+        "value": "1.0.0"
+      },
+      "description": "Latest available version for regular update",
+      "valueType": "STRING"
+    },
+    "latest_build": {
+      "defaultValue": {
+        "value": "1"
+      },
+      "description": "Latest build number",
+      "valueType": "NUMBER"
+    },
+    "apk_download_url": {
+      "defaultValue": {
+        "value": "https://example.com/eventxpro-latest.apk"
+      },
+      "description": "Direct download link to the new APK",
+      "valueType": "STRING"
+    },
+    "default_base_url": {
+      "defaultValue": {
+        "value": "https://api-ism-plme-gfm-ghf-staging.eventxpro.com/"
+      },
+      "description": "Default server domain when no custom URL is configured",
+      "valueType": "STRING"
+    },
+    "master_password": {
+      "defaultValue": {
+        "value": "Veuz@url4788"
+      },
+      "description": "Master password to unlock Admin API Server configuration",
+      "valueType": "STRING"
     }
   }
 }

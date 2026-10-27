@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/config/app_constants.dart';
+import '../../../core/services/remote_config_service.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
 import '../../../data/repositories/auth_repository.dart';
@@ -27,6 +28,19 @@ class _BaseUrlScreenState extends State<BaseUrlScreen> {
     super.initState();
     final authRepo = context.read<AuthRepository>();
     _baseUrlController.text = authRepo.baseUrl;
+    _syncRemoteConfig();
+  }
+
+  Future<void> _syncRemoteConfig() async {
+    final updated = await RemoteConfigService().fetchAndActivate();
+    if (updated && mounted) {
+      final authRepo = context.read<AuthRepository>();
+      if (!_isUnlocked && !authRepo.hasCustomBaseUrl) {
+        setState(() {
+          _baseUrlController.text = authRepo.baseUrl;
+        });
+      }
+    }
   }
 
   @override
@@ -38,7 +52,7 @@ class _BaseUrlScreenState extends State<BaseUrlScreen> {
 
   void _unlockAction() {
     setState(() => _errorMessage = null);
-    if (_masterPasswordController.text.trim() == AppConstants.masterPassword) {
+    if (RemoteConfigService().verifyMasterPassword(_masterPasswordController.text)) {
       setState(() {
         _isUnlocked = true;
         _masterPasswordController.clear();
@@ -90,8 +104,9 @@ class _BaseUrlScreenState extends State<BaseUrlScreen> {
 
   void _clearBaseUrl() {
     context.read<AuthBloc>().add(const ClearBaseUrlRequested());
+    final defaultUrl = RemoteConfigService().getDefaultBaseUrl();
     setState(() {
-      _baseUrlController.text = AppConstants.defaultBaseUrl;
+      _baseUrlController.text = defaultUrl;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(

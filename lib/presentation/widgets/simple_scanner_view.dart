@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/config/app_constants.dart';
+import '../../core/services/remote_config_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/datasources/auth_local_storage.dart';
 import '../../data/datasources/scanner_local_storage.dart';
@@ -220,9 +221,10 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
       final cleanPath = trimmed.startsWith('/') ? trimmed : '/$trimmed';
       return '$cleanBase$cleanPath';
     } catch (_) {
-      final cleanBase = AppConstants.defaultBaseUrl.endsWith('/')
-          ? AppConstants.defaultBaseUrl.substring(0, AppConstants.defaultBaseUrl.length - 1)
-          : AppConstants.defaultBaseUrl;
+      final defaultBase = RemoteConfigService().getDefaultBaseUrl();
+      final cleanBase = defaultBase.endsWith('/')
+          ? defaultBase.substring(0, defaultBase.length - 1)
+          : defaultBase;
       final cleanPath = trimmed.startsWith('/') ? trimmed : '/$trimmed';
       return '$cleanBase$cleanPath';
     }

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../data/datasources/auth_local_storage.dart';
@@ -44,6 +45,17 @@ class ApiClient {
           
           // Check for 401 Unauthorized to trigger token refresh or clear session
           if (error.response?.statusCode == 401) {
+            // Ignore 401 on login or auth endpoints, or when no user session is active.
+            // A 401 on login is an invalid credential error, not an expired session.
+            final path = error.requestOptions.path;
+            final isAuthEndpoint = path.contains(AppConstants.loginEndpoint) ||
+                path.contains(AppConstants.refreshTokenEndpoint) ||
+                path.contains(AppConstants.generateOtpEndpoint);
+
+            if (isAuthEndpoint || !_localStorage.isLoggedIn) {
+              return handler.next(error);
+            }
+
             String message = 'Unauthorized. Please login again.';
             if (error.response?.data is Map) {
               final rawMsg = error.response?.data['message'] ?? error.response?.data['detail'];
@@ -123,4 +135,79 @@ class ApiClient {
   }
 
   Dio get dio => _dio;
+
+  /// Formats a DioException into a standard, clean, user-friendly error message.
+  /// Never exposes private internal URLs, domains, stack traces, or library debugging text.
+  static String formatDioError(DioException dioErr) {
+    // 1. If backend returned a structured JSON response
+    if (dioErr.response?.data != null) {
+      final data = dioErr.response!.data;
+      if (data is Map<String, dynamic>) {
+        final msg = data['message'] ?? data['detail'] ?? data['error'];
+        if (msg != null && msg.toString().trim().isNotEmpty) {
+          return msg.toString().trim();
+        }
+      } else if (data is String && data.trim().isNotEmpty) {
+        try {
+          final parsed = jsonDecode(data);
+          if (parsed is Map<String, dynamic>) {
+            final msg = parsed['message'] ?? parsed['detail'] ?? parsed['error'];
+            if (msg != null && msg.toString().trim().isNotEmpty) {
+              return msg.toString().trim();
+            }
+          }
+        } catch (_) {
+          // If response is raw HTML or plaintext, do not expose raw HTML
+        }
+      }
+    }
+
+    // 2. HTTP Status Code based fallbacks
+    final statusCode = dioErr.response?.statusCode;
+    if (statusCode != null) {
+      switch (statusCode) {
+        case 400:
+          return 'Invalid request. Please verify credentials.';
+        case 401:
+          return 'Invalid username or password.';
+        case 403:
+          return 'Access denied. You do not have permission.';
+        case 404:
+          return 'Server endpoint not found. Please verify domain configuration.';
+        case 500:
+        case 502:
+        case 503:
+        case 504:
+          return 'Server error ($statusCode). Please try again later.';
+        default:
+          return 'Request failed ($statusCode). Please try again.';
+      }
+    }
+
+    // 3. Network and Socket error handling (DNS failures, offline, timeouts)
+    switch (dioErr.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return 'Connection timed out. Please check your internet connection.';
+      case DioExceptionType.badCertificate:
+        return 'Security certificate error. Please verify server domain.';
+      case DioExceptionType.cancel:
+        return 'Request was cancelled.';
+      case DioExceptionType.connectionError:
+      case DioExceptionType.unknown:
+      default:
+        final errText = '${dioErr.error ?? ''} ${dioErr.message ?? ''}'.toLowerCase();
+        if (errText.contains('failed host lookup') ||
+            errText.contains('nodename nor servname') ||
+            errText.contains('socketexception') ||
+            errText.contains('network is unreachable')) {
+          return 'Unable to reach server. Please check your internet connection or server configuration.';
+        }
+        if (errText.contains('connection refused')) {
+          return 'Connection refused by server. Please verify your domain configuration.';
+        }
+        return 'Network connection issue. Please check your internet connection.';
+    }
+  }
 }

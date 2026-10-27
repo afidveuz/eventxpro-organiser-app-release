@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/config/app_constants.dart';
+import '../../core/services/remote_config_service.dart';
 import '../../domain/entities/scan_request.dart';
 
 /// Local persistent storage for offline scan queues, gate settings, and device identity.
@@ -128,7 +129,8 @@ class ScannerLocalStorage {
   }
 
   String getServerUrl() =>
-      _prefs.getString(_keyServerUrl) ?? AppConstants.defaultBaseUrl;
+      _prefs.getString(_keyServerUrl) ??
+      RemoteConfigService().getDefaultBaseUrl();
   Future<void> setServerUrl(String url) => _prefs.setString(_keyServerUrl, url);
 
   int getSuppressionMs() =>

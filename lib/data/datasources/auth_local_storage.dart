@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../core/config/app_constants.dart';
+import '../../core/services/remote_config_service.dart';
 import '../models/user_model.dart';
 
 class AuthLocalStorage {
@@ -151,6 +151,14 @@ class AuthLocalStorage {
   Future<void> setCountriesJson(String jsonString) =>
       _prefs.setString(_keyCountries, jsonString);
 
+  /// Returns true if the user manually configured a custom base URL override.
+  bool get hasCustomBaseUrl {
+    final stored = _prefs.getString(_keyBaseUrl);
+    return stored != null &&
+        stored.trim().isNotEmpty &&
+        !stored.contains('api-sfs-sfm.eventxpro.com');
+  }
+
   // Dynamic Base URL
   String getBaseUrl() {
     final stored = _prefs.getString(_keyBaseUrl);
@@ -159,7 +167,7 @@ class AuthLocalStorage {
         !stored.contains('api-sfs-sfm.eventxpro.com')) {
       return stored.endsWith('/') ? stored : '$stored/';
     }
-    return AppConstants.defaultBaseUrl;
+    return RemoteConfigService().getDefaultBaseUrl();
   }
 
   Future<void> setBaseUrl(String url) async {

@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qr_scanner/core/config/app_constants.dart';
@@ -281,4 +284,128 @@ void main() {
       expect(authLocalStorage.isLoggedIn, false);
     });
   });
+
+  group('ApiClient 401 Session Interceptor Tests', () {
+    test('401 on login endpoint does not trigger onUnauthorized callback', () async {
+      bool onUnauthorizedCalled = false;
+      apiClient.onUnauthorized = (msg) {
+        onUnauthorizedCalled = true;
+      };
+
+      apiClient.dio.httpClientAdapter = Mock401Adapter({'detail': 'Invalid username or password'});
+
+      final realRemoteDatasource = AuthRemoteDatasource(apiClient: apiClient);
+      final result = await realRemoteDatasource.login(
+        username: 'wronguser',
+        password: 'wrongpassword',
+      );
+
+      expect(result['status'], false);
+      expect(result['message'], 'Invalid username or password');
+      expect(onUnauthorizedCalled, false);
+      expect(authLocalStorage.isLoggedIn, false);
+    });
+
+    test('401 on authenticated endpoint with active session triggers onUnauthorized', () async {
+      bool onUnauthorizedCalled = false;
+      String? unauthorizedMsg;
+      apiClient.onUnauthorized = (msg) {
+        onUnauthorizedCalled = true;
+        unauthorizedMsg = msg;
+      };
+
+      // Set logged in session
+      await authLocalStorage.setToken('valid-token');
+      expect(authLocalStorage.isLoggedIn, true);
+
+      apiClient.dio.httpClientAdapter = Mock401Adapter({'detail': 'Another login detected'});
+
+      try {
+        await apiClient.dio.get('organizer/dashboard');
+      } catch (_) {}
+
+      expect(onUnauthorizedCalled, true);
+      expect(unauthorizedMsg, 'Another login detected');
+      expect(authLocalStorage.isLoggedIn, false);
+    });
+  });
+
+  group('ApiClient.formatDioError Sanitization Tests', () {
+    test('DNS failure / wrong domain does not leak internal domain or library debug text', () {
+      final dioErr = DioException(
+        requestOptions: RequestOptions(path: 'organizer/login'),
+        type: DioExceptionType.connectionError,
+        message: "The connection errored: Failed host lookup: 'api-ism-plme-gfmdddd-ghf-staging.eventxpro.com' This indicates an error which most likely cannot be solved by the library.",
+      );
+
+      final formatted = ApiClient.formatDioError(dioErr);
+
+      expect(formatted, 'Unable to reach server. Please check your internet connection or server configuration.');
+      expect(formatted.contains('api-ism-plme-gfmdddd-ghf-staging.eventxpro.com'), false);
+      expect(formatted.contains('indicates an error'), false);
+      expect(formatted.contains('library'), false);
+    });
+
+    test('Structured JSON message from backend is returned as-is', () {
+      final dioErr = DioException(
+        requestOptions: RequestOptions(path: 'organizer/login'),
+        response: Response(
+          requestOptions: RequestOptions(path: 'organizer/login'),
+          statusCode: 401,
+          data: {'detail': 'No active account found with the given credentials'},
+        ),
+      );
+
+      final formatted = ApiClient.formatDioError(dioErr);
+      expect(formatted, 'No active account found with the given credentials');
+    });
+
+    test('Connection timeout produces friendly message', () {
+      final dioErr = DioException(
+        requestOptions: RequestOptions(path: 'organizer/login'),
+        type: DioExceptionType.connectionTimeout,
+      );
+
+      final formatted = ApiClient.formatDioError(dioErr);
+      expect(formatted, 'Connection timed out. Please check your internet connection.');
+    });
+
+    test('HTTP 500 error produces clean message with status code', () {
+      final dioErr = DioException(
+        requestOptions: RequestOptions(path: 'organizer/login'),
+        response: Response(
+          requestOptions: RequestOptions(path: 'organizer/login'),
+          statusCode: 500,
+        ),
+      );
+
+      final formatted = ApiClient.formatDioError(dioErr);
+      expect(formatted, 'Server error (500). Please try again later.');
+    });
+  });
 }
+
+class Mock401Adapter implements HttpClientAdapter {
+  final Map<String, dynamic> responseData;
+  Mock401Adapter(this.responseData);
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    return ResponseBody.fromString(
+      jsonEncode(responseData),
+      401,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+

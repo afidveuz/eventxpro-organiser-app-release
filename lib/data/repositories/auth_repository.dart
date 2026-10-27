@@ -69,6 +69,8 @@ class AuthRepository {
 
   String get baseUrl => _localStorage.getBaseUrl();
 
+  bool get hasCustomBaseUrl => _localStorage.hasCustomBaseUrl;
+
   Future<void> updateBaseUrl(String url) => _localStorage.setBaseUrl(url);
 
   Future<void> clearBaseUrl() => _localStorage.clearBaseUrl();

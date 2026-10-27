@@ -1,9 +1,9 @@
-import 'package:firebase_remote_config/firebase_remote_config.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../theme/app_theme.dart';
 import '../../presentation/widgets/update_dialog.dart';
+
+import 'remote_config_service.dart';
 
 enum UpdateType {
   none,
@@ -44,44 +44,17 @@ class AppUpdateService {
   factory AppUpdateService() => _instance;
   AppUpdateService._internal();
 
-  FirebaseRemoteConfig? _remoteConfig;
-
-  /// Initializes Remote Config settings and default fallbacks
+  /// Initializes Remote Config settings and default fallbacks via RemoteConfigService
   Future<void> initialize() async {
-    try {
-      _remoteConfig = FirebaseRemoteConfig.instance;
-
-      await _remoteConfig!.setConfigSettings(
-        RemoteConfigSettings(
-          fetchTimeout: const Duration(seconds: 10),
-          // Fetch immediately in debug mode; 30-minute cache in release
-          minimumFetchInterval:
-              kDebugMode ? Duration.zero : const Duration(minutes: 30),
-        ),
-      );
-
-      await _remoteConfig!.setDefaults(const {
-        'min_required_version': '1.0.0',
-        'min_required_build': 1,
-        'latest_version': '1.0.0',
-        'latest_build': 1,
-        'apk_download_url': '',
-        'release_notes': 'Bug fixes and performance improvements.',
-      });
-
-      debugPrint('[AppUpdateService] Initialized successfully.');
-    } catch (e) {
-      debugPrint('[AppUpdateService] Initialization error: $e');
-    }
+    await RemoteConfigService().initialize();
   }
 
   /// Fetches latest Remote Config values and determines update status
   Future<AppUpdateInfo> checkForUpdate() async {
     try {
-      _remoteConfig ??= FirebaseRemoteConfig.instance;
-
       // 1. Fetch & activate latest values from Firebase
-      await _remoteConfig!.fetchAndActivate();
+      await RemoteConfigService().fetchAndActivate();
+      final remoteConfig = RemoteConfigService().remoteConfig;
 
       // 2. Read current app version & build number from package_info_plus
       final packageInfo = await PackageInfo.fromPlatform();
@@ -90,14 +63,14 @@ class AppUpdateService {
 
       // 3. Read Remote Config parameters
       final minRequiredVersion =
-          _remoteConfig!.getString('min_required_version').trim();
-      final minRequiredBuild = _remoteConfig!.getInt('min_required_build');
+          remoteConfig.getString('min_required_version').trim();
+      final minRequiredBuild = remoteConfig.getInt('min_required_build');
 
-      final latestVersion = _remoteConfig!.getString('latest_version').trim();
-      final latestBuild = _remoteConfig!.getInt('latest_build');
+      final latestVersion = remoteConfig.getString('latest_version').trim();
+      final latestBuild = remoteConfig.getInt('latest_build');
 
-      final apkUrl = _remoteConfig!.getString('apk_download_url').trim();
-      final releaseNotes = _remoteConfig!.getString('release_notes').trim();
+      final apkUrl = remoteConfig.getString('apk_download_url').trim();
+      final releaseNotes = remoteConfig.getString('release_notes').trim();
 
       debugPrint(
         '[AppUpdateService] Installed: v$currentVersion+$currentBuild | '

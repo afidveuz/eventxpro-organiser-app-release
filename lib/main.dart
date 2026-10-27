@@ -6,8 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'core/cache/scan_memory_cache.dart';
 import 'core/network/api_client.dart';
-import 'core/services/app_update_service.dart';
 import 'core/services/device_detection_service.dart';
+import 'core/services/remote_config_service.dart';
 import 'core/theme/app_theme.dart';
 import 'data/adapters/simulated_hardware_adapter.dart';
 import 'data/adapters/zebra_datawedge_adapter.dart';
@@ -31,10 +31,10 @@ final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase Core & Remote Config App Update Service
+  // Initialize Firebase Core & Remote Config Services
   try {
     await Firebase.initializeApp();
-    await AppUpdateService().initialize();
+    await RemoteConfigService().initialize();
   } catch (e) {
     debugPrint('[EventXPro] Firebase initialization error: $e');
   }
@@ -72,7 +72,7 @@ void main() async {
   final remoteDatasource = DjangoScanApiDatasource(
     authLocalStorage: authLocalStorage,
   );
-  remoteDatasource.updateBaseUrl(scannerLocalStorage.getServerUrl());
+  remoteDatasource.updateBaseUrl(authLocalStorage.getBaseUrl());
 
   // Initialize high-performance offline database & in-memory cache
   final offlineDbHelper = OfflineDatabaseHelper();

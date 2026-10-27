@@ -240,7 +240,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sync failed: ${dioErr.message}'),
+            content: Text('Sync failed: ${ApiClient.formatDioError(dioErr)}'),
             backgroundColor: AppTheme.statusRejected,
             behavior: SnackBarBehavior.floating,
           ),
