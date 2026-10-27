@@ -34,6 +34,9 @@ param(
     [string]$Notes,
 
     [Parameter(Mandatory = $false)]
+    [string]$Token,
+
+    [Parameter(Mandatory = $false)]
     [switch]$SkipBuild,
 
     [Parameter(Mandatory = $false)]
@@ -276,27 +279,27 @@ Write-Host "   $githubReleaseUrl" -ForegroundColor White
 Write-Host "2. Public Direct Download URL (Works without login in Firebase Remote Config):" -ForegroundColor Yellow
 Write-Host "   $directDownloadUrl" -ForegroundColor Green
 
-# 11. GitHub CLI Auto-Upload if available
-$ghInstalled = Get-Command gh -ErrorAction SilentlyContinue
-if ($ghInstalled) {
-    Write-Host "`nGitHub CLI detected. Attempting direct upload..." -ForegroundColor Green
-    try {
-        $ghNotes = if ($Notes) { $Notes } else { "Release $Tag - EventXPro App" }
-        gh release create $Tag $namedApkPath --title "$Tag" --notes $ghNotes
-        Write-Host "Release created and APK uploaded automatically via GitHub CLI!" -ForegroundColor Green
-        return
-    } catch {
-        Write-Host "Could not auto-upload via gh CLI ($($_.Exception.Message)). Opening browser..." -ForegroundColor Yellow
+# 11. Automatic Upload via GitHub Token / REST API
+$uploaded = $false
+try {
+    Write-Host "`n------------------------------------------" -ForegroundColor Cyan
+    Write-Host "  Uploading APK to Public GitHub Release  " -ForegroundColor Cyan
+    Write-Host "------------------------------------------" -ForegroundColor Cyan
+    & "$PSScriptRoot\upload_release.ps1" -Token $Token -Tag $Tag -ApkPath $namedApkPath -Repo "afidveuz/eventxpro-organiser-app-release" -Notes $Notes
+    $uploaded = $true
+} catch {
+    Write-Host "Automatic upload note: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+
+if (-not $uploaded) {
+    # 12. Fallback to Explorer & Browser
+    Write-Host "`nOpening APK folder in Windows Explorer..." -ForegroundColor Gray
+    Start-Process explorer.exe -ArgumentList "/select,`"$namedApkPath`""
+
+    if (-not $NoBrowser) {
+        Write-Host "Opening GitHub Release page in browser..." -ForegroundColor Gray
+        Start-Process $githubReleaseUrl
     }
+
+    Write-Host "`nDone! Drag '$namedApkName' into the GitHub release page and click 'Publish release'." -ForegroundColor Green
 }
-
-# 12. Open Explorer & Browser
-Write-Host "`nOpening APK folder in Windows Explorer..." -ForegroundColor Gray
-Start-Process explorer.exe -ArgumentList "/select,`"$namedApkPath`""
-
-if (-not $NoBrowser) {
-    Write-Host "Opening GitHub Release page in browser..." -ForegroundColor Gray
-    Start-Process $githubReleaseUrl
-}
-
-Write-Host "`nDone! Drag '$namedApkName' into the GitHub release page and click 'Publish release'." -ForegroundColor Green

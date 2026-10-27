@@ -17,6 +17,9 @@ param(
     [string]$Notes,
 
     [Parameter(Mandatory = $false)]
+    [string]$Token,
+
+    [Parameter(Mandatory = $false)]
     [switch]$SkipBuild,
 
     [Parameter(Mandatory = $false)]

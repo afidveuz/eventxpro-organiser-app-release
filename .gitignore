@@ -45,3 +45,6 @@ app.*.map.json
 /android/app/release
 .kotlin/
 **/android/.kotlin/
+.github_token
+.env
+.env*
