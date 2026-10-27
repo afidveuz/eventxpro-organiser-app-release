@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../data/datasources/auth_local_storage.dart';
 import '../config/app_constants.dart';
+import '../services/crashlytics_service.dart';
 
 class ApiClient {
   final AuthLocalStorage _localStorage;
@@ -34,6 +35,7 @@ class ApiClient {
             options.headers['Authorization'] = 'Bearer $token';
           }
           debugPrint('🌐 [API REQ] ${options.method} ${options.baseUrl}${options.path}');
+          CrashlyticsService().log('HTTP ${options.method} ${options.path}');
           return handler.next(options);
         },
         onResponse: (response, handler) {
@@ -43,6 +45,28 @@ class ApiClient {
         onError: (DioException error, handler) async {
           debugPrint('❌ [API ERR ${error.response?.statusCode}] ${error.requestOptions.path} => ${error.response?.data}');
           
+          // Detect and report Server Down / 5xx / Connection failure to Firebase Crashlytics
+          final statusCode = error.response?.statusCode;
+          final isServerDown = (statusCode != null && statusCode >= 500) ||
+              error.type == DioExceptionType.connectionTimeout ||
+              error.type == DioExceptionType.receiveTimeout ||
+              error.type == DioExceptionType.sendTimeout ||
+              error.type == DioExceptionType.connectionError;
+
+          if (isServerDown) {
+            CrashlyticsService().recordServerDown(
+              endpoint: error.requestOptions.path,
+              baseUrl: error.requestOptions.baseUrl,
+              statusCode: statusCode,
+              errorMessage: ApiClient.formatDioError(error),
+              stackTrace: error.stackTrace,
+              extra: {
+                'method': error.requestOptions.method,
+                'dio_type': error.type.name,
+              },
+            );
+          }
+
           // Check for 401 Unauthorized to trigger token refresh or clear session
           if (error.response?.statusCode == 401) {
             // Ignore 401 on login or auth endpoints, or when no user session is active.

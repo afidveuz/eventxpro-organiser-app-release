@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'core/cache/scan_memory_cache.dart';
 import 'core/network/api_client.dart';
+import 'core/services/crashlytics_service.dart';
 import 'core/services/device_detection_service.dart';
 import 'core/services/remote_config_service.dart';
 import 'core/theme/app_theme.dart';
@@ -31,9 +32,10 @@ final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase Core & Remote Config Services
+  // Initialize Firebase Core, Crashlytics & Remote Config Services
   try {
     await Firebase.initializeApp();
+    await CrashlyticsService().initialize();
     await RemoteConfigService().initialize();
   } catch (e) {
     debugPrint('[EventXPro] Firebase initialization error: $e');
@@ -48,6 +50,15 @@ void main() async {
   // Initialize persistent local storages
   final scannerLocalStorage = await ScannerLocalStorage.create();
   final authLocalStorage = await AuthLocalStorage.create();
+
+  // Set Crashlytics context with device & organizer state
+  await CrashlyticsService().setDeviceContext(
+    deviceId: scannerLocalStorage.getDeviceId(),
+    eventId: scannerLocalStorage.getEventId(),
+    gateId: scannerLocalStorage.getGateId(),
+    username: authLocalStorage.getUser()?.username,
+    baseUrl: authLocalStorage.getBaseUrl(),
+  );
 
   // Detect OEM device (Honeywell vs Zebra) on launch
   await DeviceDetectionService().detectDevice(storage: scannerLocalStorage);

@@ -3,11 +3,13 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/services/remote_config_service.dart';
 import '../models/user_model.dart';
+import '../models/user_profile_model.dart';
 
 class AuthLocalStorage {
   static const String _keyToken = 'auth_token';
   static const String _keyRefreshToken = 'auth_refresh_token';
   static const String _keyUser = 'auth_user';
+  static const String _keyUserProfile = 'auth_user_profile';
   static const String _keyCountries = 'auth_countries';
   static const String _keyBaseUrl = 'auth_base_url';
   static const String _keyMediaUrl = 'auth_media_url';
@@ -146,6 +148,39 @@ class AuthLocalStorage {
     await _prefs.setString(_keyUser, jsonEncode(safeUserMap));
   }
 
+  // Full User Profile from organizer/user-profile
+  UserProfileModel? getUserProfile() {
+    final raw = _prefs.getString(_keyUserProfile);
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final map = jsonDecode(raw) as Map<String, dynamic>;
+        return UserProfileModel.fromJson(map);
+      } catch (_) {}
+    }
+    // Fallback to basic cached user if full profile is not yet loaded
+    final user = getUser();
+    if (user != null) {
+      return UserProfileModel(
+        name: user.name,
+        username: user.username,
+        email: '',
+        phone: '',
+        isAdmin: user.isAdmin,
+      );
+    }
+    return null;
+  }
+
+  Future<void> setUserProfile(UserProfileModel profile) async {
+    await _prefs.setString(_keyUserProfile, jsonEncode(profile.toJson()));
+    // Also keep basic user in sync
+    await setUser(UserModel(
+      username: profile.username,
+      name: profile.name,
+      isAdmin: profile.isAdmin,
+    ));
+  }
+
   // Countries Cache
   String? getCountriesJson() => _prefs.getString(_keyCountries);
   Future<void> setCountriesJson(String jsonString) =>
@@ -186,6 +221,16 @@ class AuthLocalStorage {
     await _prefs.remove(_keyMediaUrl);
   }
 
+  // Media Base URL for resolving profile pictures and media assets
+  String getMediaUrl() {
+    final stored = _prefs.getString(_keyMediaUrl);
+    if (stored != null && stored.trim().isNotEmpty) {
+      return stored.trim();
+    }
+    final base = getBaseUrl();
+    return base.endsWith('/') ? base.substring(0, base.length - 1) : base;
+  }
+
   // Event Name
   String? getEventName() => _prefs.getString(_keyEventName);
   Future<void> setEventName(String name) =>
@@ -215,6 +260,7 @@ class AuthLocalStorage {
     await _prefs.remove(_keyToken);
     await _prefs.remove(_keyRefreshToken);
     await _prefs.remove(_keyUser);
+    await _prefs.remove(_keyUserProfile);
     // keep countries and base url cached for fast app reuse
   }
 }

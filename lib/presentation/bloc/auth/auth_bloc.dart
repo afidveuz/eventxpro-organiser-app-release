@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/services/crashlytics_service.dart';
 import '../../../data/repositories/auth_repository.dart';
 import 'auth_event.dart';
 import 'auth_state.dart';
@@ -63,6 +64,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     );
 
     if (result.isSuccess && result.user != null) {
+      CrashlyticsService().setDeviceContext(username: result.user!.username);
       emit(AuthAuthenticated(result.user!));
     } else {
       emit(AuthUnauthenticated(errorMessage: result.errorMessage ?? 'Login failed'));

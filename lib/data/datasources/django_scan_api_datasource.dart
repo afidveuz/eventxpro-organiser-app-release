@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../core/config/app_constants.dart';
+import '../../core/services/crashlytics_service.dart';
 import '../../core/services/remote_config_service.dart';
 import '../../domain/entities/scan_decision_code.dart';
 import '../../domain/entities/scan_request.dart';
@@ -155,6 +156,22 @@ class DjangoScanApiDatasource {
         isSuccess: data['status'] == true,
       );
 
+      // Detect and report Server Down / 5xx to Firebase Crashlytics
+      if (response.statusCode != null && response.statusCode! >= 500) {
+        CrashlyticsService().recordServerDown(
+          endpoint: endpoint,
+          baseUrl: _dio.options.baseUrl,
+          statusCode: response.statusCode,
+          errorMessage: data['message'] ?? data['detail'] ?? 'Server error',
+          extra: {
+            'action': 'validateScan',
+            'scan_request_id': request.scanRequestId,
+            'event_id': request.eventId,
+            'gate_id': request.gateId,
+          },
+        );
+      }
+
       return ScanResponse.fromJson(
         data,
         latencyMs: latencyMs,
@@ -164,6 +181,30 @@ class DjangoScanApiDatasource {
       stopwatch.stop();
       final statusCode = dioErr.response?.statusCode ?? 0;
       final rawData = dioErr.response?.data;
+
+      // Report connection timeouts or server 5xx errors to Crashlytics
+      final isServerDown = statusCode >= 500 ||
+          dioErr.type == DioExceptionType.connectionTimeout ||
+          dioErr.type == DioExceptionType.receiveTimeout ||
+          dioErr.type == DioExceptionType.sendTimeout ||
+          dioErr.type == DioExceptionType.connectionError;
+
+      if (isServerDown) {
+        CrashlyticsService().recordServerDown(
+          endpoint: endpoint,
+          baseUrl: _dio.options.baseUrl,
+          statusCode: statusCode > 0 ? statusCode : null,
+          errorMessage: dioErr.message ?? dioErr.type.name,
+          stackTrace: dioErr.stackTrace,
+          extra: {
+            'action': 'validateScan',
+            'scan_request_id': request.scanRequestId,
+            'event_id': request.eventId,
+            'gate_id': request.gateId,
+            'dio_type': dioErr.type.name,
+          },
+        );
+      }
 
       if (rawData is Map<String, dynamic>) {
         final summary = '[HTTP $statusCode]: ${rawData['message'] ?? rawData['detail'] ?? 'Error'}';
@@ -180,8 +221,9 @@ class DjangoScanApiDatasource {
         scanRequestId: request.scanRequestId,
         testApiResponse: '[NET ERROR]: ${dioErr.type.name}',
       );
-    } catch (e) {
+    } catch (e, stack) {
       stopwatch.stop();
+      CrashlyticsService().recordError(e, stack, reason: 'Client Transport Failure in validateScan');
       return ScanResponse.networkError(
         message: 'Client Transport Failure: $e',
         latencyMs: stopwatch.elapsedMilliseconds,
@@ -452,13 +494,37 @@ class DjangoScanApiDatasource {
           isSuccess: true,
         );
       } else {
+        if (response.statusCode != null && response.statusCode! >= 500) {
+          CrashlyticsService().recordServerDown(
+            endpoint: endpoint,
+            baseUrl: _dio.options.baseUrl,
+            statusCode: response.statusCode,
+            errorMessage: 'Offline sync failed with status ${response.statusCode}',
+            extra: {
+              'action': 'syncOfflineBatch',
+              'section': section,
+              'chunk_size': chunk.length,
+            },
+          );
+        }
         return BatchSyncResult(
           isSuccess: false,
           errorMessage: 'Server responded with status: ${response.statusCode}',
         );
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[DjangoScanApiDatasource] ❌ syncOfflineBatch error: $e');
+      CrashlyticsService().recordServerDown(
+        endpoint: endpoint,
+        baseUrl: _dio.options.baseUrl,
+        errorMessage: 'Offline sync error: $e',
+        stackTrace: stack,
+        extra: {
+          'action': 'syncOfflineBatch',
+          'section': section,
+          'chunk_size': chunk.length,
+        },
+      );
       return BatchSyncResult(
         isSuccess: false,
         errorMessage: e.toString(),

@@ -2,12 +2,15 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../core/config/app_constants.dart';
 import '../../core/network/api_client.dart';
 import '../../core/services/app_update_service.dart';
 import '../../core/services/device_detection_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/datasources/offline_database_helper.dart';
 import '../../data/datasources/scanner_local_storage.dart';
+import '../../data/models/user_profile_model.dart';
+import '../../data/repositories/auth_repository.dart';
 import '../bloc/auth/auth_bloc.dart';
 import '../bloc/auth/auth_event.dart';
 import '../bloc/scanner_bloc.dart';
@@ -38,10 +41,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _unsyncedCount = 0;
   DeviceInfoResult? _deviceInfo;
 
+  UserProfileModel? _userProfile;
+  bool _isLoadingProfile = false;
+
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _loadProfile();
   }
 
   Future<void> _loadSettings() async {
@@ -60,6 +67,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _deviceInfo = info;
       });
     }
+  }
+
+  /// Loads organizer user profile from 'organizer/user-profile' (matching React Native useProfile)
+  Future<void> _loadProfile({bool forceRefresh = false}) async {
+    final authRepo = context.read<AuthRepository>();
+
+    // 1. Immediately display cached profile synchronously
+    final cached = authRepo.cachedUserProfile;
+    if (cached != null && _userProfile == null) {
+      if (mounted) {
+        setState(() {
+          _userProfile = cached;
+        });
+      }
+    }
+
+    if (forceRefresh || _userProfile == null || _userProfile?.email.isEmpty == true) {
+      if (mounted) {
+        setState(() {
+          _isLoadingProfile = true;
+        });
+      }
+
+      try {
+        final profile = await authRepo.getUserProfile(forceRefresh: forceRefresh);
+        if (mounted) {
+          setState(() {
+            _userProfile = profile;
+            _isLoadingProfile = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() {
+            _isLoadingProfile = false;
+          });
+        }
+      }
+    }
+  }
+
+  String? _resolveAvatarUrl(String? photo, String mediaUrl) {
+    if (photo == null || photo.trim().isEmpty) return null;
+    final cleanPhoto = photo.trim();
+    if (cleanPhoto.startsWith('http://') || cleanPhoto.startsWith('https://')) {
+      return cleanPhoto;
+    }
+    final cleanMedia = mediaUrl.endsWith('/')
+        ? mediaUrl.substring(0, mediaUrl.length - 1)
+        : mediaUrl;
+    final cleanPath = cleanPhoto.startsWith('/') ? cleanPhoto : '/$cleanPhoto';
+    return '$cleanMedia$cleanPath';
+  }
+
+  void _confirmLogout() {
+    _showConfirmDialog(
+      title: 'Log Out',
+      message: 'Are you sure you want to log out of your EventXPro account?',
+      isDestructive: true,
+      onConfirm: () {
+        context.read<AuthBloc>().add(const LogoutRequested());
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      },
+    );
   }
 
   Future<void> _showConfirmDialog({
@@ -267,6 +341,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authRepo = context.read<AuthRepository>();
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -291,50 +367,467 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Divider(color: AppTheme.surfaceBorder, height: 1),
         ),
       ),
-      body: BlocBuilder<ScannerBloc, ScannerState>(
-        builder: (context, state) {
-          return ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            children: [
-              // ── Section 1: Core Toggles (Matching React Native Settings) ────
-              _buildSettingRow(
-                title: _isTopLevelTickets ? 'Disable top-level tickets' : 'Enable top-level tickets',
-                subtitle: 'Allow priority tier access across gates',
-                value: _isTopLevelTickets,
-                onTap: _toggleTopLevelTickets,
-              ),
-
-              const Divider(color: AppTheme.surfaceBorder, height: 1),
-
-              _buildSettingRow(
-                title: _isShortToast ? 'Disable short toast' : 'Enable short toast',
-                subtitle: _isShortToast
-                    ? 'Continuous rush scanning active: brief top notifications'
-                    : 'Full attendee details card modal shown after each scan',
-                value: _isShortToast,
-                onTap: _toggleShortToast,
-              ),
-
-              const Divider(color: AppTheme.surfaceBorder, height: 1),
-
-              _buildOfflineModeRow(),
-
-              const SizedBox(height: 24),
-
-              // ── Section 2: Offline Sessions Navigation ────────────────────
-              _buildOfflineSessionsTile(),
-
-              const SizedBox(height: 16),
-
-              // ── Section 3: App Update Check ──────────────────────────────
-              _buildCheckUpdateTile(),
-
-              // ── Section 3: Gate & Device System Information (Hidden for employee build) ──
-              // const SizedBox(height: 24),
-              // _buildSystemInfoCard(state),
-            ],
-          );
+      body: RefreshIndicator(
+        color: AppTheme.eventxproAccent,
+        backgroundColor: AppTheme.surfaceElevated,
+        onRefresh: () async {
+          await Future.wait([
+            _loadSettings(),
+            _loadProfile(forceRefresh: true),
+          ]);
         },
+        child: BlocBuilder<ScannerBloc, ScannerState>(
+          builder: (context, state) {
+            return ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                // ── Section 1: Organizer Profile (organizer/user-profile) ──
+                _buildProfileCard(authRepo),
+
+                const SizedBox(height: 12),
+
+                // ── Section 2: Scanner & Attendance Preferences ─────────────
+                _buildSectionHeader('SCANNER & ATTENDANCE'),
+
+                _buildSettingRow(
+                  title: _isTopLevelTickets ? 'Disable top-level tickets' : 'Enable top-level tickets',
+                  subtitle: 'Allow priority tier access across gates',
+                  value: _isTopLevelTickets,
+                  onTap: _toggleTopLevelTickets,
+                ),
+
+                const Divider(color: AppTheme.surfaceBorder, height: 1),
+
+                _buildSettingRow(
+                  title: _isShortToast ? 'Disable short toast' : 'Enable short toast',
+                  subtitle: _isShortToast
+                      ? 'Continuous rush scanning active: brief top notifications'
+                      : 'Full attendee details card modal shown after each scan',
+                  value: _isShortToast,
+                  onTap: _toggleShortToast,
+                ),
+
+                const Divider(color: AppTheme.surfaceBorder, height: 1),
+
+                _buildOfflineModeRow(),
+
+                const SizedBox(height: 12),
+
+                // ── Section 3: Offline Sessions Navigation ──────────────────
+                _buildSectionHeader('OFFLINE STORAGE & SYNC'),
+
+                _buildOfflineSessionsTile(),
+
+                const SizedBox(height: 12),
+
+                // ── Section 4: App Update Check ────────────────────────────
+                _buildSectionHeader('SYSTEM & UPDATES'),
+
+                _buildCheckUpdateTile(),
+
+                const SizedBox(height: 12),
+
+                // ── Section 5: Account Actions ─────────────────────────────
+                _buildSectionHeader('ACCOUNT'),
+
+                _buildLogoutTile(),
+
+                // ── Section 6: App Version & Footer ────────────────────────
+                _buildVersionFooter(),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 8, left: 4),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: AppTheme.textMuted,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.1,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileCard(AuthRepository authRepo) {
+    final profile = _userProfile;
+    final name = (profile != null && profile.name.trim().isNotEmpty)
+        ? profile.name.trim()
+        : 'Organizer';
+    final username = (profile != null && profile.username.trim().isNotEmpty)
+        ? profile.username.trim()
+        : '';
+    final email = profile?.email.trim() ?? '';
+    final phone = profile?.phone.trim() ?? '';
+    final isAdmin = profile?.isAdmin ?? false;
+    final photoUrl = _resolveAvatarUrl(profile?.photo, authRepo.mediaUrl);
+    final initials = profile?.initials ?? 'P';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceElevated,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.surfaceBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header: Avatar, Name, Username, Role, Refresh ────
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Avatar with Signature EventXPro Accent Ring
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppTheme.eventxproAccent,
+                    width: 2.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.eventxproAccent.withValues(alpha: 0.3),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: photoUrl != null
+                      ? Image.network(
+                          photoUrl,
+                          fit: BoxFit.cover,
+                          width: 56,
+                          height: 56,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return _buildInitialsAvatar(initials);
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return _buildInitialsAvatar(initials);
+                          },
+                        )
+                      : _buildInitialsAvatar(initials),
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              // Name, Username & Role Pill
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (username.isNotEmpty) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        '@$username',
+                        style: const TextStyle(
+                          color: AppTheme.textMuted,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 5),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        // Role Pill
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isAdmin
+                                ? AppTheme.eventxproAccent.withValues(alpha: 0.15)
+                                : AppTheme.accentIndigo.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: isAdmin
+                                  ? AppTheme.eventxproAccent
+                                  : AppTheme.accentIndigo,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            isAdmin ? 'ADMIN' : 'ORGANIZER',
+                            style: TextStyle(
+                              color: isAdmin
+                                  ? AppTheme.eventxproAccent
+                                  : const Color(0xFF818CF8),
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                        // Online / Offline Status Dot
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _isOfflineMode
+                                ? AppTheme.accentOrange.withValues(alpha: 0.15)
+                                : AppTheme.statusSuccess.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: _isOfflineMode
+                                  ? AppTheme.accentOrange
+                                  : AppTheme.statusSuccess,
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 5.5,
+                                height: 5.5,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _isOfflineMode
+                                      ? AppTheme.accentOrange
+                                      : AppTheme.statusSuccess,
+                                ),
+                              ),
+                              const SizedBox(width: 4.5),
+                              Text(
+                                _isOfflineMode ? 'OFFLINE' : 'ONLINE',
+                                style: TextStyle(
+                                  color: _isOfflineMode
+                                      ? AppTheme.accentOrange
+                                      : AppTheme.statusSuccess,
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 4),
+
+              // Refresh Profile Button (compact)
+              IconButton(
+                tooltip: 'Refresh Profile',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                icon: _isLoadingProfile
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppTheme.accentIndigo,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.refresh_rounded,
+                        color: AppTheme.textSecondary,
+                        size: 20,
+                      ),
+                onPressed: _isLoadingProfile
+                    ? null
+                    : () => _loadProfile(forceRefresh: true),
+              ),
+            ],
+          ),
+
+          // ── Details: Email & Phone ────
+          if (email.isNotEmpty || phone.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Divider(color: AppTheme.surfaceBorder, height: 1),
+            const SizedBox(height: 14),
+
+            if (email.isNotEmpty)
+              _buildProfileDetailRow(
+                icon: Icons.email_outlined,
+                iconColor: AppTheme.accentCyan,
+                label: 'Email',
+                value: email,
+              ),
+
+            if (email.isNotEmpty && phone.isNotEmpty)
+              const SizedBox(height: 10),
+
+            if (phone.isNotEmpty)
+              _buildProfileDetailRow(
+                icon: Icons.phone_outlined,
+                iconColor: AppTheme.accentIndigo,
+                label: 'Phone',
+                value: phone,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInitialsAvatar(String initials) {
+    return Container(
+      color: AppTheme.eventxproAccent,
+      child: Center(
+        child: Text(
+          initials,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileDetailRow({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(icon, color: iconColor, size: 14),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            color: AppTheme.textMuted,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLogoutTile() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceElevated,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.eventxproDanger.withValues(alpha: 0.3)),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppTheme.eventxproDanger.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(
+            Icons.logout_rounded,
+            color: AppTheme.eventxproDanger,
+            size: 22,
+          ),
+        ),
+        title: const Text(
+          'Log Out',
+          style: TextStyle(
+            color: AppTheme.eventxproDanger,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: const Text(
+          'Sign out of your account on this device',
+          style: TextStyle(
+            color: AppTheme.textMuted,
+            fontSize: 12,
+          ),
+        ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios_rounded,
+          color: AppTheme.textMuted,
+          size: 16,
+        ),
+        onTap: _confirmLogout,
+      ),
+    );
+  }
+
+  Widget _buildVersionFooter() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Center(
+        child: Column(
+          children: [
+            Text(
+              'EventXPro Organiser • ${AppConstants.appVersion}',
+              style: const TextStyle(
+                color: AppTheme.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Connected to EventXPro Access Control',
+              style: TextStyle(
+                color: Color(0xFF4A4B56),
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -15,6 +15,7 @@ class AppConstants {
   static const String countriesEndpoint = 'microsite/v2/countries/';
   static const String refreshTokenEndpoint = 'exhibitor/refresh_token';
   static const String generateOtpEndpoint = 'organizer/generate-otp';
+  static const String userProfileEndpoint = 'organizer/user-profile';
   static const String scanValidateEndpoint = '/api/v1/access-control/scans/validate/';
   static const String eventEntranceEndpoint = 'organizer/event-entrance';
 

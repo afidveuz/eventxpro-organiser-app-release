@@ -1,6 +1,7 @@
 import '../datasources/auth_local_storage.dart';
 import '../datasources/auth_remote_datasource.dart';
 import '../models/user_model.dart';
+import '../models/user_profile_model.dart';
 
 class AuthResult {
   final bool isSuccess;
@@ -67,7 +68,11 @@ class AuthRepository {
 
   UserModel? get currentUser => _localStorage.getUser();
 
+  UserProfileModel? get cachedUserProfile => _localStorage.getUserProfile();
+
   String get baseUrl => _localStorage.getBaseUrl();
+
+  String get mediaUrl => _localStorage.getMediaUrl();
 
   bool get hasCustomBaseUrl => _localStorage.hasCustomBaseUrl;
 
@@ -79,4 +84,39 @@ class AuthRepository {
 
   Future<Map<String, dynamic>> generateOtp(String email) =>
       _remoteDatasource.generateOtp(email: email);
+
+  /// Fetches full user profile from 'organizer/user-profile' matching React Native useProfile.
+  /// Falls back to cached profile when offline.
+  Future<UserProfileModel?> getUserProfile({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final cached = _localStorage.getUserProfile();
+      if (cached != null && cached.email.isNotEmpty) {
+        return cached;
+      }
+    }
+
+    try {
+      final response = await _remoteDatasource.getUserProfile();
+      final status = response['status'] as bool? ?? false;
+      if (status) {
+        final dataMap = response['data'] is Map<String, dynamic>
+            ? response['data'] as Map<String, dynamic>
+            : response;
+
+        // Retain isAdmin from current logged-in user if backend doesn't return it
+        final current = _localStorage.getUser();
+        if (!dataMap.containsKey('is_admin') &&
+            !dataMap.containsKey('isAdmin') &&
+            current != null) {
+          dataMap['isAdmin'] = current.isAdmin;
+        }
+
+        final profile = UserProfileModel.fromJson(dataMap);
+        await _localStorage.setUserProfile(profile);
+        return profile;
+      }
+    } catch (_) {}
+
+    return _localStorage.getUserProfile();
+  }
 }

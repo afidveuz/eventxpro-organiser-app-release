@@ -82,4 +82,27 @@ class AuthRemoteDatasource {
       };
     }
   }
+
+  /// Fetch user profile from organizer/user-profile
+  Future<Map<String, dynamic>> getUserProfile() async {
+    try {
+      final response = await _apiClient.dio.get(AppConstants.userProfileEndpoint);
+
+      final data = response.data is String
+          ? jsonDecode(response.data as String) as Map<String, dynamic>
+          : response.data as Map<String, dynamic>;
+      return data;
+    } on DioException catch (dioErr) {
+      return {
+        'status': false,
+        'message': ApiClient.formatDioError(dioErr),
+      };
+    } catch (e) {
+      return {
+        'status': false,
+        'message': 'Failed to load user profile. Please try again.',
+      };
+    }
+  }
 }
+
