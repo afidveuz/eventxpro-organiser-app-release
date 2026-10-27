@@ -27,7 +27,14 @@ class OfflineCheckInListScreen extends StatefulWidget {
 class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
   List<CheckinRecord> _records = [];
   bool _isLoading = true;
-  String _selectedFilter = 'all'; // 'all', 'synced', 'unsynced'
+  String _selectedFilter = 'all'; // 'all', 'synced', 'unsynced', 'registered', 'unregistered'
+  int _totalCount = 0;
+  int _syncedCount = 0;
+  int _unsyncedCount = 0;
+  int _registeredCount = 0;
+  int _unregisteredCount = 0;
+  bool _isSyncing = false;
+
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   final DateFormat _dateFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
@@ -49,25 +56,38 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
     final db = context.read<OfflineDatabaseHelper>();
 
     bool? syncFilter;
-    if (_selectedFilter == 'synced') syncFilter = true;
-    if (_selectedFilter == 'unsynced') syncFilter = false;
+    bool? notExistFilter;
 
+    if (_selectedFilter == 'synced') {
+      syncFilter = true;
+    } else if (_selectedFilter == 'unsynced') {
+      syncFilter = false;
+    } else if (_selectedFilter == 'registered') {
+      notExistFilter = false;
+    } else if (_selectedFilter == 'unregistered') {
+      notExistFilter = true;
+    }
+
+    final stats = await db.getSectionStats(section: widget.sessionKey);
     final records = await db.getCheckins(
       section: widget.sessionKey,
       isSynced: syncFilter,
+      isNotExist: notExistFilter,
       limit: 500,
     );
 
     if (mounted) {
       setState(() {
+        _totalCount = stats['total'] ?? 0;
+        _syncedCount = stats['synced'] ?? 0;
+        _unsyncedCount = stats['unsynced'] ?? 0;
+        _registeredCount = stats['registered'] ?? 0;
+        _unregisteredCount = stats['unregistered'] ?? 0;
         _records = records;
         _isLoading = false;
       });
     }
   }
-
-  int get _syncedCount => _records.where((r) => r.isSynced).length;
-  int get _unsyncedCount => _records.where((r) => !r.isSynced).length;
 
   List<CheckinRecord> get _filteredRecords {
     if (_searchQuery.trim().isEmpty) return _records;
@@ -77,23 +97,50 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
       final encMatch = r.encryptedCode.toLowerCase().contains(q);
       final idMatch = (r.id?.toString() ?? '').contains(q);
       final gateMatch = r.entranceId.toString().contains(q);
-      return codeMatch || encMatch || idMatch || gateMatch;
+      final locationMatch = r.entranceLocation.toLowerCase().contains(q);
+
+      final regMatch = q.contains('unreg')
+          ? r.isNotExist
+          : (q.contains('reg') ? !r.isNotExist : false);
+
+      final syncMatch = (q.contains('unsync') || q.contains('pend'))
+          ? !r.isSynced
+          : (q.contains('sync') ? r.isSynced : false);
+
+      return codeMatch || encMatch || idMatch || gateMatch || locationMatch || regMatch || syncMatch;
     }).toList();
   }
 
   Future<void> _syncSection() async {
-    context.read<ScannerBloc>().add(const ScannerSyncOfflineRequested());
-    await Future.delayed(const Duration(milliseconds: 1500));
-    await _loadRecords();
+    if (_isSyncing) return;
+    setState(() => _isSyncing = true);
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sync requested for ${widget.sessionTitle}.'),
-          backgroundColor: AppTheme.statusSuccess,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    try {
+      context.read<ScannerBloc>().add(const ScannerSyncOfflineRequested());
+      await Future.delayed(const Duration(milliseconds: 1500));
+      await _loadRecords();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Synchronization completed for ${widget.sessionTitle}.'),
+                ),
+              ],
+            ),
+            backgroundColor: AppTheme.statusSuccess,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSyncing = false);
+      }
     }
   }
 
@@ -312,11 +359,7 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: 'Sync this section',
-            icon: const Icon(Icons.sync_rounded, color: Colors.white),
-            onPressed: _syncSection,
-          ),
+          _buildSyncButton(),
         ],
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
@@ -390,21 +433,101 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
     );
   }
 
+  Widget _buildSyncButton() {
+    final hasPending = _unsyncedCount > 0;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 14, top: 9, bottom: 9),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _isSyncing ? null : _syncSection,
+          borderRadius: BorderRadius.circular(10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+            decoration: BoxDecoration(
+              color: _isSyncing
+                  ? AppTheme.eventxproAccent.withValues(alpha: 0.25)
+                  : (hasPending
+                      ? AppTheme.eventxproAccent
+                      : const Color(0xFF131722)),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _isSyncing
+                    ? AppTheme.eventxproAccent
+                    : (hasPending
+                        ? AppTheme.eventxproAccent
+                        : AppTheme.surfaceBorder),
+                width: 1.0,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_isSyncing)
+                  const SizedBox(
+                    width: 13,
+                    height: 13,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                else
+                  Icon(
+                    hasPending
+                        ? Icons.cloud_upload_rounded
+                        : Icons.cloud_done_rounded,
+                    size: 15,
+                    color: hasPending ? Colors.white : AppTheme.eventxproSuccess,
+                  ),
+                const SizedBox(width: 6),
+                Text(
+                  _isSyncing
+                      ? 'Syncing...'
+                      : (hasPending ? 'Sync ($_unsyncedCount)' : 'Synced'),
+                  style: TextStyle(
+                    color: hasPending || _isSyncing
+                        ? Colors.white
+                        : AppTheme.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFilterBar() {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
         color: AppTheme.surface,
         border: Border(bottom: BorderSide(color: AppTheme.surfaceBorder, width: 1)),
       ),
-      child: Row(
-        children: [
-          _buildFilterChip('All', 'all', _records.length),
-          const SizedBox(width: 8),
-          _buildFilterChip('Synced', 'synced', _syncedCount),
-          const SizedBox(width: 8),
-          _buildFilterChip('Unsynced', 'unsynced', _unsyncedCount),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          children: [
+            _buildFilterChip('All', 'all', _totalCount),
+            const SizedBox(width: 8),
+            _buildFilterChip('Synced', 'synced', _syncedCount),
+            const SizedBox(width: 8),
+            _buildFilterChip('Unsynced', 'unsynced', _unsyncedCount),
+            const SizedBox(width: 8),
+            _buildFilterChip('Registered', 'registered', _registeredCount),
+            const SizedBox(width: 8),
+            _buildFilterChip('Unregistered', 'unregistered', _unregisteredCount),
+          ],
+        ),
       ),
     );
   }
@@ -516,38 +639,69 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
                     ],
                   ),
 
-                  // Sync status pill
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: isSynced
-                          ? AppTheme.eventxproSuccess.withValues(alpha: 0.15)
-                          : AppTheme.accentOrange.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isSynced ? AppTheme.eventxproSuccess : AppTheme.accentOrange,
-                        width: 0.8,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isSynced ? Icons.check_circle_outline_rounded : Icons.schedule_rounded,
-                          size: 12,
-                          color: isSynced ? AppTheme.eventxproSuccess : AppTheme.accentOrange,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          isSynced ? 'Synced' : 'Pending',
-                          style: TextStyle(
-                            color: isSynced ? AppTheme.eventxproSuccess : AppTheme.accentOrange,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
+                  // Right side: Registration status & Sync status pills
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: record.isNotExist
+                              ? const Color(0xFFFF6767).withValues(alpha: 0.15)
+                              : const Color(0xFF00D2B4).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: record.isNotExist
+                                ? const Color(0xFFFF6767).withValues(alpha: 0.5)
+                                : const Color(0xFF00D2B4).withValues(alpha: 0.5),
+                            width: 0.8,
                           ),
                         ),
-                      ],
-                    ),
+                        child: Text(
+                          record.isNotExist ? 'Unregistered' : 'Registered',
+                          style: TextStyle(
+                            color: record.isNotExist
+                                ? const Color(0xFFFF6767)
+                                : const Color(0xFF00D2B4),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: isSynced
+                              ? AppTheme.eventxproSuccess.withValues(alpha: 0.15)
+                              : AppTheme.accentOrange.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSynced ? AppTheme.eventxproSuccess : AppTheme.accentOrange,
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isSynced ? Icons.check_circle_outline_rounded : Icons.schedule_rounded,
+                              size: 12,
+                              color: isSynced ? AppTheme.eventxproSuccess : AppTheme.accentOrange,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              isSynced ? 'Synced' : 'Pending',
+                              style: TextStyle(
+                                color: isSynced ? AppTheme.eventxproSuccess : AppTheme.accentOrange,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -635,6 +789,11 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
   }
 
   Widget _buildEmptyState() {
+    String filterLabel = '';
+    if (_selectedFilter != 'all') {
+      filterLabel = '${_selectedFilter.substring(0, 1).toUpperCase()}${_selectedFilter.substring(1)} ';
+    }
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -648,7 +807,7 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
           Text(
             _searchQuery.isNotEmpty
                 ? 'No check-ins match "$_searchQuery"'
-                : 'No ${_selectedFilter != 'all' ? _selectedFilter : ''} check-ins found',
+                : 'No ${filterLabel.toLowerCase()}check-ins found',
             style: const TextStyle(
               color: AppTheme.textSecondary,
               fontSize: 15,

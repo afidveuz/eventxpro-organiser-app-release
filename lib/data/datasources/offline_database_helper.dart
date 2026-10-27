@@ -92,6 +92,7 @@ class OfflineDatabaseHelper {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_checkins_is_synced ON $tableName (is_synced);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_checkins_code ON $tableName (code);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_checkins_section ON $tableName (section, is_synced);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_checkins_not_exist ON $tableName (is_not_exist);');
   }
 
   /// Fast Insert: Writes directly to WAL buffer (< 2ms)
@@ -217,10 +218,11 @@ class OfflineDatabaseHelper {
     });
   }
 
-  /// Fetch check-ins with optional section and sync status filters
+  /// Fetch check-ins with optional section, sync status, and registration status filters
   Future<List<CheckinRecord>> getCheckins({
     String? section,
     bool? isSynced,
+    bool? isNotExist,
     int limit = 100,
     int offset = 0,
   }) async {
@@ -239,6 +241,11 @@ class OfflineDatabaseHelper {
         whereArgs.add(isSynced ? 1 : 0);
       }
 
+      if (isNotExist != null) {
+        whereClauses.add('is_not_exist = ?');
+        whereArgs.add(isNotExist ? 1 : 0);
+      }
+
       final where = whereClauses.isNotEmpty ? whereClauses.join(' AND ') : null;
 
       final results = await client.query(
@@ -255,6 +262,47 @@ class OfflineDatabaseHelper {
       debugPrint('[OfflineDatabaseHelper] ❌ getCheckins error: $e');
       return [];
     }
+  }
+
+  /// Get aggregated counts for a section (total, synced, unsynced, registered, unregistered)
+  Future<Map<String, int>> getSectionStats({String? section}) async {
+    final client = await database;
+    try {
+      String query = '''
+        SELECT 
+          COUNT(*) as total,
+          SUM(CASE WHEN is_synced = 1 THEN 1 ELSE 0 END) as synced,
+          SUM(CASE WHEN is_synced = 0 THEN 1 ELSE 0 END) as unsynced,
+          SUM(CASE WHEN is_not_exist = 0 THEN 1 ELSE 0 END) as registered,
+          SUM(CASE WHEN is_not_exist = 1 THEN 1 ELSE 0 END) as unregistered
+        FROM $tableName
+      ''';
+      final List<dynamic> args = [];
+      if (section != null) {
+        query += ' WHERE section = ?';
+        args.add(section);
+      }
+      final result = await client.rawQuery(query, args);
+      if (result.isNotEmpty) {
+        final row = result.first;
+        return {
+          'total': (row['total'] as num?)?.toInt() ?? 0,
+          'synced': (row['synced'] as num?)?.toInt() ?? 0,
+          'unsynced': (row['unsynced'] as num?)?.toInt() ?? 0,
+          'registered': (row['registered'] as num?)?.toInt() ?? 0,
+          'unregistered': (row['unregistered'] as num?)?.toInt() ?? 0,
+        };
+      }
+    } catch (e) {
+      debugPrint('[OfflineDatabaseHelper] ❌ getSectionStats error: $e');
+    }
+    return {
+      'total': 0,
+      'synced': 0,
+      'unsynced': 0,
+      'registered': 0,
+      'unregistered': 0,
+    };
   }
 
   /// Get summary of check-ins categorized by section
