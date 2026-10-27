@@ -60,5 +60,14 @@
         <!-- Allow queries to Honeywell Data Collection service on Android 11+ -->
         <package android:name="com.intermec.datacollectionservice"/>
         <package android:name="com.honeywell.aidc"/>
+        <!-- Allow opening web and download URLs via browser -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
     </queries>
 </manifest>

@@ -3,8 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'core/cache/scan_memory_cache.dart';
 import 'core/network/api_client.dart';
+import 'core/services/app_update_service.dart';
 import 'core/services/device_detection_service.dart';
 import 'core/theme/app_theme.dart';
 import 'data/adapters/simulated_hardware_adapter.dart';
@@ -18,7 +20,6 @@ import 'data/repositories/auth_repository.dart';
 import 'data/repositories/scanner_repository_impl.dart';
 import 'domain/adapters/i_hardware_scanner_adapter.dart';
 import 'presentation/bloc/auth/auth_bloc.dart';
-import 'presentation/bloc/auth/auth_event.dart';
 import 'presentation/bloc/scanner_bloc.dart';
 import 'presentation/bloc/scanner_event.dart';
 import 'presentation/screens/auth/login_screen.dart';
@@ -29,6 +30,14 @@ final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase Core & Remote Config App Update Service
+  try {
+    await Firebase.initializeApp();
+    await AppUpdateService().initialize();
+  } catch (e) {
+    debugPrint('[EventXPro] Firebase initialization error: $e');
+  }
 
   // Set immersive fullscreen on handhelds
   await SystemChrome.setPreferredOrientations([
@@ -137,7 +146,7 @@ class EventXProApp extends StatelessWidget {
           BlocProvider<AuthBloc>(
             create: (context) => AuthBloc(
               authRepository: authRepository,
-            )..add(const CheckAuthStatus()),
+            ),
           ),
           BlocProvider<ScannerBloc>(
             create: (context) => ScannerBloc(

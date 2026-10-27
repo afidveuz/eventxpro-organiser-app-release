@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1085973588194",
+    "project_id": "eventxpro-scanner",
+    "storage_bucket": "eventxpro-scanner.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1085973588194:android:49740e1461081da7aa56bb",
+        "android_client_info": {
+          "package_name": "com.eventxpro.qr_scanner"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAUD4YTNs0H4-LkzxaV9nKuouQILbnk7G4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
