@@ -1964,8 +1964,8 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             children: [
               Icon(
                 nextState ? Icons.bolt_rounded : Icons.pause_circle_outline_rounded,
-                color: nextState ? Colors.amberAccent : Colors.white70,
-                size: 20,
+                color: Colors.white,
+                size: 22,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -1973,15 +1973,25 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                   nextState
                       ? 'Rush Mode Enabled: Continuous fast scanning with brief notifications'
                       : 'Rush Mode Disabled: Full attendee card modal on each scan',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: nextState ? FontWeight.bold : FontWeight.w600,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ],
           ),
-          backgroundColor: const Color(0xFF1E2638),
+          backgroundColor: nextState ? const Color(0xFFD97706) : const Color(0xFF334155),
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(milliseconds: 2000),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(milliseconds: 2200),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: nextState ? const Color(0xFFFDE68A) : Colors.white24,
+              width: 1.2,
+            ),
+          ),
         ),
       );
     }
@@ -2002,12 +2012,16 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
           SnackBar(
             content: const Row(
               children: [
-                Icon(Icons.wifi_off_rounded, color: Colors.white, size: 18),
-                SizedBox(width: 8),
+                Icon(Icons.wifi_off_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Switched to Offline Mode. High-speed local validation active.',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ],
@@ -2015,7 +2029,10 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             backgroundColor: const Color(0xFFE65100),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(milliseconds: 2500),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: Colors.white24, width: 1.2),
+            ),
           ),
         );
       }
