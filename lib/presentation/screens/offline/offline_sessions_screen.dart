@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import '../../../core/services/offline_export_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/datasources/offline_database_helper.dart';
 import '../../../data/models/checkin_record.dart';
@@ -29,6 +30,8 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
   List<CheckinRecord> _recentCheckins = [];
   bool _isLoading = true;
   bool _isSyncing = false;
+  bool _isDownloading = false;
+  final OfflineExportService _exportService = OfflineExportService();
   final DateFormat _dateFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
 
   final List<_SessionConfig> _sessions = const [
@@ -171,6 +174,105 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
     }
   }
 
+  /// Exports all offline check-ins across all sessions to Excel or CSV.
+  /// Mirrors `downloadAllData` in `OfflineSection.jsx` of the reference project.
+  Future<void> _downloadAllData({bool isExcel = true}) async {
+    if (_isDownloading) return;
+    setState(() => _isDownloading = true);
+    try {
+      final db = context.read<OfflineDatabaseHelper>();
+      final records = await db.getAllCheckinsForExport();
+
+      if (records.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No offline data available to export.'),
+            backgroundColor: AppTheme.statusWarning,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      final result = isExcel
+          ? await _exportService.exportToExcel(
+              records: records,
+              sessionKey: 'all',
+            )
+          : await _exportService.exportToCsv(
+              records: records,
+              sessionKey: 'all',
+            );
+
+      if (!mounted) return;
+      if (result.success) {
+        final savedAt = result.filePath?.replaceAll('/storage/emulated/0/', '') ?? '';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Exported ${result.recordCount} records successfully!\nSaved at: $savedAt',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppTheme.eventxproSuccessDark,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    result.errorMessage ?? 'Export failed.',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppTheme.statusRejected,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isExcel ? 'Failed to export Excel file.' : 'Failed to export CSV file.',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppTheme.statusRejected,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -205,6 +307,48 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
           ],
         ),
         actions: [
+          if (_totalScans > 0)
+            PopupMenuButton<bool>(
+              tooltip: 'Export all offline data',
+              icon: _isDownloading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppTheme.eventxproAccent,
+                      ),
+                    )
+                  : const Icon(Icons.download_rounded, color: AppTheme.eventxproAccent),
+              color: AppTheme.surfaceElevated,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: AppTheme.surfaceBorder),
+              ),
+              onSelected: (isExcel) => _downloadAllData(isExcel: isExcel),
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: true,
+                  child: Row(
+                    children: const [
+                      Icon(Icons.table_chart_rounded, color: AppTheme.eventxproSuccess, size: 18),
+                      SizedBox(width: 10),
+                      Text('Export All to Excel (.xlsx)', style: TextStyle(color: Colors.white, fontSize: 13)),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: false,
+                  child: Row(
+                    children: const [
+                      Icon(Icons.description_rounded, color: AppTheme.accentCyan, size: 18),
+                      SizedBox(width: 10),
+                      Text('Export All to CSV (.csv)', style: TextStyle(color: Colors.white, fontSize: 13)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           IconButton(
             tooltip: 'Refresh summary',
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
@@ -265,8 +409,9 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
   Widget? _buildBottomBar() {
     final hasPending = _totalUnsynced > 0 || _isSyncing;
     final hasSyncedToClean = _totalScans > _totalUnsynced;
+    final hasOfflineData = _totalScans > 0;
 
-    if (!hasPending && !hasSyncedToClean) return null;
+    if (!hasPending && !hasSyncedToClean && !hasOfflineData) return null;
 
     final syncButton = SizedBox(
       width: double.infinity,
@@ -325,6 +470,72 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
       ),
     );
 
+    final exportButton = SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: PopupMenuButton<bool>(
+        tooltip: 'Export All Offline Data',
+        color: AppTheme.surfaceElevated,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppTheme.surfaceBorder),
+        ),
+        onSelected: (isExcel) => _downloadAllData(isExcel: isExcel),
+        itemBuilder: (context) => [
+          PopupMenuItem(
+            value: true,
+            child: Row(
+              children: const [
+                Icon(Icons.table_chart_rounded, color: AppTheme.eventxproSuccess, size: 18),
+                SizedBox(width: 10),
+                Text('Export All (Excel .xlsx)', style: TextStyle(color: Colors.white, fontSize: 13)),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: false,
+            child: Row(
+              children: const [
+                Icon(Icons.description_rounded, color: AppTheme.accentCyan, size: 18),
+                SizedBox(width: 10),
+                Text('Export All (CSV .csv)', style: TextStyle(color: Colors.white, fontSize: 13)),
+              ],
+            ),
+          ),
+        ],
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF131722),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.surfaceBorder),
+          ),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (_isDownloading)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.eventxproAccent),
+                )
+              else
+                const Icon(Icons.download_rounded, color: AppTheme.eventxproAccent, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                _isDownloading ? 'Exporting All Data...' : 'Export All ($_totalScans Records)',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surface,
@@ -347,8 +558,10 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (hasPending) syncButton,
-              if (hasPending && hasSyncedToClean) const SizedBox(height: 8),
+              if (hasPending && (hasSyncedToClean || hasOfflineData)) const SizedBox(height: 8),
               if (hasSyncedToClean) cleanButton,
+              if (hasSyncedToClean && hasOfflineData) const SizedBox(height: 8),
+              if (hasOfflineData) exportButton,
             ],
           ),
         ),

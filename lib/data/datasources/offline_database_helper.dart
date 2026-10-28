@@ -363,8 +363,53 @@ class OfflineDatabaseHelper {
     }
   }
 
+  /// Fetch check-ins for export without any pagination limit.
+  /// If [section] is null or 'all', fetches records across all sections
+  /// (mirrors `getAllCheckinsFull` in the reference React Native project).
+  /// If [section] is specified, filters records by that section
+  /// (mirrors `getAllCheckinsChunk` / `getAllFilterCheckinsChunk`).
+  Future<List<CheckinRecord>> getAllCheckinsForExport({
+    String? section,
+    bool? isSynced,
+    bool? isNotExist,
+  }) async {
+    final client = await database;
+    try {
+      final List<String> whereClauses = [];
+      final List<dynamic> whereArgs = [];
+
+      if (section != null && section.isNotEmpty && section != 'all') {
+        whereClauses.add('section = ?');
+        whereArgs.add(section);
+      }
+
+      if (isSynced != null) {
+        whereClauses.add('is_synced = ?');
+        whereArgs.add(isSynced ? 1 : 0);
+      }
+
+      if (isNotExist != null) {
+        whereClauses.add('is_not_exist = ?');
+        whereArgs.add(isNotExist ? 1 : 0);
+      }
+
+      final results = await client.query(
+        tableName,
+        where: whereClauses.isNotEmpty ? whereClauses.join(' AND ') : null,
+        whereArgs: whereArgs.isNotEmpty ? whereArgs : null,
+        orderBy: 'id ASC',
+      );
+
+      return results.map((map) => CheckinRecord.fromMap(map)).toList();
+    } catch (e) {
+      debugPrint('[OfflineDatabaseHelper] ❌ getAllCheckinsForExport error: $e');
+      return [];
+    }
+  }
+
   /// Clear all check-ins (e.g. on user reset)
   Future<void> clearAll() async {
+
     final client = await database;
     await client.delete(tableName);
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import '../../../core/services/offline_export_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/datasources/offline_database_helper.dart';
 import '../../../data/models/checkin_record.dart';
@@ -34,6 +35,9 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
   int _registeredCount = 0;
   int _unregisteredCount = 0;
   bool _isSyncing = false;
+  bool _isDownloading = false;
+
+  final OfflineExportService _exportService = OfflineExportService();
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -151,115 +155,133 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
 
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: AppTheme.surfaceElevated,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (sheetCtx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetCtx).size.height * 0.9,
+          ),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Header
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppTheme.eventxproAccent.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.qr_code_2_rounded, color: AppTheme.eventxproAccent, size: 22),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Offline Check-in #${record.id ?? '-'}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppTheme.eventxproAccent.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.qr_code_2_rounded, color: AppTheme.eventxproAccent, size: 22),
                             ),
-                          ),
-                          Text(
-                            'Session: ${widget.sessionTitle}',
-                            style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
-                          ),
-                        ],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Offline Check-in #${record.id ?? '-'}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    'Session: ${widget.sessionTitle}',
+                                    style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        onPressed: () => Navigator.of(sheetCtx).pop(),
                       ),
                     ],
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                const SizedBox(height: 16),
+                const Divider(color: AppTheme.surfaceBorder, height: 1),
+                const SizedBox(height: 16),
+
+                // Encrypted Code Section (matches eventxproorganiser)
+                _buildDetailInfoTile(
+                  title: 'ENCRYPTED CODE',
+                  value: displayCode,
+                  icon: Icons.qr_code_2_rounded,
+                  accentColor: AppTheme.eventxproAccent,
+                ),
+
+                const SizedBox(height: 16),
+
+                // Metadata grid
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF131722),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppTheme.surfaceBorder),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildMetaRow('Punch Action', isCheckIn ? 'Check-In' : 'Check-Out', isCheckIn ? AppTheme.eventxproSuccess : const Color(0xFFFF6767)),
+                      const SizedBox(height: 8),
+                      _buildMetaRow('Gate / Entrance', 'Gate #${record.entranceId} (${record.entranceLocation.isNotEmpty ? record.entranceLocation : widget.sessionTitle})', Colors.white),
+                      const SizedBox(height: 8),
+                      _buildMetaRow('Timestamp', formattedDate, Colors.white70),
+                      const SizedBox(height: 8),
+                      _buildMetaRow('Server Sync Status', record.isSynced ? 'Synced to Server' : 'Local SQLite Pending', record.isSynced ? AppTheme.eventxproSuccess : AppTheme.accentOrange),
+                      const SizedBox(height: 8),
+                      _buildMetaRow('Registration Status', record.isNotExist ? 'Unregistered' : 'Registered', record.isNotExist ? const Color(0xFFFF6767) : AppTheme.eventxproSuccess),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 18),
+
+                // Close button
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: AppTheme.surfaceBorder),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
                     onPressed: () => Navigator.of(sheetCtx).pop(),
+                    child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              const Divider(color: AppTheme.surfaceBorder, height: 1),
-              const SizedBox(height: 16),
-
-              // Encrypted Code Section (matches eventxproorganiser)
-              _buildDetailInfoTile(
-                title: 'ENCRYPTED CODE',
-                value: displayCode,
-                icon: Icons.qr_code_2_rounded,
-                accentColor: AppTheme.eventxproAccent,
-              ),
-
-              const SizedBox(height: 16),
-
-              // Metadata grid
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF131722),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppTheme.surfaceBorder),
                 ),
-                child: Column(
-                  children: [
-                    _buildMetaRow('Punch Action', isCheckIn ? 'Check-In' : 'Check-Out', isCheckIn ? AppTheme.eventxproSuccess : const Color(0xFFFF6767)),
-                    const SizedBox(height: 8),
-                    _buildMetaRow('Gate / Entrance', 'Gate #${record.entranceId} (${record.entranceLocation.isNotEmpty ? record.entranceLocation : widget.sessionTitle})', Colors.white),
-                    const SizedBox(height: 8),
-                    _buildMetaRow('Timestamp', formattedDate, Colors.white70),
-                    const SizedBox(height: 8),
-                    _buildMetaRow('Server Sync Status', record.isSynced ? 'Synced to Server' : 'Local SQLite Pending', record.isSynced ? AppTheme.eventxproSuccess : AppTheme.accentOrange),
-                    const SizedBox(height: 8),
-                    _buildMetaRow('Registration Status', record.isNotExist ? 'Unregistered' : 'Registered', record.isNotExist ? const Color(0xFFFF6767) : AppTheme.eventxproSuccess),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Close button
-              SizedBox(
-                width: double.infinity,
-                height: 46,
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: AppTheme.surfaceBorder),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () => Navigator.of(sheetCtx).pop(),
-                  child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildDetailInfoTile({
@@ -312,11 +334,16 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
   Widget _buildMetaRow(String label, String value, Color valueColor) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(color: AppTheme.textMuted, fontSize: 12)),
-        Text(
-          value,
-          style: TextStyle(color: valueColor, fontSize: 12, fontWeight: FontWeight.w600),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(color: valueColor, fontSize: 12, fontWeight: FontWeight.w600),
+          ),
         ),
       ],
     );
@@ -359,7 +386,11 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
           ],
         ),
         actions: [
-          _buildSyncButton(),
+          IconButton(
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
+            onPressed: _loadRecords,
+          ),
         ],
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
@@ -370,7 +401,7 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
         children: [
           // ── Search Bar ────────────────────────────────────────────────
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
             color: AppTheme.surface,
             child: Container(
               height: 42,
@@ -405,6 +436,19 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
             ),
           ),
 
+          // ── Action Buttons Row (Sync & Export) ────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            color: AppTheme.surface,
+            child: Row(
+              children: [
+                Expanded(child: _buildSyncButton()),
+                const SizedBox(width: 10),
+                Expanded(child: _buildDownloadButton()),
+              ],
+            ),
+          ),
+
           // ── Filter Chips Bar ──────────────────────────────────────────
           _buildFilterBar(),
 
@@ -436,76 +480,303 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
   Widget _buildSyncButton() {
     final hasPending = _unsyncedCount > 0;
 
-    return Padding(
-      padding: const EdgeInsets.only(right: 14, top: 9, bottom: 9),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _isSyncing ? null : _syncSection,
-          borderRadius: BorderRadius.circular(10),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-            decoration: BoxDecoration(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _isSyncing ? null : _syncSection,
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: _isSyncing
+                ? AppTheme.eventxproAccent.withValues(alpha: 0.35)
+                : (hasPending
+                    ? AppTheme.eventxproAccent
+                    : const Color(0xFF131722)),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
               color: _isSyncing
-                  ? AppTheme.eventxproAccent.withValues(alpha: 0.25)
+                  ? AppTheme.eventxproAccent
                   : (hasPending
                       ? AppTheme.eventxproAccent
-                      : const Color(0xFF131722)),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: _isSyncing
-                    ? AppTheme.eventxproAccent
-                    : (hasPending
-                        ? AppTheme.eventxproAccent
-                        : AppTheme.surfaceBorder),
-                width: 1.0,
-              ),
+                      : AppTheme.surfaceBorder),
+              width: 1.0,
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_isSyncing)
-                  const SizedBox(
-                    width: 13,
-                    height: 13,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                else
-                  Icon(
-                    hasPending
-                        ? Icons.cloud_upload_rounded
-                        : Icons.cloud_done_rounded,
-                    size: 15,
-                    color: hasPending ? Colors.white : AppTheme.eventxproSuccess,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (_isSyncing)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
                   ),
-                const SizedBox(width: 6),
-                Text(
+                )
+              else
+                Icon(
+                  hasPending
+                      ? Icons.cloud_upload_rounded
+                      : Icons.cloud_done_rounded,
+                  size: 16,
+                  color: hasPending ? Colors.white : AppTheme.eventxproSuccess,
+                ),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
                   _isSyncing
                       ? 'Syncing...'
-                      : (hasPending ? 'Sync ($_unsyncedCount)' : 'Synced'),
+                      : (hasPending ? 'Sync ($_unsyncedCount)' : 'All Synced'),
                   style: TextStyle(
                     color: hasPending || _isSyncing
                         ? Colors.white
                         : AppTheme.textSecondary,
-                    fontSize: 12,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.2,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
+  /// Download menu button shown in the Action Row below the search bar.
+  /// Tapping it shows a popup menu with "Export Excel" and "Export CSV".
+  /// Mirrors the download options from the reference React Native project.
+  Widget _buildDownloadButton() {
+    return PopupMenuButton<_DownloadFormat>(
+      tooltip: 'Export offline data',
+      color: AppTheme.surfaceElevated,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppTheme.surfaceBorder),
+      ),
+      onSelected: (format) {
+        if (format == _DownloadFormat.excel) {
+          _downloadExcel();
+        } else {
+          _downloadCsv();
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _DownloadFormat.excel,
+          child: Row(
+            children: const [
+              Icon(Icons.table_chart_rounded,
+                  color: AppTheme.eventxproSuccess, size: 18),
+              SizedBox(width: 10),
+              Text('Export Excel (.xlsx)',
+                  style: TextStyle(color: Colors.white, fontSize: 13)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: _DownloadFormat.csv,
+          child: Row(
+            children: const [
+              Icon(Icons.description_rounded,
+                  color: AppTheme.accentCyan, size: 18),
+              SizedBox(width: 10),
+              Text('Export CSV (.csv)',
+                  style: TextStyle(color: Colors.white, fontSize: 13)),
+            ],
+          ),
+        ),
+      ],
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF131722),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.surfaceBorder, width: 1.0),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_isDownloading)
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppTheme.eventxproAccent,
+                ),
+              )
+            else
+              const Icon(
+                Icons.download_rounded,
+                color: AppTheme.accentCyan,
+                size: 16,
+              ),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(
+                _isDownloading ? 'Exporting...' : 'Export Data',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.2,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 2),
+            const Icon(
+              Icons.arrow_drop_down_rounded,
+              color: AppTheme.textMuted,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Fetch all records for current section + active filter, then call
+  /// [OfflineExportService.exportToExcel]. Mirrors `handleDownload` in
+  /// the reference React Native project.
+  Future<void> _downloadExcel() async {
+    if (_isDownloading) return;
+    setState(() => _isDownloading = true);
+    try {
+      final db = context.read<OfflineDatabaseHelper>();
+      final records = await db.getAllCheckinsForExport(
+        section: widget.sessionKey,
+        isSynced: _syncFilterForExport(),
+        isNotExist: _regFilterForExport(),
+      );
+
+      final result = await _exportService.exportToExcel(
+        records: records,
+        sessionKey: widget.sessionKey,
+      );
+
+      if (!mounted) return;
+      _showExportFeedback(result);
+    } catch (e) {
+      if (mounted) {
+        _showExportFeedback(const ExportResult(
+          success: false,
+          errorMessage: 'Failed to download Excel file.',
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
+    }
+  }
+
+  /// Fetch all records for current section + active filter, then call
+  /// [OfflineExportService.exportToCsv]. Mirrors `handleDownloadCsv` in
+  /// the reference React Native project.
+  Future<void> _downloadCsv() async {
+    if (_isDownloading) return;
+    setState(() => _isDownloading = true);
+    try {
+      final db = context.read<OfflineDatabaseHelper>();
+      final records = await db.getAllCheckinsForExport(
+        section: widget.sessionKey,
+        isSynced: _syncFilterForExport(),
+        isNotExist: _regFilterForExport(),
+      );
+
+      final result = await _exportService.exportToCsv(
+        records: records,
+        sessionKey: widget.sessionKey,
+      );
+
+      if (!mounted) return;
+      _showExportFeedback(result);
+    } catch (e) {
+      if (mounted) {
+        _showExportFeedback(const ExportResult(
+          success: false,
+          errorMessage: 'Failed to download CSV file.',
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
+    }
+  }
+
+  /// Map current chip filter to the isSynced parameter for the DB query.
+  bool? _syncFilterForExport() {
+    if (_selectedFilter == 'synced') return true;
+    if (_selectedFilter == 'unsynced') return false;
+    return null;
+  }
+
+  /// Map current chip filter to the isNotExist parameter for the DB query.
+  bool? _regFilterForExport() {
+    if (_selectedFilter == 'registered') return false;
+    if (_selectedFilter == 'unregistered') return true;
+    return null;
+  }
+
+  /// Displays a SnackBar with success or error feedback after an export.
+  void _showExportFeedback(ExportResult result) {
+    if (!mounted) return;
+    if (result.success) {
+      final savedAt = result.filePath?.replaceAll('/storage/emulated/0/', '') ?? '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded,
+                  color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  savedAt.isNotEmpty
+                      ? 'File downloaded!\nSaved at: $savedAt'
+                      : 'File downloaded successfully!',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppTheme.eventxproSuccessDark,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_rounded, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  result.errorMessage ?? 'Failed to download file.',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppTheme.statusRejected,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   Widget _buildFilterBar() {
     return Container(
+
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
@@ -835,3 +1106,7 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
     );
   }
 }
+
+/// Enum used by the download popup menu to distinguish export formats.
+enum _DownloadFormat { excel, csv }
+
