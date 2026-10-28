@@ -24,6 +24,13 @@ class ScannerBloc extends Bloc<ScannerEvent, ScannerState> {
   StreamSubscription<String>? _adapterSubscription;
   Timer? _feedbackResetTimer;
 
+  // Active screen scanning gate: only process hardware scans when scanner screen is foregrounded
+  bool _isScanningActive;
+
+  bool get isScanningActive => _isScanningActive;
+  HardwareScannerAdapter get activeAdapter => _activeAdapter;
+  AudioFeedbackService get audioService => _audioService;
+
   // Duplicate suppression tracking (Section 7: 300 ms identical value suppression)
   String? _lastScannedToken;
   DateTime? _lastScanTime;
@@ -45,11 +52,13 @@ class ScannerBloc extends Bloc<ScannerEvent, ScannerState> {
     required HardwareScannerAdapter activeAdapter,
     AudioFeedbackService? audioService,
     HapticFeedbackService? hapticService,
+    bool isScanningActive = true,
   })  : _repository = repository,
         _localStorage = localStorage,
         _activeAdapter = activeAdapter,
         _audioService = audioService ?? AudioFeedbackService(),
         _hapticService = hapticService ?? HapticFeedbackService(),
+        _isScanningActive = isScanningActive,
         super(ScannerInitialState(
           eventId: localStorage.getEventId(),
           gateId: localStorage.getGateId(),
@@ -62,6 +71,9 @@ class ScannerBloc extends Bloc<ScannerEvent, ScannerState> {
           recentScans: const [],
         )) {
     on<ScannerInitialized>(_onInitialized);
+    on<ScannerScanningResumed>(_onScanningResumed);
+    on<ScannerScanningPaused>(_onScanningPaused);
+    on<ScannerSetScanningEnabled>(_onSetScanningEnabled);
     on<ScannerRawBarcodeReceived>(_onRawBarcodeReceived);
     on<ScannerFeedbackTimeout>(_onFeedbackTimeout);
     on<ScannerRetryLast>(_onRetryLast);
@@ -89,6 +101,35 @@ class ScannerBloc extends Bloc<ScannerEvent, ScannerState> {
     ));
   }
 
+  void _onScanningResumed(
+      ScannerScanningResumed event, Emitter<ScannerState> emit) {
+    if (!_isScanningActive) {
+      _isScanningActive = true;
+      debugPrint('[ScannerBloc] ▶️ Scanning ACTIVE: Hardware scanner inputs will be processed');
+    }
+  }
+
+  void _onScanningPaused(
+      ScannerScanningPaused event, Emitter<ScannerState> emit) {
+    if (_isScanningActive) {
+      _isScanningActive = false;
+      _pendingQueue.clear();
+      debugPrint('[ScannerBloc] ⏸️ Scanning PAUSED: Hardware scanner inputs will be ignored');
+    }
+  }
+
+  void _onSetScanningEnabled(
+      ScannerSetScanningEnabled event, Emitter<ScannerState> emit) {
+    if (_isScanningActive != event.isEnabled) {
+      _isScanningActive = event.isEnabled;
+      if (!_isScanningActive) {
+        _pendingQueue.clear();
+      }
+      debugPrint(
+          '[ScannerBloc] 🔄 Scanning toggled to ${event.isEnabled ? "ACTIVE" : "PAUSED"}');
+    }
+  }
+
   Future<void> _bindAdapter(HardwareScannerAdapter adapter) async {
     await _adapterSubscription?.cancel();
     _activeAdapter = adapter;
@@ -102,6 +143,14 @@ class ScannerBloc extends Bloc<ScannerEvent, ScannerState> {
   Future<void> _onRawBarcodeReceived(
       ScannerRawBarcodeReceived event, Emitter<ScannerState> emit) async {
     final rawToken = event.rawBarcode.trim();
+
+    // 0. Active screen guard: Ignore hardware scans when not on the scanner screen
+    if (!_isScanningActive) {
+      debugPrint(
+          '[ScannerBloc] ⏹️ Hardware scan IGNORED: Scanner is inactive/paused (scanned: "$rawToken")');
+      return;
+    }
+
     final now = event.receivedAt;
 
     // 1. Hardware duplicate suppression (Section 7: 300 ms benchmark for identical value)

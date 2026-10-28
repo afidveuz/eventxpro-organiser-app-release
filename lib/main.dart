@@ -26,6 +26,7 @@ import 'presentation/bloc/scanner_bloc.dart';
 import 'presentation/bloc/scanner_event.dart';
 import 'presentation/screens/auth/login_screen.dart';
 import 'presentation/screens/auth/splash_screen.dart';
+import 'core/navigation/app_route_observer.dart';
 import 'presentation/screens/home/home_screen.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -176,11 +177,13 @@ class EventXProApp extends StatelessWidget {
               repository: scannerRepository,
               localStorage: scannerLocalStorage,
               activeAdapter: defaultAdapter,
+              isScanningActive: false, // Inactive on startup until user opens KioskScannerScreen
             )..add(const ScannerInitialized()),
           ),
         ],
         child: MaterialApp(
           navigatorKey: appNavigatorKey,
+          navigatorObservers: [appRouteObserver],
           title: 'EventXPro Organiser',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.darkTheme,

@@ -25,6 +25,25 @@ class ScannerRawBarcodeReceived extends ScannerEvent {
   List<Object?> get props => [rawBarcode, receivedAt];
 }
 
+/// Operator enters scanner screen or foregrounds app - enable hardware scan processing
+class ScannerScanningResumed extends ScannerEvent {
+  const ScannerScanningResumed();
+}
+
+/// Operator leaves scanner screen, opens settings/home, or backgrounds app - pause scan processing
+class ScannerScanningPaused extends ScannerEvent {
+  const ScannerScanningPaused();
+}
+
+/// Programmatically set whether scan processing is enabled
+class ScannerSetScanningEnabled extends ScannerEvent {
+  final bool isEnabled;
+  const ScannerSetScanningEnabled(this.isEnabled);
+
+  @override
+  List<Object?> get props => [isEnabled];
+}
+
 /// Dispatched by timer after feedback hold duration to return to ready state
 class ScannerFeedbackTimeout extends ScannerEvent {
   const ScannerFeedbackTimeout();

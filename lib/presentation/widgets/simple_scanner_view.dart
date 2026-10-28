@@ -683,10 +683,12 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
           InkWell(
             onTap: () async {
               HapticFeedback.lightImpact();
+              context.read<ScannerBloc>().add(const ScannerScanningPaused());
               await Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const SettingsScreen()),
               );
               if (mounted) {
+                context.read<ScannerBloc>().add(const ScannerScanningResumed());
                 final storage = context.read<ScannerLocalStorage>();
                 setState(() {
                   _isShortToast = storage.isShortToastEnabled;

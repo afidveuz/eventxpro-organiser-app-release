@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/config/app_constants.dart';
 import '../../core/network/api_client.dart';
 import '../../core/services/app_update_service.dart';
+import '../../core/services/audio_feedback_service.dart';
 import '../../core/services/device_detection_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/datasources/offline_database_helper.dart';
@@ -1243,80 +1245,87 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showScannerTestDialog() {
+    final scannerBloc = context.read<ScannerBloc>();
+    final scanStream = scannerBloc.activeAdapter.scanStream;
+    StreamSubscription<String>? sub;
+
     showDialog<void>(
       context: context,
       builder: (dialogCtx) {
         String testScannedCode = 'Ready! Pull hardware trigger button or scan a QR code...';
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
-            return BlocListener<ScannerBloc, ScannerState>(
-              listener: (context, state) {
-                if (state is ScannerDecisionState) {
-                  setDialogState(() {
-                    testScannedCode = 'Decoded: ${state.request.qrToken}\nResult: ${state.response.code.code}\nStatus: ${state.response.status}';
-                  });
-                }
-              },
-              child: AlertDialog(
-                backgroundColor: AppTheme.surfaceElevated,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: AppTheme.surfaceBorder),
-                ),
-                title: const Row(
-                  children: [
-                    Icon(Icons.qr_code_scanner_rounded, color: AppTheme.accentIndigo, size: 20),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Scanner Beam Test',
-                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+            sub ??= scanStream.listen((barcode) {
+              scannerBloc.audioService.playTone(AudioTone.scanBeep);
+              setDialogState(() {
+                testScannedCode = 'Decoded Barcode:\n$barcode\n\n✅ Hardware Scanner Pipeline OK\n(Diagnostic Only • No Check-In Fired)';
+              });
+            });
+
+            return AlertDialog(
+              backgroundColor: AppTheme.surfaceElevated,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: AppTheme.surfaceBorder),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.qr_code_scanner_rounded, color: AppTheme.accentIndigo, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Scanner Beam Test',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppTheme.surfaceBorder),
-                      ),
-                      child: Text(
-                        testScannedCode,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Scans are decoded in real-time through the native hardware intent pipeline.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppTheme.textMuted, fontSize: 11),
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogCtx).pop(),
-                    child: const Text('Done', style: TextStyle(color: Colors.white70)),
                   ),
                 ],
               ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppTheme.surfaceBorder),
+                    ),
+                    child: Text(
+                      testScannedCode,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Scans are decoded in real-time through the native hardware intent pipeline without triggering backend check-ins.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppTheme.textMuted, fontSize: 11),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    sub?.cancel();
+                    Navigator.of(dialogCtx).pop();
+                  },
+                  child: const Text('Done', style: TextStyle(color: Colors.white70)),
+                ),
+              ],
             );
           },
         );
       },
-    );
+    ).then((_) {
+      sub?.cancel();
+    });
   }
 
   void _showHoneywellGuideDialog() {
