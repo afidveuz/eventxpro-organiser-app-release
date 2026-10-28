@@ -506,16 +506,18 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
           left: 0,
           right: 0,
           height: 380,
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment(0, -0.65),
-                radius: 1.15,
-                colors: [
-                  Color(0x35C10067),
-                  Color(0x10C10067),
-                  Colors.transparent,
-                ],
+          child: const RepaintBoundary(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(0, -0.65),
+                  radius: 1.15,
+                  colors: [
+                    Color(0x35C10067),
+                    Color(0x10C10067),
+                    Colors.transparent,
+                  ],
+                ),
               ),
             ),
           ),
@@ -725,37 +727,39 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
   // ── Offline Beacon Badge ───────────────────────────────────────────
   Widget _buildOfflineBadge() {
-    return FadeTransition(
-      opacity: _blinkAnimation,
-      child: Container(
-        margin: const EdgeInsets.only(top: 2, bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFF3B30),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFFF3B30).withValues(alpha: 0.45),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.wifi_off_rounded, size: 12, color: Colors.white),
-            SizedBox(width: 6),
-            Text(
-              'OFFLINE MODE ACTIVE',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
+    return RepaintBoundary(
+      child: FadeTransition(
+        opacity: _blinkAnimation,
+        child: Container(
+          margin: const EdgeInsets.only(top: 2, bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFF3B30),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF3B30).withValues(alpha: 0.45),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-            ),
-          ],
+            ],
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.wifi_off_rounded, size: 12, color: Colors.white),
+              SizedBox(width: 6),
+              Text(
+                'OFFLINE MODE ACTIVE',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -805,11 +809,9 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
         ),
         const SizedBox(height: 24),
 
-        // Viewfinder Frame
-        AnimatedBuilder(
-          animation: _laserAnimation,
-          builder: (context, child) {
-            return Container(
+        // Viewfinder Frame (Isolated RepaintBoundary to prevent repaint cascade)
+        RepaintBoundary(
+          child: Container(
               width: 270,
               height: 270,
               decoration: BoxDecoration(
@@ -892,52 +894,66 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                       // Mode B: Hardware Scanner Listening Illustration
                       _buildHardwareScannerArtwork(),
 
-                    // 4 Signature Corner Brackets (Magenta Accent)
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: _CornerBracketPainter(
-                          color: AppTheme.eventxproAccent,
-                          bracketLength: 32,
-                          strokeWidth: 3.5,
+                    // 4 Signature Corner Brackets (Magenta Accent) - Static paint layer
+                    const Positioned.fill(
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: _CornerBracketPainter(
+                            color: AppTheme.eventxproAccent,
+                            bracketLength: 32,
+                            strokeWidth: 3.5,
+                          ),
                         ),
                       ),
                     ),
 
-                    // Animated Sweeping Laser Beam (Vibrant Magenta Glow)
-                    Positioned(
-                      top: 270 * _laserAnimation.value,
-                      left: 14,
-                      right: 14,
-                      child: Container(
-                        height: 2.8,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [
-                              Colors.transparent,
-                              AppTheme.eventxproAccent,
-                              Color(0xFFFF3E96),
-                              Colors.white,
-                              Color(0xFFFF3E96),
-                              AppTheme.eventxproAccent,
-                              Colors.transparent,
-                            ],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.eventxproAccent.withValues(alpha: 0.9),
-                              blurRadius: 12,
-                              spreadRadius: 2,
-                            ),
-                          ],
+                    // Animated Sweeping Laser Beam (Isolated animation & repaint layer)
+                    Positioned.fill(
+                      child: RepaintBoundary(
+                        child: AnimatedBuilder(
+                          animation: _laserAnimation,
+                          builder: (context, _) {
+                            return Stack(
+                              children: [
+                                Positioned(
+                                  top: 270 * _laserAnimation.value,
+                                  left: 14,
+                                  right: 14,
+                                  child: Container(
+                                    height: 2.8,
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Colors.transparent,
+                                          AppTheme.eventxproAccent,
+                                          Color(0xFFFF3E96),
+                                          Colors.white,
+                                          Color(0xFFFF3E96),
+                                          AppTheme.eventxproAccent,
+                                          Colors.transparent,
+                                        ],
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AppTheme.eventxproAccent.withValues(alpha: 0.9),
+                                          blurRadius: 12,
+                                          spreadRadius: 2,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-            );
-          },
-        ),
+            ),
+          ),
 
         const SizedBox(height: 20),
 
@@ -994,70 +1010,75 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
   /// High-tech Artwork shown when Zebra/Honeywell Hardware Scanner is active
   Widget _buildHardwareScannerArtwork() {
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            // Concentric Animated Pulse Ring 1
-            Container(
-              width: 80 + (90 * _pulseAnimation.value),
-              height: 80 + (90 * _pulseAnimation.value),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppTheme.eventxproAccent.withValues(
-                    alpha: (1.0 - _pulseAnimation.value) * 0.45,
+    return RepaintBoundary(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Animated Pulse Rings (Isolated)
+          AnimatedBuilder(
+            animation: _pulseAnimation,
+            builder: (context, _) {
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 80 + (90 * _pulseAnimation.value),
+                    height: 80 + (90 * _pulseAnimation.value),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppTheme.eventxproAccent.withValues(
+                          alpha: (1.0 - _pulseAnimation.value) * 0.45,
+                        ),
+                        width: 1.5,
+                      ),
+                    ),
                   ),
-                  width: 1.5,
-                ),
-              ),
-            ),
-
-            // Concentric Animated Pulse Ring 2
-            Container(
-              width: 50 + (130 * _pulseAnimation.value),
-              height: 50 + (130 * _pulseAnimation.value),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppTheme.eventxproAccent.withValues(
-                    alpha: (1.0 - _pulseAnimation.value) * 0.25,
+                  Container(
+                    width: 50 + (130 * _pulseAnimation.value),
+                    height: 50 + (130 * _pulseAnimation.value),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppTheme.eventxproAccent.withValues(
+                          alpha: (1.0 - _pulseAnimation.value) * 0.25,
+                        ),
+                        width: 1.0,
+                      ),
+                    ),
                   ),
-                  width: 1.0,
-                ),
-              ),
-            ),
+                ],
+              );
+            },
+          ),
 
-            // Subtle Watermark QR Icon in center
-            Icon(
-              Icons.qr_code_2_rounded,
-              size: 100,
-              color: Colors.white.withValues(alpha: 0.08),
-            ),
+          // Subtle Watermark QR Icon in center (Static layer)
+          Icon(
+            Icons.qr_code_2_rounded,
+            size: 100,
+            color: Colors.white.withValues(alpha: 0.08),
+          ),
 
-            // Center Target Crosshair Graphic
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppTheme.eventxproAccent.withValues(alpha: 0.12),
-                border: Border.all(
-                  color: AppTheme.eventxproAccent.withValues(alpha: 0.6),
-                  width: 1.5,
-                ),
-              ),
-              child: const Icon(
-                Icons.center_focus_strong_rounded,
-                size: 28,
-                color: AppTheme.eventxproAccent,
+          // Center Target Crosshair Graphic (Static layer)
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.eventxproAccent.withValues(alpha: 0.12),
+              border: Border.all(
+                color: AppTheme.eventxproAccent.withValues(alpha: 0.6),
+                width: 1.5,
               ),
             ),
-          ],
-        );
-      },
+            child: const Icon(
+              Icons.center_focus_strong_rounded,
+              size: 28,
+              color: AppTheme.eventxproAccent,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1615,6 +1636,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             onPressed: () async {
               HapticFeedback.mediumImpact();
               await _enableOfflineMode();
+              if (!mounted) return;
               if (isModal) {
                 Navigator.of(context).pop();
               } else {
