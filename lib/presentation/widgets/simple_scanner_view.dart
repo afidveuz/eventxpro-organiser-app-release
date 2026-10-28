@@ -7,11 +7,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/config/app_constants.dart';
+import '../../core/services/gate_count_service.dart';
 import '../../core/services/remote_config_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/datasources/auth_local_storage.dart';
 import '../../data/datasources/scanner_local_storage.dart';
 import '../../domain/entities/attendee.dart';
+import '../../domain/entities/scan_decision_code.dart';
 import '../bloc/scanner_bloc.dart';
 import '../bloc/scanner_event.dart';
 import '../bloc/scanner_state.dart';
@@ -24,6 +26,8 @@ class SimpleScannerView extends StatefulWidget {
   final ScannerState state;
   final String? gateName;
   final String? eventName;
+  final String? section;
+  final String? sectionLocation;
   final VoidCallback onLogout;
   final VoidCallback onResetToReady;
 
@@ -32,6 +36,8 @@ class SimpleScannerView extends StatefulWidget {
     required this.state,
     this.gateName,
     this.eventName,
+    this.section,
+    this.sectionLocation,
     required this.onLogout,
     required this.onResetToReady,
   });
@@ -61,6 +67,9 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
   Timer? _toastDismissTimer;
   String? _lastCameraScannedToken;
   DateTime? _lastCameraScanTime;
+
+  GateCheckInOutCount _gateCount = const GateCheckInOutCount();
+  bool _hasLoadedGateCount = false;
 
   @override
   void initState() {
@@ -115,12 +124,61 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
         }
       } catch (_) {}
     }
+
+    if (!_hasLoadedGateCount) {
+      _hasLoadedGateCount = true;
+      _loadGateCounts();
+    }
+  }
+
+  Future<void> _loadGateCounts() async {
+    try {
+      final service = context.read<GateCountService>();
+      final section = widget.section ?? 'entrances';
+      final actionId = widget.state.gateId;
+      final eventId = widget.state.eventId;
+      final location = widget.sectionLocation;
+
+      final count = await service.getCounts(
+        eventId: eventId,
+        section: section,
+        actionId: actionId,
+        location: location,
+      );
+
+      if (mounted) {
+        setState(() {
+          _gateCount = count;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
   void didUpdateWidget(covariant SimpleScannerView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.state is ScannerDecisionState && widget.state != oldWidget.state) {
+      final decisionState = widget.state as ScannerDecisionState;
+      if (decisionState.isSuccess || decisionState.response.status == 'ACCEPTED') {
+        final isCheckIn = widget.state.scanType.toLowerCase().contains('in') ||
+            widget.state.scanType.toLowerCase().contains('entry');
+        setState(() {
+          _gateCount = _gateCount.copyWith(
+            checkIn: isCheckIn ? _gateCount.checkIn + 1 : _gateCount.checkIn,
+            checkOut: !isCheckIn ? _gateCount.checkOut + 1 : _gateCount.checkOut,
+          );
+        });
+        try {
+          context.read<GateCountService>().incrementCount(
+                eventId: widget.state.eventId,
+                section: widget.section ?? decisionState.request.section,
+                actionId: widget.state.gateId,
+                punchType: widget.state.scanType,
+                location: widget.sectionLocation ?? decisionState.request.sectionLocation,
+              );
+        } catch (_) {}
+      }
+
       if (_isShortToast) {
         _currentToastDecision = widget.state as ScannerDecisionState;
         _toastDismissTimer?.cancel();
@@ -1066,7 +1124,18 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     final isSuccess = decState.response.isAlertSuccess;
     final isWarning = decState.response.isAlertWarning;
 
-    if (alertType == 'success' || (alertType == null && isSuccess)) {
+    final isNetworkErr = decState.isNetworkError ||
+        decState.response.code == ScanDecisionCode.networkError ||
+        alertType == 'network_error' ||
+        msg.toLowerCase().contains('no internet') ||
+        msg.toLowerCase().contains('saved offline') ||
+        msg.toLowerCase().contains('network unreachable') ||
+        msg.toLowerCase().contains('unable to reach server');
+
+    if (isNetworkErr) {
+      headerColor = const Color(0xFFFF8450); // Warning Amber
+      iconData = Icons.wifi_off_rounded;
+    } else if (alertType == 'success' || (alertType == null && isSuccess)) {
       headerColor = const Color(0xFF23A618); // #23A618 Vibrant Green from AttendeeSheet.jsx
       iconData = decState.request.scanType.toLowerCase() == 'check_out'
           ? Icons.logout_rounded
@@ -1129,9 +1198,9 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildHeaderTitle(msg),
+                      _buildHeaderTitle(msg, isNetworkErr: isNetworkErr),
                       const SizedBox(height: 2),
-                      _buildHeaderSubtitle(msg, formattedPunchTime),
+                      _buildHeaderSubtitle(msg, formattedPunchTime, isNetworkErr: isNetworkErr),
                     ],
                   ),
                 ),
@@ -1174,7 +1243,9 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (attendee != null) ...[
+                if (isNetworkErr) ...[
+                  _buildNetworkOfflineBody(decState, isModal: isModal),
+                ] else if (attendee != null) ...[
                   // Profile Row: Avatar + Details
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1339,43 +1410,45 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                   ),
                 ],
 
-                const SizedBox(height: 16),
+                if (!isNetworkErr) ...[
+                  const SizedBox(height: 16),
 
-                // Ready For Next Attendee Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 46,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      if (isModal) {
-                        Navigator.of(context).pop();
-                      } else {
-                        widget.onResetToReady();
-                      }
-                    },
-                    icon: Icon(
-                      isModal ? Icons.check_rounded : Icons.arrow_forward_rounded,
-                      size: 18,
-                    ),
-                    label: Text(
-                      isModal ? 'Done & Return To Scanner' : 'Ready For Next Attendee',
-                      style: const TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.3,
+                  // Ready For Next Attendee Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        if (isModal) {
+                          Navigator.of(context).pop();
+                        } else {
+                          widget.onResetToReady();
+                        }
+                      },
+                      icon: Icon(
+                        isModal ? Icons.check_rounded : Icons.arrow_forward_rounded,
+                        size: 18,
                       ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: headerColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      label: Text(
+                        isModal ? 'Done & Return To Scanner' : 'Ready For Next Attendee',
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.3,
+                        ),
                       ),
-                      elevation: 0,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: headerColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -1384,7 +1457,203 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     ).animate().fadeIn(duration: 180.ms).scale(begin: const Offset(0.92, 0.92));
   }
 
-  Widget _buildHeaderTitle(String msg) {
+  Widget _buildNetworkOfflineBody(ScannerDecisionState decState, {bool isModal = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 6),
+        // Visual offline aura badge
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF7ED),
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFFFFEDD5), width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFEA580C).withValues(alpha: 0.12),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Center(
+            child: Icon(
+              Icons.wifi_off_rounded,
+              size: 32,
+              color: Color(0xFFEA580C),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        // Headline
+        const Text(
+          'Scan Recorded Offline',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 17.5,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF111827),
+            letterSpacing: 0.2,
+          ),
+        ),
+
+        const SizedBox(height: 6),
+
+        // User-friendly descriptive explanation
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 6),
+          child: Text(
+            'Unable to reach EventXPro server. This scan has been safely recorded to your local offline queue and will automatically sync once internet connection is restored.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              color: Color(0xFF6B7280),
+              height: 1.35,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Scanned ticket / token chip
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF9FAFB),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.qr_code_2_rounded, size: 20, color: Color(0xFF4B5563)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  decState.request.qrToken,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'QUEUED',
+                  style: TextStyle(
+                    color: Color(0xFFB45309),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 18),
+
+        // Ready for Next Attendee Button (Primary)
+        SizedBox(
+          width: double.infinity,
+          height: 46,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              if (isModal) {
+                Navigator.of(context).pop();
+              } else {
+                widget.onResetToReady();
+              }
+            },
+            icon: Icon(
+              isModal ? Icons.check_rounded : Icons.arrow_forward_rounded,
+              size: 18,
+            ),
+            label: Text(
+              isModal ? 'Done & Return To Scanner' : 'Ready For Next Attendee',
+              style: const TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.3,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF8450),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 0,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // Switch to Offline Mode Button (Secondary outline)
+        SizedBox(
+          width: double.infinity,
+          height: 42,
+          child: OutlinedButton.icon(
+            onPressed: () async {
+              HapticFeedback.mediumImpact();
+              await _enableOfflineMode();
+              if (isModal) {
+                Navigator.of(context).pop();
+              } else {
+                widget.onResetToReady();
+              }
+            },
+            icon: const Icon(Icons.offline_bolt_rounded, size: 18, color: Color(0xFFEA580C)),
+            label: const Text(
+              'Switch to Offline Mode',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFEA580C),
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFFFED7AA), width: 1.2),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeaderTitle(String msg, {bool isNetworkErr = false}) {
+    if (isNetworkErr ||
+        msg.toLowerCase().contains('no internet') ||
+        msg.toLowerCase().contains('saved offline') ||
+        msg.toLowerCase().contains('network unreachable')) {
+      return const Text(
+        'No Internet Connection',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+        ),
+      );
+    }
     if (msg.contains('Checked Out Successfully!')) {
       return const Text.rich(
         TextSpan(
@@ -1429,8 +1698,34 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
         style: TextStyle(color: Colors.white, fontSize: 16),
       );
     }
+    if (msg.toLowerCase().contains('invalid') || msg.toLowerCase().contains('unreadable')) {
+      return const Text(
+        'Invalid Badge',
+        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+      );
+    }
+    if (msg.toLowerCase().contains('revoked') ||
+        msg.toLowerCase().contains('denied') ||
+        msg.toLowerCase().contains('blocked')) {
+      return const Text(
+        'Access Denied',
+        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+      );
+    }
+    if (msg.toLowerCase().contains('expired')) {
+      return const Text(
+        'Badge Expired',
+        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+      );
+    }
+    if (msg.toLowerCase().contains('wrong')) {
+      return const Text(
+        'Wrong Event',
+        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+      );
+    }
     return Text(
-      msg,
+      msg.length > 30 ? '${msg.substring(0, 30)}...' : msg,
       style: const TextStyle(
         color: Colors.white,
         fontSize: 16,
@@ -1439,7 +1734,28 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     );
   }
 
-  Widget _buildHeaderSubtitle(String msg, String punchTime) {
+  Widget _buildHeaderSubtitle(String msg, String punchTime, {bool isNetworkErr = false}) {
+    if (isNetworkErr || msg.toLowerCase().contains('saved offline')) {
+      return const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.cloud_done_outlined, size: 13, color: Colors.white),
+          SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              'Saved to Offline Queue',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     if (punchTime.isNotEmpty &&
         (msg.contains('Already') ||
             msg.contains('Checked Out') ||
@@ -1647,6 +1963,41 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     }
   }
 
+  Future<void> _enableOfflineMode() async {
+    try {
+      final storage = context.read<ScannerLocalStorage>();
+      await storage.setOfflineMode(true);
+      if (mounted) {
+        context.read<ScannerBloc>().add(
+              const ScannerConfigChanged(
+                offlineModeEnabled: true,
+              ),
+            );
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.wifi_off_rounded, color: Colors.white, size: 18),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Switched to Offline Mode. High-speed local validation active.',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFFE65100),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(milliseconds: 2500),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } catch (_) {}
+  }
+
   Widget _buildShortToastBanner(ScannerDecisionState decState) {
     Color alertColor;
     IconData alertIcon;
@@ -1654,7 +2005,18 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     final isSuccess = decState.response.isAlertSuccess;
     final isWarning = decState.response.isAlertWarning;
 
-    if (alertType == 'success' || (alertType == null && isSuccess)) {
+    final isNetworkErr = decState.isNetworkError ||
+        decState.response.code == ScanDecisionCode.networkError ||
+        alertType == 'network_error' ||
+        decState.response.message.toLowerCase().contains('no internet') ||
+        decState.response.message.toLowerCase().contains('saved offline') ||
+        decState.response.message.toLowerCase().contains('network unreachable') ||
+        decState.response.message.toLowerCase().contains('unable to reach server');
+
+    if (isNetworkErr) {
+      alertColor = const Color(0xFFFF8450); // Warning Orange
+      alertIcon = Icons.wifi_off_rounded;
+    } else if (alertType == 'success' || (alertType == null && isSuccess)) {
       alertColor = const Color(0xFF23A618); // #23A618 Vibrant Green
       alertIcon = decState.request.scanType.toLowerCase() == 'check_out'
           ? Icons.logout_rounded
@@ -1671,12 +2033,20 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     }
 
     final attendee = decState.response.attendee;
-    final name = attendee != null && attendee.fullName.trim().isNotEmpty
-        ? attendee.fullName.toUpperCase()
-        : (isSuccess ? 'ADMISSION GRANTED' : 'SCAN NOTIFICATION');
-    final msg = decState.response.message;
-    final punchTime = decState.response.punchTime ?? attendee?.punchTime;
-    final formattedTime = _formatPunchTime(punchTime);
+    final String name;
+    final String subtitle;
+    if (isNetworkErr) {
+      name = 'SCAN SAVED OFFLINE';
+      subtitle = 'No internet • Saved to queue for auto-sync';
+    } else {
+      name = attendee != null && attendee.fullName.trim().isNotEmpty
+          ? attendee.fullName.toUpperCase()
+          : (isSuccess ? 'ADMISSION GRANTED' : 'SCAN NOTIFICATION');
+      final msg = decState.response.message;
+      final punchTime = decState.response.punchTime ?? attendee?.punchTime;
+      final formattedTime = _formatPunchTime(punchTime);
+      subtitle = formattedTime.isNotEmpty ? '$msg • $formattedTime' : msg;
+    }
 
     return Material(
       color: Colors.transparent,
@@ -1746,7 +2116,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          formattedTime.isNotEmpty ? '$msg • $formattedTime' : msg,
+                          subtitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -2037,10 +2407,10 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
         children: [
           // Accepted Scans Counter Pill
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: AppTheme.eventxproSuccess.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: AppTheme.eventxproSuccess.withValues(alpha: 0.35),
               ),
@@ -2050,16 +2420,68 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
               children: [
                 const Icon(
                   Icons.how_to_reg_rounded,
-                  size: 15,
+                  size: 14,
                   color: AppTheme.eventxproSuccess,
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 5),
                 Text(
                   '${telemetry.acceptedCount} Scanned',
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w800,
                     color: AppTheme.eventxproSuccess,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // Gate Live Check-In & Check-Out Pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFF202636),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'IN: ',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.eventxproSuccess,
+                  ),
+                ),
+                Text(
+                  '${_gateCount.checkIn}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'OUT: ',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.eventxproDanger,
+                  ),
+                ),
+                Text(
+                  '${_gateCount.checkOut}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
               ],

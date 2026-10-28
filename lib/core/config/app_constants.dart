@@ -18,6 +18,7 @@ class AppConstants {
   static const String userProfileEndpoint = 'organizer/user-profile';
   static const String scanValidateEndpoint = '/api/v1/access-control/scans/validate/';
   static const String eventEntranceEndpoint = 'organizer/event-entrance';
+  static const String showCountsEndpoint = 'organizer/show-counts';
 
   // Master Secret for changing backend Base URL
   static const String masterPassword = 'Veuz@url4788';

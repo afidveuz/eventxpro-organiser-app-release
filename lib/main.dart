@@ -8,6 +8,7 @@ import 'core/cache/scan_memory_cache.dart';
 import 'core/network/api_client.dart';
 import 'core/services/crashlytics_service.dart';
 import 'core/services/device_detection_service.dart';
+import 'core/services/gate_count_service.dart';
 import 'core/services/remote_config_service.dart';
 import 'core/theme/app_theme.dart';
 import 'data/adapters/simulated_hardware_adapter.dart';
@@ -89,6 +90,13 @@ void main() async {
   final offlineDbHelper = OfflineDatabaseHelper();
   final scanMemoryCache = ScanMemoryCache();
 
+  // Initialize GateCountService for check-in & check-out counts per gate
+  final gateCountService = GateCountService(
+    apiClient: apiClient,
+    dbHelper: offlineDbHelper,
+    localStorage: scannerLocalStorage,
+  );
+
   // Initialize pre-warmed scanner repository (pre-loads SQLite codes to RAM)
   final scannerRepository = await ScannerRepositoryImpl.create(
     remoteDatasource: remoteDatasource,
@@ -115,6 +123,7 @@ void main() async {
     authRepository: authRepository,
     offlineDbHelper: offlineDbHelper,
     apiClient: apiClient,
+    gateCountService: gateCountService,
     zebraAdapter: zebraAdapter,
     simulatorAdapter: simulatorAdapter,
     defaultAdapter: defaultAdapter,
@@ -127,6 +136,7 @@ class EventXProApp extends StatelessWidget {
   final AuthRepository authRepository;
   final OfflineDatabaseHelper offlineDbHelper;
   final ApiClient apiClient;
+  final GateCountService gateCountService;
   final ZebraDataWedgeAdapter zebraAdapter;
   final SimulatedHardwareAdapter simulatorAdapter;
   final HardwareScannerAdapter defaultAdapter;
@@ -138,6 +148,7 @@ class EventXProApp extends StatelessWidget {
     required this.authRepository,
     required this.offlineDbHelper,
     required this.apiClient,
+    required this.gateCountService,
     required this.zebraAdapter,
     required this.simulatorAdapter,
     required this.defaultAdapter,
@@ -151,6 +162,7 @@ class EventXProApp extends StatelessWidget {
         RepositoryProvider<ScannerLocalStorage>.value(value: scannerLocalStorage),
         RepositoryProvider<OfflineDatabaseHelper>.value(value: offlineDbHelper),
         RepositoryProvider<ApiClient>.value(value: apiClient),
+        RepositoryProvider<GateCountService>.value(value: gateCountService),
       ],
       child: MultiBlocProvider(
         providers: [

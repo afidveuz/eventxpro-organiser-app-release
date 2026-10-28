@@ -407,7 +407,7 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Text(
-            '$total check-ins • $unsynced unsynced',
+            'Total: $total (In: ${stats['checkin'] ?? 0} • Out: ${stats['checkout'] ?? 0}) • $unsynced unsynced',
             style: const TextStyle(
               color: AppTheme.textSecondary,
               fontSize: 12,

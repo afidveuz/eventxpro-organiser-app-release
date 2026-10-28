@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../core/config/app_constants.dart';
+import '../../core/network/api_client.dart';
 import '../../core/services/crashlytics_service.dart';
 import '../../core/services/remote_config_service.dart';
 import '../../domain/entities/scan_decision_code.dart';
@@ -215,8 +216,9 @@ class DjangoScanApiDatasource {
         ).copyWith(testApiResponse: summary);
       }
 
+      final readableMsg = ApiClient.formatDioError(dioErr);
       return ScanResponse.networkError(
-        message: 'Network Unreachable: ${dioErr.message ?? dioErr.type.name}',
+        message: readableMsg,
         latencyMs: stopwatch.elapsedMilliseconds,
         scanRequestId: request.scanRequestId,
         testApiResponse: '[NET ERROR]: ${dioErr.type.name}',
@@ -225,7 +227,7 @@ class DjangoScanApiDatasource {
       stopwatch.stop();
       CrashlyticsService().recordError(e, stack, reason: 'Client Transport Failure in validateScan');
       return ScanResponse.networkError(
-        message: 'Client Transport Failure: $e',
+        message: 'No internet connection. Please check your network and try again.',
         latencyMs: stopwatch.elapsedMilliseconds,
         scanRequestId: request.scanRequestId,
         testApiResponse: '[ERROR]: $e',

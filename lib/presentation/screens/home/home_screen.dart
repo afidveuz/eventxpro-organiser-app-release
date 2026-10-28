@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/app_update_service.dart';
@@ -18,6 +19,22 @@ import '../auth/login_screen.dart';
 import '../kiosk_scanner_screen.dart';
 import '../offline/offline_sessions_screen.dart';
 import '../settings_screen.dart';
+import '../../widgets/session_punch_card.dart';
+
+/// Cached parsed sections for high-performance zero-delay expansion
+class _ParsedEventSections {
+  final List<Map<String, dynamic>> entranceList;
+  final List<Map<String, dynamic>> hallList;
+  final List<Map<String, dynamic>> agendaList;
+  final List<Map<String, dynamic>> sessionList;
+
+  const _ParsedEventSections({
+    required this.entranceList,
+    required this.hallList,
+    required this.agendaList,
+    required this.sessionList,
+  });
+}
 
 /// EventXPro Organiser HomeScreen matching the reference React Native design.
 /// Features:
@@ -49,8 +66,10 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isOffline = false;
   int? _expandedEventPk;
   final Map<int, Map<String, dynamic>> _eventPermissions = {};
+  final Map<int, _ParsedEventSections> _parsedSectionsCache = {};
   final Set<int> _loadingPermissions = {};
   DeviceInfoResult? _deviceInfo;
+  int _countRefreshTrigger = 0;
 
   /// Throttle & Cache management for dashboard API requests
   DateTime? _lastDashboardFetchTime;
@@ -202,10 +221,15 @@ class _HomeScreenState extends State<HomeScreen>
       if (rawOffline != null && rawOffline.isNotEmpty) {
         final parsed = jsonDecode(rawOffline) as Map<String, dynamic>;
         final event = parsed['event'] as Map<String, dynamic>?;
-        if (event != null && parsed['permission'] is Map<String, dynamic>) {
-          final pk = (event['pk'] ?? event['id']) as int?;
-          if (pk != null) {
-            _eventPermissions[pk] = parsed['permission'] as Map<String, dynamic>;
+        if (event != null && parsed['permission'] != null) {
+          final pk = (event['pk'] as num?)?.toInt() ??
+                     (event['id'] as num?)?.toInt() ??
+                     int.tryParse(event['pk']?.toString() ?? '') ??
+                     int.tryParse(event['id']?.toString() ?? '');
+          if (pk != null && parsed['permission'] is Map) {
+            final permMap = Map<String, dynamic>.from(parsed['permission'] as Map);
+            _eventPermissions[pk] = permMap;
+            _parsedSectionsCache[pk] = _parseSections(permMap);
           }
         }
 
@@ -250,7 +274,10 @@ class _HomeScreenState extends State<HomeScreen>
         // If there's an event, fetch permissions and cache offline
         if (events.isNotEmpty) {
           final firstEvt = events.first;
-          final evtPk = firstEvt['pk'] ?? firstEvt['id'];
+          final int? evtPk = (firstEvt['pk'] as num?)?.toInt() ??
+                             (firstEvt['id'] as num?)?.toInt() ??
+                             int.tryParse(firstEvt['pk']?.toString() ?? '') ??
+                             int.tryParse(firstEvt['id']?.toString() ?? '');
           if (evtPk != null) {
             try {
               final permRes = await apiClient.dio.get('organizer/event-permission/$evtPk');
@@ -260,8 +287,18 @@ class _HomeScreenState extends State<HomeScreen>
                   'permission': permRes.data,
                 };
                 await scannerLocalStorage.setOfflineData(jsonEncode(permData));
-                if (permRes.data is Map<String, dynamic>) {
-                  _eventPermissions[evtPk as int] = permRes.data as Map<String, dynamic>;
+                Map<String, dynamic>? permMap;
+                if (permRes.data is Map) {
+                  permMap = Map<String, dynamic>.from(permRes.data as Map);
+                } else {
+                  final parsed = jsonDecode(permRes.data.toString());
+                  if (parsed is Map) {
+                    permMap = Map<String, dynamic>.from(parsed);
+                  }
+                }
+                if (permMap != null) {
+                  _eventPermissions[evtPk] = permMap;
+                  _parsedSectionsCache[evtPk] = _parseSections(permMap);
                 }
               }
             } catch (permErr) {
@@ -309,20 +346,30 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
 
-    _loadingPermissions.add(eventPk);
+    if (mounted) {
+      setState(() {
+        _loadingPermissions.add(eventPk);
+      });
+    } else {
+      _loadingPermissions.add(eventPk);
+    }
 
-    // 1. Check local offline cache
+    // 1. Check local offline cache first for instant fallback
     final scannerLocalStorage = context.read<ScannerLocalStorage>();
     final rawOffline = scannerLocalStorage.getOfflineData();
     if (rawOffline != null && rawOffline.isNotEmpty) {
       try {
         final parsed = jsonDecode(rawOffline) as Map<String, dynamic>;
         final event = parsed['event'] as Map<String, dynamic>?;
-        final cachedPk = event?['pk'] ?? event?['id'];
-        if (cachedPk == eventPk && parsed['permission'] is Map<String, dynamic>) {
+        final cachedPk = (event?['pk'] as num?)?.toInt() ??
+                         (event?['id'] as num?)?.toInt() ??
+                         int.tryParse(event?['pk']?.toString() ?? '');
+        if ((cachedPk == eventPk || _eventList.length == 1) && parsed['permission'] is Map) {
+          final cachedPerm = Map<String, dynamic>.from(parsed['permission'] as Map);
           if (mounted) {
             setState(() {
-              _eventPermissions[eventPk] = parsed['permission'] as Map<String, dynamic>;
+              _eventPermissions[eventPk] = cachedPerm;
+              _parsedSectionsCache[eventPk] = _parseSections(cachedPerm);
             });
           }
         }
@@ -335,12 +382,13 @@ class _HomeScreenState extends State<HomeScreen>
         final apiClient = context.read<ApiClient>();
         final res = await apiClient.dio.get('organizer/event-permission/$eventPk');
         if (res.statusCode == 200 && res.data != null) {
-          final perm = res.data is Map<String, dynamic>
-              ? res.data as Map<String, dynamic>
-              : jsonDecode(res.data.toString()) as Map<String, dynamic>;
+          final Map<String, dynamic> perm = res.data is Map
+              ? Map<String, dynamic>.from(res.data as Map)
+              : Map<String, dynamic>.from(jsonDecode(res.data.toString()) as Map);
           if (mounted) {
             setState(() {
               _eventPermissions[eventPk] = perm;
+              _parsedSectionsCache[eventPk] = _parseSections(perm);
             });
           }
         }
@@ -349,7 +397,13 @@ class _HomeScreenState extends State<HomeScreen>
       }
     }
 
-    _loadingPermissions.remove(eventPk);
+    if (mounted) {
+      setState(() {
+        _loadingPermissions.remove(eventPk);
+      });
+    } else {
+      _loadingPermissions.remove(eventPk);
+    }
   }
 
   void _handleSessionExpired(String reason) {
@@ -442,6 +496,11 @@ class _HomeScreenState extends State<HomeScreen>
       // Re-fetch dashboard count upon returning from scanning session
       // Throttled (30s) and silent to prevent screen flicker and duplicate network requests
       _loadDashboardData(forceRefresh: false, silent: true);
+      if (mounted) {
+        setState(() {
+          _countRefreshTrigger++;
+        });
+      }
     });
   }
 
@@ -953,7 +1012,10 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildEventCard(Map<String, dynamic> data) {
-    final int eventPk = (data['pk'] ?? data['id'] ?? 1) as int;
+    final int eventPk = (data['pk'] as num?)?.toInt() ??
+                        (data['id'] as num?)?.toInt() ??
+                        int.tryParse(data['pk']?.toString() ?? '') ??
+                        1;
     final String eventName = data['publish_event_name']?.toString() ?? 'Event';
     final String rawDesc = data['description']?.toString() ?? '';
     final String cleanDesc = _stripHtmlTags(rawDesc);
@@ -1028,55 +1090,57 @@ class _HomeScreenState extends State<HomeScreen>
                 // "KNOW MORE" Button
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(6),
-                      onTap: () {
-                        setState(() {
-                          if (isExpanded) {
-                            _expandedEventPk = null;
-                          } else {
-                            _expandedEventPk = eventPk;
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      setState(() {
+                        if (isExpanded) {
+                          _expandedEventPk = null;
+                        } else {
+                          _expandedEventPk = eventPk;
+                          if (!_eventPermissions.containsKey(eventPk)) {
                             _fetchPermissionsForEvent(eventPk);
                           }
-                        });
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppTheme.eventxproAccent,
-                          borderRadius: BorderRadius.circular(6),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.eventxproAccent.withValues(alpha: 0.4),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
+                        }
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.eventxproAccent,
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.eventxproAccent.withValues(alpha: 0.4),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            isExpanded ? 'HIDE SESSIONS' : 'KNOW MORE',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              letterSpacing: 0.4,
                             ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              isExpanded ? 'HIDE SESSIONS' : 'KNOW MORE',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                letterSpacing: 0.4,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Icon(
-                              isExpanded
-                                  ? Icons.keyboard_arrow_up_rounded
-                                  : Icons.keyboard_arrow_down_rounded,
+                          ),
+                          const SizedBox(width: 6),
+                          AnimatedRotation(
+                            turns: isExpanded ? 0.5 : 0.0,
+                            duration: const Duration(milliseconds: 150),
+                            child: const Icon(
+                              Icons.keyboard_arrow_down_rounded,
                               color: Colors.white,
                               size: 18,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -1088,11 +1152,12 @@ class _HomeScreenState extends State<HomeScreen>
           // ── KNOW MORE BOX (Sessions & Entrances with Check-in / Check-out) ──
           if (isExpanded) ...[
             Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.25),
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: Color(0x40000000),
                 border: Border(
                   top: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.15),
+                    color: Color(0x26FFFFFF),
                     width: 1,
                   ),
                 ),
@@ -1109,41 +1174,42 @@ class _HomeScreenState extends State<HomeScreen>
   /// Know More Box for Check-In and Check-Out matching React Native EventXPro:
   /// - OfflineEventDetails.jsx / EventDetails.jsx
   /// - Supports 4 session categories: Entrances, Halls, Agendas, and Sessions
-  Widget _buildKnowMoreBox(int eventId, String eventName) {
-    final scannerLocalStorage = context.read<ScannerLocalStorage>();
-
-    // 1. Resolve permissions: preferentially from per-event cache, or offline cached data
-    Map<String, dynamic>? permission = _eventPermissions[eventId];
+  /// Parse permissions into structured sections once, caching results for instant lookups
+  _ParsedEventSections _parseSections(Map<String, dynamic>? permission) {
     if (permission == null) {
-      final rawOffline = scannerLocalStorage.getOfflineData();
-      if (rawOffline != null && rawOffline.isNotEmpty) {
-        try {
-          final parsed = jsonDecode(rawOffline) as Map<String, dynamic>;
-          final event = parsed['event'] as Map<String, dynamic>?;
-          final cachedPk = event?['pk'] ?? event?['id'];
-          if (cachedPk == eventId || _eventList.length == 1) {
-            permission = parsed['permission'] as Map<String, dynamic>?;
+      final defaultGate = context.read<ScannerLocalStorage>().getGateId();
+      return _ParsedEventSections(
+        entranceList: [
+          {
+            'entrance_id': defaultGate,
+            'entrance_name': 'Main Entrance',
+            'location': 'Gate #$defaultGate',
+            'entrance_in_access': true,
+            'entrance_out_access': true,
           }
-        } catch (_) {}
-      }
+        ],
+        hallList: const [],
+        agendaList: const [],
+        sessionList: const [],
+      );
     }
 
-    // 2. Parse ENTRANCES (matching React Native entrance_permission / entrance)
+    // 1. Entrances
     List<Map<String, dynamic>> entranceList = [];
-    final entrancePerm = permission?['entrance_permission'] as Map<String, dynamic>?;
+    final entrancePerm = permission['entrance_permission'] as Map<String, dynamic>?;
     if (entrancePerm != null && entrancePerm['access'] != false) {
       final rawList = entrancePerm['entrance_list'] as List<dynamic>? ?? [];
       entranceList = rawList.whereType<Map<String, dynamic>>().toList();
     }
-    // Fallback single entrance permission object (parsedData?.permission?.entrance?.access)
-    if (entranceList.isEmpty && permission != null && permission['entrance'] is Map) {
+    if (entranceList.isEmpty && permission['entrance'] is Map) {
       final ent = permission['entrance'] as Map<String, dynamic>;
       if (ent['access'] == true) {
+        final gateId = context.read<ScannerLocalStorage>().getGateId();
         entranceList = [
           {
-            'entrance_id': scannerLocalStorage.getGateId(),
+            'entrance_id': gateId,
             'entrance_name': 'Main Entrance',
-            'location': 'Gate #${scannerLocalStorage.getGateId()}',
+            'location': 'Gate #$gateId',
             'entrance_in_access': ent['checkin'] != false,
             'entrance_out_access': ent['checkout'] != false,
           }
@@ -1151,43 +1217,115 @@ class _HomeScreenState extends State<HomeScreen>
       }
     }
 
-    // 3. Parse HALLS (matching React Native hall_permission.hall_list)
+    // 2. Halls
     List<Map<String, dynamic>> hallList = [];
-    final hallPerm = permission?['hall_permission'] as Map<String, dynamic>?;
+    final hallPerm = permission['hall_permission'] as Map<String, dynamic>?;
     if (hallPerm != null && hallPerm['access'] == true) {
       final rawList = hallPerm['hall_list'] as List<dynamic>? ?? [];
       hallList = rawList.whereType<Map<String, dynamic>>().toList();
     }
 
-    // 4. Parse AGENDAS (matching React Native agenda_permission.agenda_list)
+    // 3. Agendas
     List<Map<String, dynamic>> agendaList = [];
-    final agendaPerm = permission?['agenda_permission'] as Map<String, dynamic>?;
+    final agendaPerm = permission['agenda_permission'] as Map<String, dynamic>?;
     if (agendaPerm != null && agendaPerm['access'] == true) {
       final rawList = agendaPerm['agenda_list'] as List<dynamic>? ?? [];
       agendaList = rawList.whereType<Map<String, dynamic>>().toList();
     }
 
-    // 5. Parse SESSIONS (matching React Native sessiontype_permission.sessiontype_list)
+    // 4. Sessions
     List<Map<String, dynamic>> sessionList = [];
-    final sessionPerm = permission?['sessiontype_permission'] as Map<String, dynamic>?;
+    final sessionPerm = permission['sessiontype_permission'] as Map<String, dynamic>?;
     if (sessionPerm != null && sessionPerm['access'] == true) {
       final rawList = sessionPerm['sessiontype_list'] as List<dynamic>? ?? [];
       sessionList = rawList.whereType<Map<String, dynamic>>().toList();
     }
 
-    // If completely empty (e.g. offline with zero permissions configured), default to 1 entrance
-    final bool allEmpty = entranceList.isEmpty && hallList.isEmpty && agendaList.isEmpty && sessionList.isEmpty;
-    if (allEmpty) {
+    if (entranceList.isEmpty && hallList.isEmpty && agendaList.isEmpty && sessionList.isEmpty) {
+      final gateId = context.read<ScannerLocalStorage>().getGateId();
       entranceList = [
         {
-          'entrance_id': scannerLocalStorage.getGateId(),
+          'entrance_id': gateId,
           'entrance_name': 'Main Entrance',
-          'location': 'Gate #${scannerLocalStorage.getGateId()}',
+          'location': 'Gate #$gateId',
           'entrance_in_access': true,
           'entrance_out_access': true,
         }
       ];
     }
+
+    return _ParsedEventSections(
+      entranceList: entranceList,
+      hallList: hallList,
+      agendaList: agendaList,
+      sessionList: sessionList,
+    );
+  }
+
+  /// Know More Box for Check-In and Check-Out matching React Native EventXPro:
+  /// - OfflineEventDetails.jsx / EventDetails.jsx
+  /// - Supports 4 session categories: Entrances, Halls, Agendas, and Sessions
+  Widget _buildKnowMoreBox(int eventId, String eventName) {
+    // 1. Resolve sections directly from in-memory parsed cache (O(1) instant)
+    _ParsedEventSections? sections = _parsedSectionsCache[eventId];
+    if (sections == null && _eventPermissions.containsKey(eventId)) {
+      sections = _parseSections(_eventPermissions[eventId]);
+      _parsedSectionsCache[eventId] = sections;
+    }
+
+    // Fallback: check offline storage if not cached yet
+    if (sections == null) {
+      final scannerLocalStorage = context.read<ScannerLocalStorage>();
+      final rawOffline = scannerLocalStorage.getOfflineData();
+      if (rawOffline != null && rawOffline.isNotEmpty) {
+        try {
+          final parsed = jsonDecode(rawOffline) as Map<String, dynamic>;
+          final event = parsed['event'] as Map<String, dynamic>?;
+          final cachedPk = (event?['pk'] as num?)?.toInt() ??
+                           (event?['id'] as num?)?.toInt() ??
+                           int.tryParse(event?['pk']?.toString() ?? '');
+          if ((cachedPk == eventId || _eventList.length == 1) && parsed['permission'] is Map) {
+            final perm = Map<String, dynamic>.from(parsed['permission'] as Map);
+            _eventPermissions[eventId] = perm;
+            sections = _parseSections(perm);
+            _parsedSectionsCache[eventId] = sections;
+          }
+        } catch (_) {}
+      }
+    }
+
+    // If still fetching permissions over network and not yet in cache, show clean inline spinner
+    if (sections == null && _loadingPermissions.contains(eventId)) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        alignment: Alignment.center,
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.2,
+                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.eventxproAccent),
+              ),
+            ),
+            SizedBox(height: 10),
+            Text(
+              'Loading sessions & gates...',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ],
+        ),
+      );
+    }
+
+    sections ??= _parseSections(null);
+
+    final entranceList = sections.entranceList;
+    final hallList = sections.hallList;
+    final agendaList = sections.agendaList;
+    final sessionList = sections.sessionList;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1208,7 +1346,7 @@ class _HomeScreenState extends State<HomeScreen>
             final bool inAccess = item['entrance_in_access'] != false;
             final bool outAccess = item['entrance_out_access'] != false;
 
-            return _buildSessionPunchCard(
+            return SessionPunchCard(
               eventId: eventId,
               eventName: eventName,
               sessionId: entranceId,
@@ -1217,6 +1355,25 @@ class _HomeScreenState extends State<HomeScreen>
               sectionLocation: loc ?? title,
               hasInAccess: inAccess,
               hasOutAccess: outAccess,
+              refreshTrigger: _countRefreshTrigger,
+              onCheckIn: () => _launchScanner(
+                punchType: 'check_in',
+                gateId: entranceId,
+                eventId: eventId,
+                gateName: displayTitle,
+                eventName: eventName,
+                section: 'entrances',
+                sectionLocation: loc ?? title,
+              ),
+              onCheckOut: () => _launchScanner(
+                punchType: 'check_out',
+                gateId: entranceId,
+                eventId: eventId,
+                gateName: displayTitle,
+                eventName: eventName,
+                section: 'entrances',
+                sectionLocation: loc ?? title,
+              ),
             );
           }),
           if (hallList.isNotEmpty || agendaList.isNotEmpty || sessionList.isNotEmpty)
@@ -1237,7 +1394,7 @@ class _HomeScreenState extends State<HomeScreen>
             final bool inAccess = item['hall_in_access'] == true;
             final bool outAccess = item['hall_out_access'] == true;
 
-            return _buildSessionPunchCard(
+            return SessionPunchCard(
               eventId: eventId,
               eventName: eventName,
               sessionId: hallId,
@@ -1246,6 +1403,25 @@ class _HomeScreenState extends State<HomeScreen>
               sectionLocation: title,
               hasInAccess: inAccess,
               hasOutAccess: outAccess,
+              refreshTrigger: _countRefreshTrigger,
+              onCheckIn: () => _launchScanner(
+                punchType: 'check_in',
+                gateId: hallId,
+                eventId: eventId,
+                gateName: title,
+                eventName: eventName,
+                section: 'hall',
+                sectionLocation: title,
+              ),
+              onCheckOut: () => _launchScanner(
+                punchType: 'check_out',
+                gateId: hallId,
+                eventId: eventId,
+                gateName: title,
+                eventName: eventName,
+                section: 'hall',
+                sectionLocation: title,
+              ),
             );
           }),
           if (agendaList.isNotEmpty || sessionList.isNotEmpty)
@@ -1272,7 +1448,7 @@ class _HomeScreenState extends State<HomeScreen>
             final bool inAccess = item['agenda_in_access'] == true;
             final bool outAccess = item['agenda_out_access'] == true;
 
-            return _buildAgendaPunchCard(
+            return AgendaPunchCard(
               eventId: eventId,
               eventName: eventName,
               agendaId: agendaId,
@@ -1283,6 +1459,25 @@ class _HomeScreenState extends State<HomeScreen>
               agendaType: agendaType,
               hasInAccess: inAccess,
               hasOutAccess: outAccess,
+              refreshTrigger: _countRefreshTrigger,
+              onCheckIn: () => _launchScanner(
+                punchType: 'check_in',
+                gateId: agendaId,
+                eventId: eventId,
+                gateName: title,
+                eventName: eventName,
+                section: 'agenda',
+                sectionLocation: title,
+              ),
+              onCheckOut: () => _launchScanner(
+                punchType: 'check_out',
+                gateId: agendaId,
+                eventId: eventId,
+                gateName: title,
+                eventName: eventName,
+                section: 'agenda',
+                sectionLocation: title,
+              ),
             );
           }),
           if (sessionList.isNotEmpty)
@@ -1303,7 +1498,7 @@ class _HomeScreenState extends State<HomeScreen>
             final bool inAccess = item['sessiontype_in_access'] == true;
             final bool outAccess = item['sessiontype_out_access'] == true;
 
-            return _buildSessionPunchCard(
+            return SessionPunchCard(
               eventId: eventId,
               eventName: eventName,
               sessionId: sessId,
@@ -1312,6 +1507,25 @@ class _HomeScreenState extends State<HomeScreen>
               sectionLocation: title,
               hasInAccess: inAccess,
               hasOutAccess: outAccess,
+              refreshTrigger: _countRefreshTrigger,
+              onCheckIn: () => _launchScanner(
+                punchType: 'check_in',
+                gateId: sessId,
+                eventId: eventId,
+                gateName: title,
+                eventName: eventName,
+                section: 'session',
+                sectionLocation: title,
+              ),
+              onCheckOut: () => _launchScanner(
+                punchType: 'check_out',
+                gateId: sessId,
+                eventId: eventId,
+                gateName: title,
+                eventName: eventName,
+                section: 'session',
+                sectionLocation: title,
+              ),
             );
           }),
         ],
@@ -1365,288 +1579,6 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  /// Exact replica of OfflineEventSection.jsx / OfflineSessionInOutCard.jsx in React Native
-  Widget _buildSessionPunchCard({
-    required int eventId,
-    required String eventName,
-    required int sessionId,
-    required String title,
-    required String section,
-    required String sectionLocation,
-    required bool hasInAccess,
-    required bool hasOutAccess,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: AppTheme.eventxproBorder,
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title.toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Check-in & Check-out Buttons Row (Matching OfflineEventSection.jsx)
-          Row(
-            children: [
-              // CHECK-IN BUTTON
-              if (hasInAccess)
-                Expanded(
-                  child: _buildPunchButton(
-                    label: 'CHECK-IN',
-                    badgeColor: AppTheme.eventxproSuccess, // #8DFFBB
-                    arrowColor: Colors.black,
-                    onTap: () => _launchScanner(
-                      punchType: 'check_in',
-                      gateId: sessionId,
-                      eventId: eventId,
-                      gateName: title,
-                      eventName: eventName,
-                      section: section,
-                      sectionLocation: sectionLocation,
-                    ),
-                  ),
-                ),
-
-              if (hasInAccess && hasOutAccess) const SizedBox(width: 10),
-
-              // CHECK-OUT BUTTON
-              if (hasOutAccess)
-                Expanded(
-                  child: _buildPunchButton(
-                    label: 'CHECK-OUT',
-                    badgeColor: AppTheme.eventxproDanger, // #FF6767
-                    arrowColor: Colors.white,
-                    onTap: () => _launchScanner(
-                      punchType: 'check_out',
-                      gateId: sessionId,
-                      eventId: eventId,
-                      gateName: title,
-                      eventName: eventName,
-                      section: section,
-                      sectionLocation: sectionLocation,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Exact replica of OfflineAgendaInOutCard.jsx in React Native
-  Widget _buildAgendaPunchCard({
-    required int eventId,
-    required String eventName,
-    required int agendaId,
-    required String title,
-    String? date,
-    String? start,
-    String? end,
-    String? agendaType,
-    required bool hasInAccess,
-    required bool hasOutAccess,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: AppTheme.eventxproBorder,
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  title.toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ),
-              if (agendaType != null && agendaType.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppTheme.eventxproAccent.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: AppTheme.eventxproAccent, width: 0.8),
-                  ),
-                  child: Text(
-                    agendaType.toUpperCase(),
-                    style: const TextStyle(
-                      color: AppTheme.eventxproAccent,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-
-          // Date & Time metadata row
-          if (date != null || start != null || end != null) ...[
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                if (date != null && date.isNotEmpty) ...[
-                  const Icon(Icons.calendar_today_rounded, size: 12, color: Colors.white60),
-                  const SizedBox(width: 4),
-                  Text(
-                    date,
-                    style: const TextStyle(color: Colors.white60, fontSize: 11),
-                  ),
-                  const SizedBox(width: 12),
-                ],
-                if (start != null || end != null) ...[
-                  const Icon(Icons.access_time_rounded, size: 12, color: Colors.white60),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${start ?? ''}${start != null && end != null ? ' - ' : ''}${end ?? ''}',
-                    style: const TextStyle(color: Colors.white60, fontSize: 11),
-                  ),
-                ],
-              ],
-            ),
-          ],
-
-          const SizedBox(height: 12),
-
-          // Check-in & Check-out Buttons Row
-          Row(
-            children: [
-              if (hasInAccess)
-                Expanded(
-                  child: _buildPunchButton(
-                    label: 'CHECK-IN',
-                    badgeColor: AppTheme.eventxproSuccess,
-                    arrowColor: Colors.black,
-                    onTap: () => _launchScanner(
-                      punchType: 'check_in',
-                      gateId: agendaId,
-                      eventId: eventId,
-                      gateName: title,
-                      eventName: eventName,
-                      section: 'agenda',
-                      sectionLocation: title,
-                    ),
-                  ),
-                ),
-
-              if (hasInAccess && hasOutAccess) const SizedBox(width: 10),
-
-              if (hasOutAccess)
-                Expanded(
-                  child: _buildPunchButton(
-                    label: 'CHECK-OUT',
-                    badgeColor: AppTheme.eventxproDanger,
-                    arrowColor: Colors.white,
-                    onTap: () => _launchScanner(
-                      punchType: 'check_out',
-                      gateId: agendaId,
-                      eventId: eventId,
-                      gateName: title,
-                      eventName: eventName,
-                      section: 'agenda',
-                      sectionLocation: title,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Pill button with right circular badge (Matching RN OfflineEventSection styles.btn & styles.arrowBtn)
-  Widget _buildPunchButton({
-    required String label,
-    required Color badgeColor,
-    required Color arrowColor,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(50),
-        child: Container(
-          padding: const EdgeInsets.only(left: 10, right: 4, top: 4, bottom: 4),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.12), // defaultTrans
-            borderRadius: BorderRadius.circular(50),
-            border: Border.all(
-              color: AppTheme.eventxproBorder, // defaultBorder
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 11.5,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  color: badgeColor,
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Icon(
-                    Icons.arrow_forward_rounded,
-                    size: 14,
-                    color: arrowColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

@@ -309,10 +309,10 @@ class OfflineDatabaseHelper {
   Future<Map<String, Map<String, int>>> getSectionSummary() async {
     final client = await database;
     final Map<String, Map<String, int>> summary = {
-      'entrances': {'total': 0, 'unsynced': 0},
-      'hall': {'total': 0, 'unsynced': 0},
-      'agenda': {'total': 0, 'unsynced': 0},
-      'session': {'total': 0, 'unsynced': 0},
+      'entrances': {'total': 0, 'unsynced': 0, 'checkin': 0, 'checkout': 0},
+      'hall': {'total': 0, 'unsynced': 0, 'checkin': 0, 'checkout': 0},
+      'agenda': {'total': 0, 'unsynced': 0, 'checkin': 0, 'checkout': 0},
+      'session': {'total': 0, 'unsynced': 0, 'checkin': 0, 'checkout': 0},
     };
 
     try {
@@ -320,7 +320,9 @@ class OfflineDatabaseHelper {
         SELECT 
           COALESCE(section, 'entrances') as section,
           COUNT(*) as total,
-          SUM(CASE WHEN is_synced = 0 THEN 1 ELSE 0 END) as unsynced
+          SUM(CASE WHEN is_synced = 0 THEN 1 ELSE 0 END) as unsynced,
+          SUM(CASE WHEN scan_type = 'check_in' THEN 1 ELSE 0 END) as checkin,
+          SUM(CASE WHEN scan_type = 'check_out' THEN 1 ELSE 0 END) as checkout
         FROM $tableName
         GROUP BY section;
       ''');
@@ -329,10 +331,14 @@ class OfflineDatabaseHelper {
         final sec = (row['section'] as String?)?.toLowerCase() ?? 'entrances';
         final total = (row['total'] as num?)?.toInt() ?? 0;
         final unsynced = (row['unsynced'] as num?)?.toInt() ?? 0;
+        final checkin = (row['checkin'] as num?)?.toInt() ?? 0;
+        final checkout = (row['checkout'] as num?)?.toInt() ?? 0;
 
         summary[sec] = {
           'total': total,
           'unsynced': unsynced,
+          'checkin': checkin,
+          'checkout': checkout,
         };
       }
     } catch (e) {
@@ -340,6 +346,69 @@ class OfflineDatabaseHelper {
     }
 
     return summary;
+  }
+
+  /// Get check-in and check-out count for a specific gate/entrance/session
+  Future<Map<String, int>> getGateCheckInOutCount({
+    required int eventId,
+    required String section,
+    required int entranceId,
+  }) async {
+    final client = await database;
+    try {
+      final rows = await client.rawQuery('''
+        SELECT 
+          SUM(CASE WHEN scan_type = 'check_in' THEN 1 ELSE 0 END) as checkin_count,
+          SUM(CASE WHEN scan_type = 'check_out' THEN 1 ELSE 0 END) as checkout_count
+        FROM $tableName
+        WHERE (event_id = ? OR ? = 0 OR event_id = 1) 
+          AND section = ? 
+          AND entrance_id = ?;
+      ''', [eventId, eventId, section, entranceId]);
+
+      if (rows.isNotEmpty) {
+        final row = rows.first;
+        return {
+          'in': (row['checkin_count'] as num?)?.toInt() ?? 0,
+          'out': (row['checkout_count'] as num?)?.toInt() ?? 0,
+        };
+      }
+    } catch (e) {
+      debugPrint('[OfflineDatabaseHelper] ❌ getGateCheckInOutCount error: $e');
+    }
+    return {'in': 0, 'out': 0};
+  }
+
+  /// Get pending unsynced check-in and check-out count for a specific gate/session
+  Future<Map<String, int>> getUnsyncedGateCheckInOutCount({
+    required int eventId,
+    required String section,
+    required int entranceId,
+  }) async {
+    final client = await database;
+    try {
+      final rows = await client.rawQuery('''
+        SELECT 
+          SUM(CASE WHEN scan_type = 'check_in' THEN 1 ELSE 0 END) as checkin_count,
+          SUM(CASE WHEN scan_type = 'check_out' THEN 1 ELSE 0 END) as checkout_count
+        FROM $tableName
+        WHERE (event_id = ? OR ? = 0 OR event_id = 1) 
+          AND section = ? 
+          AND entrance_id = ?
+          AND is_synced = 0;
+      ''', [eventId, eventId, section, entranceId]);
+
+      if (rows.isNotEmpty) {
+        final row = rows.first;
+        return {
+          'in': (row['checkin_count'] as num?)?.toInt() ?? 0,
+          'out': (row['checkout_count'] as num?)?.toInt() ?? 0,
+        };
+      }
+    } catch (e) {
+      debugPrint('[OfflineDatabaseHelper] ❌ getUnsyncedGateCheckInOutCount error: $e');
+    }
+    return {'in': 0, 'out': 0};
   }
 
   /// Delete already synced records to optimize storage

@@ -116,6 +116,8 @@ class _KioskScannerScreenState extends State<KioskScannerScreen> {
             state: state,
             gateName: widget.gateName,
             eventName: widget.eventName,
+            section: widget.section,
+            sectionLocation: widget.sectionLocation,
             onLogout: () => _handleLogout(context),
             onResetToReady: () {
               context

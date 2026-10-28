@@ -170,23 +170,32 @@ class ScannerRepositoryImpl implements IScannerRepository {
     } else if (response.code.isNetworkError) {
       _telemetryData.networkTimeoutCount++;
       // Auto-fallback: save degraded scan to offline queue
+      final cleanType = request.scanType.toLowerCase().trim();
+      final punchType = (cleanType == 'check_out' || cleanType == 'exit')
+          ? 'check_out'
+          : 'check_in';
       final record = CheckinRecord(
         scanRequestId: request.scanRequestId,
         encryptedCode: request.qrToken,
         code: request.qrToken,
         entranceId: request.gateId,
-        entranceLocation: 'Gate ${request.gateId}',
-        scanType: (request.scanType.toLowerCase().trim() == 'check_out' ||
-                request.scanType.toLowerCase().trim() == 'exit')
-            ? 'check_out'
-            : 'check_in',
-        section: 'entrances',
+        entranceLocation: request.sectionLocation != null && request.sectionLocation!.isNotEmpty
+            ? request.sectionLocation!
+            : 'Gate ${request.gateId}',
+        scanType: punchType,
+        section: request.section.isNotEmpty ? request.section : 'entrances',
         timestamp: request.scannedAt,
-        eventId: request.eventId,
+        eventId: request.eventId > 0 ? request.eventId : 1,
       );
       await _dbHelper.insertCheckin(record);
       _memoryCache.incrementPending();
       _telemetryData.pendingQueueDepth = _memoryCache.pendingCount;
+
+      return response.copyWith(
+        status: 'QUEUED',
+        alertType: 'warning',
+        message: 'Scan Saved Offline (No Internet)',
+      );
     }
 
     return response;
