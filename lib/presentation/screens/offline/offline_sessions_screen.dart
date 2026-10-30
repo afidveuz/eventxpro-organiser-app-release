@@ -11,7 +11,12 @@ import 'offline_checkin_list_screen.dart';
 /// Lists sessions: Entrances, Halls, Agendas, and Sessions.
 /// Allows syncing all pending records and viewing check-in tables per session.
 class OfflineSessionsScreen extends StatefulWidget {
-  const OfflineSessionsScreen({super.key});
+  final bool? isRootTab;
+
+  const OfflineSessionsScreen({
+    super.key,
+    this.isRootTab,
+  });
 
   @override
   State<OfflineSessionsScreen> createState() => _OfflineSessionsScreenState();
@@ -274,10 +279,13 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
         backgroundColor: AppTheme.surface,
         elevation: 0,
         centerTitle: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        automaticallyImplyLeading: false,
+        leading: (widget.isRootTab == true || !Navigator.canPop(context))
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

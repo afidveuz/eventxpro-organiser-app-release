@@ -349,26 +349,12 @@ class _SessionPunchCardState extends State<SessionPunchCard>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1E2638),
-            Color(0xFF151C2A),
-          ],
-        ),
+        color: const Color(0xFF181F2E).withValues(alpha: 0.70),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.12),
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,7 +431,6 @@ class _SessionPunchCardState extends State<SessionPunchCard>
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.25),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -455,12 +440,12 @@ class _SessionPunchCardState extends State<SessionPunchCard>
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.login_rounded, size: 12, color: AppTheme.eventxproSuccess),
+                          const Icon(Icons.login_rounded, size: 12, color: Color(0xFF10B981)),
                           const SizedBox(width: 5),
                           const Text(
                             'Total In: ',
                             style: TextStyle(
-                              color: AppTheme.eventxproSuccess, // #8DFFBB
+                              color: Color(0xFF34D399),
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
@@ -472,7 +457,7 @@ class _SessionPunchCardState extends State<SessionPunchCard>
                               child: CircularProgressIndicator(
                                 strokeWidth: 1.5,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppTheme.eventxproSuccess,
+                                  Color(0xFF10B981),
                                 ),
                               ),
                             )
@@ -495,12 +480,12 @@ class _SessionPunchCardState extends State<SessionPunchCard>
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.logout_rounded, size: 12, color: AppTheme.eventxproDanger),
+                          const Icon(Icons.logout_rounded, size: 12, color: Color(0xFFF43F5E)),
                           const SizedBox(width: 5),
                           const Text(
                             'Total Out: ',
                             style: TextStyle(
-                              color: AppTheme.eventxproDanger, // #FF6767
+                              color: Color(0xFFFB7185),
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
@@ -512,7 +497,7 @@ class _SessionPunchCardState extends State<SessionPunchCard>
                               child: CircularProgressIndicator(
                                 strokeWidth: 1.5,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppTheme.eventxproDanger,
+                                  Color(0xFFF43F5E),
                                 ),
                               ),
                             )
@@ -687,26 +672,12 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1E2638),
-            Color(0xFF151C2A),
-          ],
-        ),
+        color: const Color(0xFF181F2E).withValues(alpha: 0.70),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.12),
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -816,7 +787,6 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.25),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -826,12 +796,12 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.login_rounded, size: 12, color: AppTheme.eventxproSuccess),
+                          const Icon(Icons.login_rounded, size: 12, color: Color(0xFF10B981)),
                           const SizedBox(width: 5),
                           const Text(
                             'Total In: ',
                             style: TextStyle(
-                              color: AppTheme.eventxproSuccess,
+                              color: Color(0xFF34D399),
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
@@ -843,7 +813,7 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
                               child: CircularProgressIndicator(
                                 strokeWidth: 1.5,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppTheme.eventxproSuccess,
+                                  Color(0xFF10B981),
                                 ),
                               ),
                             )
@@ -866,12 +836,12 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.logout_rounded, size: 12, color: AppTheme.eventxproDanger),
+                          const Icon(Icons.logout_rounded, size: 12, color: Color(0xFFF43F5E)),
                           const SizedBox(width: 5),
                           const Text(
                             'Total Out: ',
                             style: TextStyle(
-                              color: AppTheme.eventxproDanger,
+                              color: Color(0xFFFB7185),
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
@@ -883,7 +853,7 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
                               child: CircularProgressIndicator(
                                 strokeWidth: 1.5,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppTheme.eventxproDanger,
+                                  Color(0xFFF43F5E),
                                 ),
                               ),
                             )
@@ -921,23 +891,26 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
 /// (Matching React Native OfflineEventSection styles.btn & styles.arrowBtn)
 class _PunchButton extends StatelessWidget {
   final String label;
-  final Color badgeColor;
-  final Color arrowColor;
+  final Color? badgeColor;
+  final Color? arrowColor;
   final VoidCallback onTap;
 
   const _PunchButton({
     required this.label,
-    required this.badgeColor,
-    required this.arrowColor,
+    this.badgeColor,
+    this.arrowColor,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final bool isCheckIn = label.toUpperCase().contains('IN');
-    final Color primaryColor = isCheckIn ? const Color(0xFF00E676) : const Color(0xFFFF5252);
-    final Color bgColor = isCheckIn ? const Color(0xFF0E2E1C) : const Color(0xFF331217);
-
+    // High-contrast vibrant colors: Emerald Green for Check-In, Ruby Rose-Red for Check-Out
+    final Color primaryColor = isCheckIn ? const Color(0xFF10B981) : const Color(0xFFF43F5E);
+    final Color bgColor = isCheckIn
+        ? const Color(0xFF082F1E).withValues(alpha: 0.85)
+        : const Color(0xFF381018).withValues(alpha: 0.85);
+    final Color textColor = isCheckIn ? const Color(0xFFD1FAE5) : const Color(0xFFFFE4E6);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -947,21 +920,14 @@ class _PunchButton extends StatelessWidget {
         },
         borderRadius: BorderRadius.circular(30),
         child: Container(
-          padding: const EdgeInsets.only(left: 12, right: 4, top: 4, bottom: 4),
+          padding: const EdgeInsets.only(left: 14, right: 4, top: 4, bottom: 4),
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(30),
             border: Border.all(
-              color: primaryColor.withValues(alpha: 0.45),
+              color: primaryColor.withValues(alpha: 0.50),
               width: 1.2,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: primaryColor.withValues(alpha: 0.15),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -972,10 +938,10 @@ class _PunchButton extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: isCheckIn ? const Color(0xFFE8FFF0) : const Color(0xFFFFECEE),
+                    color: textColor,
                     fontWeight: FontWeight.w900,
                     fontSize: 12,
-                    letterSpacing: 0.4,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
@@ -986,19 +952,12 @@ class _PunchButton extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: primaryColor,
                   shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withValues(alpha: 0.35),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
                 ),
-                child: Center(
+                child: const Center(
                   child: Icon(
                     Icons.arrow_forward_rounded,
                     size: 15,
-                    color: isCheckIn ? Colors.black : Colors.white,
+                    color: Colors.white,
                   ),
                 ),
               ),

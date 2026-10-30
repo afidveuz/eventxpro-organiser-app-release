@@ -16,9 +16,11 @@ import 'data/adapters/zebra_datawedge_adapter.dart';
 import 'data/datasources/auth_local_storage.dart';
 import 'data/datasources/auth_remote_datasource.dart';
 import 'data/datasources/django_scan_api_datasource.dart';
+import 'data/datasources/lead_remote_datasource.dart';
 import 'data/datasources/offline_database_helper.dart';
 import 'data/datasources/scanner_local_storage.dart';
 import 'data/repositories/auth_repository.dart';
+import 'data/repositories/lead_repository.dart';
 import 'data/repositories/scanner_repository_impl.dart';
 import 'domain/adapters/i_hardware_scanner_adapter.dart';
 import 'presentation/bloc/auth/auth_bloc.dart';
@@ -27,7 +29,7 @@ import 'presentation/bloc/scanner_event.dart';
 import 'presentation/screens/auth/login_screen.dart';
 import 'presentation/screens/auth/splash_screen.dart';
 import 'core/navigation/app_route_observer.dart';
-import 'presentation/screens/home/home_screen.dart';
+import 'presentation/screens/main_navigation_screen.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -81,6 +83,10 @@ void main() async {
     localStorage: authLocalStorage,
   );
 
+  // Initialize Lead repository
+  final leadRemoteDatasource = LeadRemoteDatasource(apiClient: apiClient);
+  final leadRepository = LeadRepository(remoteDatasource: leadRemoteDatasource);
+
   // Initialize remote Django DRF API client with timeout
   final remoteDatasource = DjangoScanApiDatasource(
     authLocalStorage: authLocalStorage,
@@ -122,6 +128,7 @@ void main() async {
     scannerRepository: scannerRepository,
     scannerLocalStorage: scannerLocalStorage,
     authRepository: authRepository,
+    leadRepository: leadRepository,
     offlineDbHelper: offlineDbHelper,
     apiClient: apiClient,
     gateCountService: gateCountService,
@@ -135,6 +142,7 @@ class EventXProApp extends StatelessWidget {
   final ScannerRepositoryImpl scannerRepository;
   final ScannerLocalStorage scannerLocalStorage;
   final AuthRepository authRepository;
+  final LeadRepository leadRepository;
   final OfflineDatabaseHelper offlineDbHelper;
   final ApiClient apiClient;
   final GateCountService gateCountService;
@@ -147,6 +155,7 @@ class EventXProApp extends StatelessWidget {
     required this.scannerRepository,
     required this.scannerLocalStorage,
     required this.authRepository,
+    required this.leadRepository,
     required this.offlineDbHelper,
     required this.apiClient,
     required this.gateCountService,
@@ -160,6 +169,7 @@ class EventXProApp extends StatelessWidget {
     return MultiRepositoryProvider(
       providers: [
         RepositoryProvider<AuthRepository>.value(value: authRepository),
+        RepositoryProvider<LeadRepository>.value(value: leadRepository),
         RepositoryProvider<ScannerLocalStorage>.value(value: scannerLocalStorage),
         RepositoryProvider<OfflineDatabaseHelper>.value(value: offlineDbHelper),
         RepositoryProvider<ApiClient>.value(value: apiClient),
@@ -188,7 +198,7 @@ class EventXProApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           theme: AppTheme.darkTheme,
           home: SplashScreen(
-            authenticatedHome: HomeScreen(
+            authenticatedHome: MainNavigationScreen(
               zebraAdapter: zebraAdapter,
               simulatorAdapter: simulatorAdapter,
             ),

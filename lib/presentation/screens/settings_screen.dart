@@ -21,6 +21,8 @@ import '../bloc/scanner_event.dart';
 import '../bloc/scanner_state.dart';
 import 'auth/login_screen.dart';
 import 'offline/offline_sessions_screen.dart';
+import 'lead/lead_capture_screen.dart';
+import 'lead/leads_list_screen.dart';
 
 /// Settings screen matching the React Native EventXPro Organiser Settings screen.
 /// Includes:
@@ -30,7 +32,12 @@ import 'offline/offline_sessions_screen.dart';
 /// - Offline Sessions navigation entry
 /// - Gate and device hardware settings
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final bool isRootTab;
+
+  const SettingsScreen({
+    super.key,
+    this.isRootTab = false,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -352,10 +359,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: AppTheme.surface,
         elevation: 0,
         centerTitle: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        automaticallyImplyLeading: false,
+        leading: widget.isRootTab
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
         title: const Text(
           'Settings',
           style: TextStyle(
@@ -419,6 +429,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
 
                 const SizedBox(height: 12),
+
+                if (context.watch<ScannerLocalStorage>().isLeadCapturePermissionEnabled()) ...[
+                  // ── Section 2.5: Lead Retrieval & Capture (Matching React Native Profile.jsx) ──
+                  _buildSectionHeader('EXHIBITOR LEADS'),
+                  _buildLeadRetrievalSection(),
+                  const SizedBox(height: 12),
+                ],
 
                 // ── Section 3: Offline Sessions Navigation ──────────────────
                 _buildSectionHeader('OFFLINE STORAGE & SYNC'),
@@ -784,6 +801,93 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           child: child,
         ),
+      ),
+    );
+  }
+
+  Widget _buildLeadRetrievalSection() {
+    return _buildGlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Column(
+        children: [
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.brandGradientStart.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.qr_code_scanner_rounded,
+                color: AppTheme.brandGradientStart,
+                size: 20,
+              ),
+            ),
+            title: const Text(
+              'Lead Capture Scanner',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: const Text(
+              'Hardware & camera barcode attendee scanning',
+              style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+            ),
+            trailing: const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: AppTheme.textMuted,
+              size: 14,
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LeadCaptureScreen()),
+              );
+            },
+          ),
+          Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.accentCyan.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.people_alt_rounded,
+                color: AppTheme.accentCyan,
+                size: 20,
+              ),
+            ),
+            title: const Text(
+              'Captured Leads & Export',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: const Text(
+              'Search, edit ratings & export leads to Excel',
+              style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+            ),
+            trailing: const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: AppTheme.textMuted,
+              size: 14,
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LeadsListScreen()),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

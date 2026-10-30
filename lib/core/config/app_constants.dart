@@ -6,11 +6,13 @@ class AppConstants {
   static const String scannerEventChannel = 'eventxpro/scanner';
   static const String scannerControlChannel = 'eventxpro/scanner_control';
   static const String dataWedgeIntentAction = 'com.eventxpro.SCAN';
-  static const String dataWedgePayloadExtra = 'com.symbol.datawedge.data_string';
+  static const String dataWedgePayloadExtra =
+      'com.symbol.datawedge.data_string';
   static const String dataWedgeProfileName = 'EventXPro_Scanner';
 
   // API Endpoints & Configuration
-  static const String defaultBaseUrl = 'https://api-ism-plme-gfm-ghf-staging.eventxpro.com/';
+  static const String defaultBaseUrl =
+      'https://api-ism-plme-gfm-ghf-staging.eventxpro.com/';
   static const String loginEndpoint = 'organizer/login';
   static const String countriesEndpoint = 'microsite/v2/countries/';
   static const String refreshTokenEndpoint = 'exhibitor/refresh_token';
@@ -18,7 +20,8 @@ class AppConstants {
   static const String otpValidationEndpoint = 'organizer/otp-validation';
   static const String resetPasswordEndpoint = 'organizer/reset-password';
   static const String userProfileEndpoint = 'organizer/user-profile';
-  static const String scanValidateEndpoint = '/api/v1/access-control/scans/validate/';
+  static const String scanValidateEndpoint =
+      '/api/v1/access-control/scans/validate/';
   static const String eventEntranceEndpoint = 'organizer/event-entrance';
   static const String showCountsEndpoint = 'organizer/show-counts';
 
@@ -29,17 +32,19 @@ class AppConstants {
   static const String defaultTicketEncryptionKey = 'yGm7P48x50k=';
 
   // Debug Test Credentials
-  static const String debugUsername = 'flutterveuz';
-  static const String debugPassword =       'Flutterveuz@321';
+  static const String debugUsername = 'amar';
+  static const String debugPassword = 'Amar@1234788';
 
   // Branding Colors matching React Native theme
   static const Color brandAccent = Color(0xFFC10067); // rgba(193, 0, 103, 1)
   static const Color brandBg = Color(0xFF171C26);
-  static const Color brandBorder = Color(0x99FFFFFF); // rgba(255, 255, 255, 0.60)
+  static const Color brandBorder = Color(
+    0x99FFFFFF,
+  ); // rgba(255, 255, 255, 0.60)
   static const Color brandError = Color(0xFFF14C4C);
   static const Color brandGrey = Color(0xFFABABAB);
   static const Color brandGradientStart = Color(0xFFF43F5E); // #f43f5e
-  static const Color brandGradientEnd = Color(0xFF7C3AED);   // #7c3aed
+  static const Color brandGradientEnd = Color(0xFF7C3AED); // #7c3aed
 
   // Timing Benchmarks & Thresholds
   /// Benchmark: 300 ms suppression for identical barcode/QR value on the same device.

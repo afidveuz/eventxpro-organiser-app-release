@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/config/app_constants.dart';
@@ -30,8 +31,11 @@ class ScannerLocalStorage {
   static const String _keyScannerEngine = 'scanner_scanner_engine';
 
   final SharedPreferences _prefs;
+  late final ValueNotifier<bool> leadCapturePermissionNotifier;
 
-  ScannerLocalStorage(this._prefs);
+  ScannerLocalStorage(this._prefs) {
+    leadCapturePermissionNotifier = ValueNotifier<bool>(isLeadCapturePermissionEnabled());
+  }
 
   static Future<ScannerLocalStorage> create() async {
     final prefs = await SharedPreferences.getInstance();
@@ -109,8 +113,28 @@ class ScannerLocalStorage {
   Future<void> setScannerEngine(String value) => _prefs.setString(_keyScannerEngine, value);
 
   String? getOfflineData() => _prefs.getString(_keyOfflineData);
-  Future<void> setOfflineData(String data) =>
-      _prefs.setString(_keyOfflineData, data);
+  Future<void> setOfflineData(String data) async {
+    await _prefs.setString(_keyOfflineData, data);
+    leadCapturePermissionNotifier.value = isLeadCapturePermissionEnabled();
+  }
+
+  /// Checks whether lead capture permission is enabled in the cached permissions.
+  bool isLeadCapturePermissionEnabled() {
+    final rawData = getOfflineData();
+    if (rawData != null && rawData.isNotEmpty) {
+      try {
+        final map = jsonDecode(rawData) as Map<String, dynamic>;
+        final permission = map['permission'] as Map<String, dynamic>?;
+        final enabled = permission?['lead_capture_permission'];
+        if (enabled is bool) return enabled;
+        if (enabled is num) return enabled == 1;
+        if (enabled is String) {
+          return enabled.toLowerCase() == 'true' || enabled == '1';
+        }
+      } catch (_) {}
+    }
+    return false;
+  }
 
   /// Retrieves the event ticket encryption key from offline cached permissions, or fallback default
   String getTicketEncryptionKey() {

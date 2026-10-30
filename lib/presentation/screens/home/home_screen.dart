@@ -5,15 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/app_update_service.dart';
-import '../../../core/services/device_detection_service.dart';
 import '../../../core/services/gate_count_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/adapters/simulated_hardware_adapter.dart';
 import '../../../data/adapters/zebra_datawedge_adapter.dart';
 import '../../../data/datasources/offline_database_helper.dart';
 import '../../../data/datasources/scanner_local_storage.dart';
-import '../../../data/models/user_profile_model.dart';
-import '../../../data/repositories/auth_repository.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
 import '../../bloc/scanner_bloc.dart';
@@ -21,7 +18,6 @@ import '../../bloc/scanner_event.dart';
 import '../auth/login_screen.dart';
 import '../kiosk_scanner_screen.dart';
 import '../offline/offline_sessions_screen.dart';
-import '../settings_screen.dart';
 import '../../widgets/session_punch_card.dart';
 
 /// Cached parsed sections for high-performance zero-delay expansion
@@ -49,19 +45,22 @@ class _ParsedEventSections {
 class HomeScreen extends StatefulWidget {
   final ZebraDataWedgeAdapter? zebraAdapter;
   final SimulatedHardwareAdapter? simulatorAdapter;
+  final VoidCallback? onOpenSettings;
+  final VoidCallback? onOpenLeads;
 
   const HomeScreen({
     super.key,
     this.zebraAdapter,
     this.simulatorAdapter,
+    this.onOpenSettings,
+    this.onOpenLeads,
   });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   int _totalEvents = 0;
   int _totalScannedCount = 0;
@@ -71,8 +70,6 @@ class _HomeScreenState extends State<HomeScreen>
   final Map<int, Map<String, dynamic>> _eventPermissions = {};
   final Map<int, _ParsedEventSections> _parsedSectionsCache = {};
   final Set<int> _loadingPermissions = {};
-  DeviceInfoResult? _deviceInfo;
-  UserProfileModel? _userProfile;
   int _countRefreshTrigger = 0;
   int _serverRefreshTrigger = 0;
 
@@ -81,24 +78,10 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isDashboardFetching = false;
   static const Duration _dashboardThrottleDuration = Duration(seconds: 30);
 
-  late final AnimationController _blinkController;
-  late final Animation<double> _blinkAnimation;
-
   @override
   void initState() {
     super.initState();
-    _blinkController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    )..repeat(reverse: true);
-
-    _blinkAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(parent: _blinkController, curve: Curves.easeInOut),
-    );
-
     _loadDashboardData();
-    _initDeviceInfo();
-    _initUserProfile();
 
     // Check for app updates on home screen load
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -106,39 +89,6 @@ class _HomeScreenState extends State<HomeScreen>
         AppUpdateService().checkAndPromptUpdate(context);
       }
     });
-  }
-
-  Future<void> _initUserProfile() async {
-    try {
-      final authRepo = context.read<AuthRepository>();
-      final cached = authRepo.cachedUserProfile;
-      if (cached != null && mounted) {
-        setState(() => _userProfile = cached);
-      } else {
-        final profile = await authRepo.getUserProfile();
-        if (mounted) {
-          setState(() => _userProfile = profile);
-        }
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _initDeviceInfo() async {
-    try {
-      final storage = context.read<ScannerLocalStorage>();
-      final info = await DeviceDetectionService().detectDevice(storage: storage);
-      if (mounted) {
-        setState(() {
-          _deviceInfo = info;
-        });
-      }
-    } catch (_) {}
-  }
-
-  @override
-  void dispose() {
-    _blinkController.dispose();
-    super.dispose();
   }
 
   /// Strip HTML tags from event description (matching React Native helper)
@@ -153,8 +103,18 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       final dt = DateTime.parse(dateVal.toString());
       const months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
       final month = months[dt.month - 1];
       return '$month ${dt.day.toString().padLeft(2, '0')} ${dt.year}';
@@ -192,7 +152,8 @@ class _HomeScreenState extends State<HomeScreen>
 
     // 3. Online Mode: Throttling / TTL Check
     final now = DateTime.now();
-    final isThrottled = !forceRefresh &&
+    final isThrottled =
+        !forceRefresh &&
         _lastDashboardFetchTime != null &&
         now.difference(_lastDashboardFetchTime!) < _dashboardThrottleDuration;
 
@@ -243,13 +204,17 @@ class _HomeScreenState extends State<HomeScreen>
       if (rawOffline != null && rawOffline.isNotEmpty) {
         final parsed = jsonDecode(rawOffline) as Map<String, dynamic>;
         final event = parsed['event'] as Map<String, dynamic>?;
-        if (event != null && parsed['permission'] != null) {
-          final pk = (event['pk'] as num?)?.toInt() ??
-                     (event['id'] as num?)?.toInt() ??
-                     int.tryParse(event['pk']?.toString() ?? '') ??
-                     int.tryParse(event['id']?.toString() ?? '');
+        int? pk;
+        if (event != null) {
+          pk =
+              (event['pk'] as num?)?.toInt() ??
+              (event['id'] as num?)?.toInt() ??
+              int.tryParse(event['pk']?.toString() ?? '') ??
+              int.tryParse(event['id']?.toString() ?? '');
           if (pk != null && parsed['permission'] is Map) {
-            final permMap = Map<String, dynamic>.from(parsed['permission'] as Map);
+            final permMap = Map<String, dynamic>.from(
+              parsed['permission'] as Map,
+            );
             _eventPermissions[pk] = permMap;
             _parsedSectionsCache[pk] = _parseSections(permMap);
           }
@@ -260,6 +225,9 @@ class _HomeScreenState extends State<HomeScreen>
           _totalScannedCount = totalScanned;
           _eventList = event != null ? [event] : [];
           _isLoading = false;
+          if (pk != null && _expandedEventPk == null) {
+            _expandedEventPk = pk;
+          }
         });
       } else {
         setState(() {
@@ -289,20 +257,24 @@ class _HomeScreenState extends State<HomeScreen>
             : jsonDecode(res.data.toString()) as Map<String, dynamic>;
 
         final totalEvt = (data['total_event'] as num?)?.toInt() ?? 0;
-        final totalScanned = (data['total_scanned_count'] as num?)?.toInt() ?? 0;
+        final totalScanned =
+            (data['total_scanned_count'] as num?)?.toInt() ?? 0;
         final rawEvents = data['event_list'] as List<dynamic>? ?? [];
         final events = rawEvents.whereType<Map<String, dynamic>>().toList();
 
         // If there's an event, fetch permissions and cache offline
         if (events.isNotEmpty) {
           final firstEvt = events.first;
-          final int? evtPk = (firstEvt['pk'] as num?)?.toInt() ??
-                             (firstEvt['id'] as num?)?.toInt() ??
-                             int.tryParse(firstEvt['pk']?.toString() ?? '') ??
-                             int.tryParse(firstEvt['id']?.toString() ?? '');
+          final int? evtPk =
+              (firstEvt['pk'] as num?)?.toInt() ??
+              (firstEvt['id'] as num?)?.toInt() ??
+              int.tryParse(firstEvt['pk']?.toString() ?? '') ??
+              int.tryParse(firstEvt['id']?.toString() ?? '');
           if (evtPk != null) {
             try {
-              final permRes = await apiClient.dio.get('organizer/event-permission/$evtPk');
+              final permRes = await apiClient.dio.get(
+                'organizer/event-permission/$evtPk',
+              );
               if (permRes.statusCode == 200 && permRes.data != null) {
                 final permData = {
                   'event': firstEvt,
@@ -334,6 +306,17 @@ class _HomeScreenState extends State<HomeScreen>
           _totalScannedCount = totalScanned;
           _eventList = events;
           _isLoading = false;
+          if (events.length == 1 && _expandedEventPk == null) {
+            final first = events.first;
+            final pk =
+                (first['pk'] as num?)?.toInt() ??
+                (first['id'] as num?)?.toInt() ??
+                int.tryParse(first['pk']?.toString() ?? '') ??
+                int.tryParse(first['id']?.toString() ?? '');
+            if (pk != null) {
+              _expandedEventPk = pk;
+            }
+          }
         });
       } else if (res.statusCode == 401) {
         String msg = 'You have been logged out (another login detected)';
@@ -349,22 +332,28 @@ class _HomeScreenState extends State<HomeScreen>
       if (e.response?.statusCode == 401) {
         String msg = 'You have been logged out (another login detected)';
         if (e.response?.data is Map) {
-          final rawMsg = e.response?.data['message'] ?? e.response?.data['detail'];
+          final rawMsg =
+              e.response?.data['message'] ?? e.response?.data['detail'];
           if (rawMsg != null) msg = rawMsg.toString();
         }
         _handleSessionExpired(msg);
         return;
       }
-      debugPrint('[HomeScreen] ⚠️ Online fetch failed, falling back to offline: $e');
+      debugPrint(
+        '[HomeScreen] ⚠️ Online fetch failed, falling back to offline: $e',
+      );
       await _loadOfflineData(scannerLocalStorage, dbHelper);
     } catch (e) {
-      debugPrint('[HomeScreen] ⚠️ Online fetch failed, falling back to offline: $e');
+      debugPrint(
+        '[HomeScreen] ⚠️ Online fetch failed, falling back to offline: $e',
+      );
       await _loadOfflineData(scannerLocalStorage, dbHelper);
     }
   }
 
   Future<void> _fetchPermissionsForEvent(int eventPk) async {
-    if (_eventPermissions.containsKey(eventPk) || _loadingPermissions.contains(eventPk)) {
+    if (_eventPermissions.containsKey(eventPk) ||
+        _loadingPermissions.contains(eventPk)) {
       return;
     }
 
@@ -383,11 +372,15 @@ class _HomeScreenState extends State<HomeScreen>
       try {
         final parsed = jsonDecode(rawOffline) as Map<String, dynamic>;
         final event = parsed['event'] as Map<String, dynamic>?;
-        final cachedPk = (event?['pk'] as num?)?.toInt() ??
-                         (event?['id'] as num?)?.toInt() ??
-                         int.tryParse(event?['pk']?.toString() ?? '');
-        if ((cachedPk == eventPk || _eventList.length == 1) && parsed['permission'] is Map) {
-          final cachedPerm = Map<String, dynamic>.from(parsed['permission'] as Map);
+        final cachedPk =
+            (event?['pk'] as num?)?.toInt() ??
+            (event?['id'] as num?)?.toInt() ??
+            int.tryParse(event?['pk']?.toString() ?? '');
+        if ((cachedPk == eventPk || _eventList.length == 1) &&
+            parsed['permission'] is Map) {
+          final cachedPerm = Map<String, dynamic>.from(
+            parsed['permission'] as Map,
+          );
           if (mounted) {
             setState(() {
               _eventPermissions[eventPk] = cachedPerm;
@@ -402,11 +395,15 @@ class _HomeScreenState extends State<HomeScreen>
     if (!_isOffline) {
       try {
         final apiClient = context.read<ApiClient>();
-        final res = await apiClient.dio.get('organizer/event-permission/$eventPk');
+        final res = await apiClient.dio.get(
+          'organizer/event-permission/$eventPk',
+        );
         if (res.statusCode == 200 && res.data != null) {
           final Map<String, dynamic> perm = res.data is Map
               ? Map<String, dynamic>.from(res.data as Map)
-              : Map<String, dynamic>.from(jsonDecode(res.data.toString()) as Map);
+              : Map<String, dynamic>.from(
+                  jsonDecode(res.data.toString()) as Map,
+                );
           if (mounted) {
             setState(() {
               _eventPermissions[eventPk] = perm;
@@ -415,7 +412,9 @@ class _HomeScreenState extends State<HomeScreen>
           }
         }
       } catch (e) {
-        debugPrint('[HomeScreen] ⚠️ Error loading permissions for event $eventPk: $e');
+        debugPrint(
+          '[HomeScreen] ⚠️ Error loading permissions for event $eventPk: $e',
+        );
       }
     }
 
@@ -435,47 +434,6 @@ class _HomeScreenState extends State<HomeScreen>
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
       (route) => false,
-    );
-  }
-
-  void _handleLogout() {
-    showDialog<void>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceElevated,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Log Out',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-          'Are you sure you want to log out of EventXPro?',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(dialogCtx).pop();
-              context.read<AuthBloc>().add(const LogoutRequested());
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false,
-              );
-            },
-            child: const Text(
-              'Log Out',
-              style: TextStyle(
-                color: AppTheme.eventxproDanger,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -504,204 +462,131 @@ class _HomeScreenState extends State<HomeScreen>
     } catch (_) {}
 
     context.read<ScannerBloc>().add(
-          ScannerConfigChanged(
-            scanType: punchType,
-            gateId: gateId,
-            eventId: eventId,
-            section: section,
-            sectionLocation: sectionLocation,
-          ),
-        );
+      ScannerConfigChanged(
+        scanType: punchType,
+        gateId: gateId,
+        eventId: eventId,
+        section: section,
+        sectionLocation: sectionLocation,
+      ),
+    );
 
     Navigator.of(context)
         .push(
-      MaterialPageRoute(
-        builder: (_) => KioskScannerScreen(
-          zebraAdapter: widget.zebraAdapter,
-          simulatorAdapter: widget.simulatorAdapter,
-          initialPunchType: punchType,
-          initialGateId: gateId,
-          initialEventId: eventId,
-          gateName: gateName,
-          eventName: eventName,
-          section: section,
-          sectionLocation: sectionLocation,
-        ),
-      ),
-    )
+          MaterialPageRoute(
+            builder: (_) => KioskScannerScreen(
+              zebraAdapter: widget.zebraAdapter,
+              simulatorAdapter: widget.simulatorAdapter,
+              initialPunchType: punchType,
+              initialGateId: gateId,
+              initialEventId: eventId,
+              gateName: gateName,
+              eventName: eventName,
+              section: section,
+              sectionLocation: sectionLocation,
+            ),
+          ),
+        )
         .then((_) async {
-      if (!mounted) return;
+          if (!mounted) return;
 
-      // Option A: ZERO network calls upon return from scanner!
-      // 1. Update Scanned User metric locally from in-memory session or SQLite WAL
-      try {
-        final service = context.read<GateCountService>();
-        final newScans = service.sessionAcceptedScans;
-        if (newScans > 0) {
+          // Option A: ZERO network calls upon return from scanner!
+          // 1. Update Scanned User metric locally from in-memory session or SQLite WAL
+          try {
+            final service = context.read<GateCountService>();
+            final newScans = service.sessionAcceptedScans;
+            if (newScans > 0) {
+              setState(() {
+                _totalScannedCount += newScans;
+              });
+            } else {
+              final dbHelper = context.read<OfflineDatabaseHelper>();
+              final totalScanned = await dbHelper.getTotalScannedCount();
+              if (mounted &&
+                  totalScanned > 0 &&
+                  totalScanned > _totalScannedCount) {
+                setState(() {
+                  _totalScannedCount = totalScanned;
+                });
+              }
+            }
+          } catch (_) {}
+
+          // 2. Trigger local-only cache sync for punch cards (0 network requests)
           setState(() {
-            _totalScannedCount += newScans;
+            _countRefreshTrigger++;
           });
-        } else {
-          final dbHelper = context.read<OfflineDatabaseHelper>();
-          final totalScanned = await dbHelper.getTotalScannedCount();
-          if (mounted && totalScanned > 0 && totalScanned > _totalScannedCount) {
-            setState(() {
-              _totalScannedCount = totalScanned;
-            });
-          }
-        }
-      } catch (_) {}
-
-      // 2. Trigger local-only cache sync for punch cards (0 network requests)
-      setState(() {
-        _countRefreshTrigger++;
-      });
-    });
+        });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.eventxproBg,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF1B2335),
-              AppTheme.eventxproBg,
-              Color(0xFF10141D),
-            ],
-            stops: [0.0, 0.45, 1.0],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildTopBar(),
-              Expanded(
-                child: RefreshIndicator(
-                  color: AppTheme.eventxproAccent,
-                  backgroundColor: AppTheme.surfaceElevated,
-                  onRefresh: () => _handleManualRefresh(silent: true),
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Welcome & Organiser Greeting Header
-                        _buildWelcomeHeader(),
-                        const SizedBox(height: 16),
-
-                        // ── 1. Top Metrics Count Cards ────────────
-                        _buildCountCardsRow(),
-                        const SizedBox(height: 16),
-
-                        if (_isOffline) ...[
-                          _buildOfflineSessionBanner(),
-                          const SizedBox(height: 16),
-                        ],
-
-                        // ── 2. Events Section Header ──────────────
-                        _buildEventsSectionHeader(),
-                        const SizedBox(height: 12),
-
-                        // ── 3. Events List / Know More ────────────
-                        _buildEventsSection(),
-                        const SizedBox(height: 36),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Welcome & Organiser Header ───────────────────────────────────
-  Widget _buildWelcomeHeader() {
-    final name = _userProfile?.name;
-    final displayName = (name != null && name.trim().isNotEmpty)
-        ? name.trim()
-        : 'Organiser Portal';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: AppTheme.brandGradientStart,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'EVENTXPRO ORGANISER',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.55),
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-              ],
-            ),
+          // 1. Background image matching React Native eventxproorganiser
+          Positioned.fill(
+            child: Image.asset('assets/images/bg.png', fit: BoxFit.cover),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.12),
-                width: 1,
+
+          // 2. Smooth subtle fade overlay (reduced opacity)
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    const Color(0xFF131722).withValues(alpha: 0.35),
+                    AppTheme.eventxproBg.withValues(alpha: 0.15),
+                    const Color(0xFF0D111A).withValues(alpha: 0.45),
+                  ],
+                  stops: const [0.0, 0.45, 1.0],
+                ),
               ),
             ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
+          ),
+
+          // 3. Foreground content
+          SafeArea(
+            child: Column(
               children: [
-                Icon(
-                  Icons.shield_rounded,
-                  size: 13,
-                  color: AppTheme.brandGradientStart,
-                ),
-                SizedBox(width: 5),
-                Text(
-                  'Gate Pass',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                _buildTopBar(),
+                Expanded(
+                  child: RefreshIndicator(
+                    color: AppTheme.eventxproAccent,
+                    backgroundColor: AppTheme.surfaceElevated,
+                    onRefresh: () => _handleManualRefresh(silent: true),
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // ── 1. Top Metrics Count Cards ────────────
+                          _buildCountCardsRow(),
+                          const SizedBox(height: 14),
+
+                          if (_isOffline) ...[
+                            _buildOfflineNoticeBar(),
+                            const SizedBox(height: 14),
+                          ],
+
+                          // ── 2. Events Section Header ──────────────
+                          _buildEventsSectionHeader(),
+                          const SizedBox(height: 10),
+
+                          // ── 3. Events List / Know More ────────────
+                          _buildEventsSection(),
+                          const SizedBox(height: 28),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -714,294 +599,137 @@ class _HomeScreenState extends State<HomeScreen>
 
   // ── Top Header / App Bar ─────────────────────────────────────────
   Widget _buildTopBar() {
-    final dev = _deviceInfo;
-    final hasStatusBadges = _isOffline || (dev != null && dev.isHardwareScannerCapable);
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
       decoration: BoxDecoration(
-        color: const Color(0xFF131722).withValues(alpha: 0.95),
+        color: const Color(0xFF131722).withValues(alpha: 0.50),
         border: Border(
           bottom: BorderSide(
             color: Colors.white.withValues(alpha: 0.08),
             width: 1,
           ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: [
-          Row(
-            children: [
-              // Logo
-              Image.asset(
-                'assets/images/logo.png',
-                height: 32,
-                fit: BoxFit.contain,
-              ),
-              const Spacer(),
-
-              // Refresh Action
-              _buildTopBarActionButton(
-                tooltip: 'Refresh Dashboard',
-                onTap: _isLoading ? null : () => _handleManualRefresh(silent: false),
-                icon: _isLoading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.eventxproAccent),
-                        ),
-                      )
-                    : const Icon(Icons.refresh_rounded, color: Colors.white, size: 19),
-              ),
-              const SizedBox(width: 8),
-
-              // Settings Action
-              _buildTopBarActionButton(
-                tooltip: 'Settings',
-                onTap: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                  );
-                  _loadDashboardData(forceRefresh: false, silent: true);
-                },
-                icon: const Icon(Icons.settings_outlined, color: Colors.white, size: 19),
-              ),
-              const SizedBox(width: 8),
-
-              // Logout Action
-              _buildTopBarActionButton(
-                tooltip: 'Log Out',
-                onTap: _handleLogout,
-                bgTint: AppTheme.eventxproDanger.withValues(alpha: 0.12),
-                borderTint: AppTheme.eventxproDanger.withValues(alpha: 0.3),
-                icon: const Icon(Icons.logout_rounded, color: AppTheme.eventxproDanger, size: 18),
-              ),
-            ],
+          // EventXPro Logo
+          Image.asset(
+            'assets/images/logo.png',
+            height: 28,
+            fit: BoxFit.contain,
           ),
+          const SizedBox(width: 10),
 
-          // Sub-row for Status Badges (Hardware Device & Offline Mode)
-          if (hasStatusBadges) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                if (dev != null && dev.isHardwareScannerCapable)
-                  InkWell(
-                    onTap: () async {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                      );
-                      _loadDashboardData(forceRefresh: false, silent: true);
-                    },
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: dev.isHoneywell
-                            ? const Color(0xFFD32F2F).withValues(alpha: 0.16)
-                            : const Color(0xFF0288D1).withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: dev.isHoneywell
-                              ? const Color(0xFFEF5350).withValues(alpha: 0.5)
-                              : const Color(0xFF29B6F6).withValues(alpha: 0.5),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: dev.isHoneywell ? const Color(0xFFFF8A80) : const Color(0xFF81D4FA),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Icon(
-                            Icons.qr_code_scanner_rounded,
-                            size: 13,
-                            color: dev.isHoneywell
-                                ? const Color(0xFFFF8A80)
-                                : const Color(0xFF81D4FA),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            dev.displayName,
-                            style: TextStyle(
-                              color: dev.isHoneywell
-                                  ? const Color(0xFFFF8A80)
-                                  : const Color(0xFF81D4FA),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
+          // Offline status chip
+          if (_isOffline)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF3B30).withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFFFF3B30).withValues(alpha: 0.5),
+                  width: 0.8,
+                ),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.wifi_off_rounded,
+                    size: 11,
+                    color: Color(0xFFFF5252),
+                  ),
+                  SizedBox(width: 4),
+                  Text(
+                    'Offline',
+                    style: TextStyle(
+                      color: Color(0xFFFF5252),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 10.5,
                     ),
                   ),
-
-                const Spacer(),
-
-                // Pulsing Offline Mode Badge (Matching RN Background.jsx)
-                if (_isOffline)
-                  GestureDetector(
-                    onTap: () async {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const OfflineSessionsScreen()),
-                      );
-                      _loadDashboardData(forceRefresh: false, silent: true);
-                    },
-                    child: FadeTransition(
-                      opacity: _blinkAnimation,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFF3B30),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFFF3B30).withValues(alpha: 0.5),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.wifi_off_rounded, size: 12, color: Colors.white),
-                            SizedBox(width: 5),
-                            Text(
-                              'Offline Mode',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-                else if (dev != null && dev.isHardwareScannerCapable)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF00E676).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFF00E676).withValues(alpha: 0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF00E676),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        const Text(
-                          'Online Sync',
-                          style: TextStyle(
-                            color: Color(0xFF00E676),
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ],
+
+          const Spacer(),
+
+          // Refresh Button
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _isLoading
+                  ? null
+                  : () => _handleManualRefresh(silent: false),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
+                ),
+                child: Center(
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 15,
+                          height: 15,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppTheme.eventxproAccent,
+                            ),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.refresh_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTopBarActionButton({
-    required Widget icon,
-    required String tooltip,
-    required VoidCallback? onTap,
-    Color? bgTint,
-    Color? borderTint,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: Tooltip(
-        message: tooltip,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Ink(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: bgTint ?? Colors.white.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: borderTint ?? Colors.white.withValues(alpha: 0.12),
-                width: 1,
-              ),
-            ),
-            child: Center(child: icon),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Metrics Count Cards ──────────────────────────────────────────
+  // ── Metrics Count Cards (Compact with unified icon color & transparency) ──
   Widget _buildCountCardsRow() {
+    const iconColor = AppTheme.brandGradientStart;
+
     return Row(
       children: [
         // Total Events Card
         Expanded(
           child: _buildMetricCard(
-            title: 'TOTAL EVENTS',
+            title: 'ACTIVE EVENTS',
             count: _totalEvents,
-            icon: Icons.calendar_month_rounded,
-            iconColor: const Color(0xFFFDBE10),
-            accentColor: const Color(0xFFFDBE10),
-            subtitle: 'Assigned to you',
-            tagLabel: 'ACTIVE',
+            icon: Icons.event_available_rounded,
+            iconColor: iconColor,
           ),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: 10),
 
-        // Scanned Users Card (tappable to view offline encrypted codes)
+        // Scanned Users Card (tappable to view offline records)
         Expanded(
           child: _buildMetricCard(
-            title: 'SCANNED USERS',
+            title: 'TOTAL SCANS',
             count: _totalScannedCount,
             icon: Icons.qr_code_scanner_rounded,
-            iconColor: AppTheme.brandGradientStart,
-            accentColor: AppTheme.brandGradientStart,
-            subtitle: 'Tap to view records',
-            tagLabel: 'LOGS',
+            iconColor: iconColor,
             isClickable: true,
             onTap: () async {
               await Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const OfflineSessionsScreen()),
+                MaterialPageRoute(
+                  builder: (_) => const OfflineSessionsScreen(),
+                ),
               );
               _loadDashboardData(forceRefresh: false, silent: true);
             },
@@ -1011,238 +739,79 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildOfflineSessionBanner() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () async {
-          await Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const OfflineSessionsScreen()),
-          );
-          _loadDashboardData(forceRefresh: false, silent: true);
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF2C1622), Color(0xFF1C2234)],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppTheme.brandGradientStart.withValues(alpha: 0.4),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.brandGradientStart.withValues(alpha: 0.12),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppTheme.brandGradientStart.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppTheme.brandGradientStart.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-                child: const Icon(Icons.cloud_off_rounded, color: AppTheme.brandGradientStart, size: 22),
-              ),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Offline Session Active',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Tap to view offline logs & sync records',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Manage',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    SizedBox(width: 3),
-                    Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 10),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildMetricCard({
     required String title,
     required int count,
     required IconData icon,
     required Color iconColor,
-    required Color accentColor,
-    String? subtitle,
-    String? tagLabel,
     bool isClickable = false,
     VoidCallback? onTap,
   }) {
     final card = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF222B3D),
-            Color(0xFF161C27),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFF161C28).withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.12),
-          width: 1.2,
+          color: Colors.white.withValues(alpha: 0.10),
+          width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: [
-          // Top row: Icon badge + tag
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: iconColor.withValues(alpha: 0.35),
-                    width: 1,
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(child: Icon(icon, size: 16, color: iconColor)),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  count.toString(),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: -0.3,
+                    height: 1.1,
                   ),
                 ),
-                child: Center(
-                  child: Icon(icon, size: 20, color: iconColor),
-                ),
-              ),
-              if (tagLabel != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: isClickable
-                        ? accentColor.withValues(alpha: 0.15)
-                        : Colors.white.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isClickable
-                          ? accentColor.withValues(alpha: 0.35)
-                          : Colors.white.withValues(alpha: 0.1),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        tagLabel,
-                        style: TextStyle(
-                          color: isClickable ? accentColor : Colors.white70,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      if (isClickable) ...[
-                        const SizedBox(width: 3),
-                        Icon(Icons.arrow_forward_ios_rounded, size: 8, color: accentColor),
-                      ],
-                    ],
+                const SizedBox(height: 1),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withValues(alpha: 0.55),
+                    letterSpacing: 0.3,
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Count Number
-          Text(
-            count.toString(),
-            style: TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.w900,
-              color: accentColor,
-              height: 1.1,
-              letterSpacing: -0.5,
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-
-          // Title
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-              letterSpacing: 0.5,
+          if (isClickable)
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 16,
+              color: Colors.white.withValues(alpha: 0.35),
             ),
-          ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                color: Colors.white.withValues(alpha: 0.5),
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -1255,7 +824,7 @@ class _HomeScreenState extends State<HomeScreen>
             HapticFeedback.lightImpact();
             onTap();
           },
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           child: card,
         ),
       );
@@ -1264,13 +833,58 @@ class _HomeScreenState extends State<HomeScreen>
     return card;
   }
 
+  // ── Compact Offline Notice Strip ─────────────────────────────────
+  Widget _buildOfflineNoticeBar() {
+    return InkWell(
+      onTap: () async {
+        await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const OfflineSessionsScreen()),
+        );
+        _loadDashboardData(forceRefresh: false, silent: true);
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFF9800).withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFFFF9800).withValues(alpha: 0.35),
+            width: 1,
+          ),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.wifi_off_rounded, color: Color(0xFFFFB74D), size: 16),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Offline Mode Active — scans saved locally',
+                style: TextStyle(
+                  color: Color(0xFFFFE0B2),
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: Color(0xFFFFB74D),
+              size: 11,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Events Section Header ────────────────────────────────────────
   Widget _buildEventsSectionHeader() {
     return Row(
       children: [
         Container(
           width: 3.5,
-          height: 15,
+          height: 14,
           decoration: BoxDecoration(
             gradient: AppTheme.brandGradient,
             borderRadius: BorderRadius.circular(2),
@@ -1278,30 +892,22 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         const SizedBox(width: 8),
         const Text(
-          'ASSIGNED EVENTS',
+          'EVENT GATES & SESSIONS',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 12.5,
+            fontSize: 12,
             fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
+            letterSpacing: 0.7,
           ),
         ),
         const Spacer(),
         if (_eventList.isNotEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            child: Text(
-              '${_eventList.length} Active',
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w600,
-              ),
+          Text(
+            '${_eventList.length} ${_eventList.length == 1 ? 'Event' : 'Events'} Assigned',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.5),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
             ),
           ),
       ],
@@ -1314,8 +920,11 @@ class _HomeScreenState extends State<HomeScreen>
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF20283A), Color(0xFF161C28)],
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF20283A).withValues(alpha: 0.70),
+              const Color(0xFF161C28).withValues(alpha: 0.65),
+            ],
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
@@ -1328,14 +937,20 @@ class _HomeScreenState extends State<HomeScreen>
                 width: 30,
                 height: 30,
                 child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AppTheme.eventxproAccent),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppTheme.eventxproAccent,
+                  ),
                   strokeWidth: 2.8,
                 ),
               ),
               SizedBox(height: 14),
               Text(
                 'Loading Events & Sessions...',
-                style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -1347,8 +962,11 @@ class _HomeScreenState extends State<HomeScreen>
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF20283A), Color(0xFF161C28)],
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF20283A).withValues(alpha: 0.70),
+              const Color(0xFF161C28).withValues(alpha: 0.65),
+            ],
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
@@ -1384,19 +1002,33 @@ class _HomeScreenState extends State<HomeScreen>
                   ? 'Connect to internet to download offline event sessions.'
                   : 'No active events assigned to your organiser profile.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white60, fontSize: 12.5, height: 1.3),
+              style: const TextStyle(
+                color: Colors.white60,
+                fontSize: 12.5,
+                height: 1.3,
+              ),
             ),
             const SizedBox(height: 16),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.white,
-                side: BorderSide(color: AppTheme.brandGradientStart.withValues(alpha: 0.6)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                side: BorderSide(
+                  color: AppTheme.brandGradientStart.withValues(alpha: 0.6),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 9,
+                ),
               ),
               onPressed: () => _handleManualRefresh(silent: false),
               icon: const Icon(Icons.refresh_rounded, size: 15),
-              label: const Text('Refresh Events', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              label: const Text(
+                'Refresh Events',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
             ),
           ],
         ),
@@ -1405,15 +1037,18 @@ class _HomeScreenState extends State<HomeScreen>
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: _eventList.map((eventData) => _buildEventCard(eventData)).toList(),
+      children: _eventList
+          .map((eventData) => _buildEventCard(eventData))
+          .toList(),
     );
   }
 
   Widget _buildEventCard(Map<String, dynamic> data) {
-    final int eventPk = (data['pk'] as num?)?.toInt() ??
-                        (data['id'] as num?)?.toInt() ??
-                        int.tryParse(data['pk']?.toString() ?? '') ??
-                        1;
+    final int eventPk =
+        (data['pk'] as num?)?.toInt() ??
+        (data['id'] as num?)?.toInt() ??
+        int.tryParse(data['pk']?.toString() ?? '') ??
+        1;
     final String eventName = data['publish_event_name']?.toString() ?? 'Event';
     final String rawDesc = data['description']?.toString() ?? '';
     final String cleanDesc = _stripHtmlTags(rawDesc);
@@ -1421,224 +1056,290 @@ class _HomeScreenState extends State<HomeScreen>
     final String endDate = _formatDate(data['publish_end_dt']);
     final bool isExpanded = _expandedEventPk == eventPk;
 
+    // Cached gate count for quick summary chip
+    final cachedSections = _parsedSectionsCache[eventPk];
+    final int? totalGates = cachedSections != null
+        ? (cachedSections.entranceList.length +
+              cachedSections.hallList.length +
+              cachedSections.agendaList.length +
+              cachedSections.sessionList.length)
+        : null;
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 18),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF20283A),
-            Color(0xFF161C28),
-          ],
-        ),
+        color: const Color(0xFF171D2B).withValues(alpha: 0.70),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isExpanded
-              ? AppTheme.brandGradientStart.withValues(alpha: 0.5)
-              : Colors.white.withValues(alpha: 0.12),
+          color: Colors.white.withValues(alpha: 0.1),
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.32),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: isExpanded ? 0.35 : 0.2),
+            blurRadius: isExpanded ? 16 : 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Event Info Header
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Meta: Event ID Badge & Date Tag
-                Row(
+          // ── Entire Event Card Header is Tappable ──────────────
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                setState(() {
+                  if (isExpanded) {
+                    _expandedEventPk = null;
+                  } else {
+                    _expandedEventPk = eventPk;
+                    if (!_eventPermissions.containsKey(eventPk)) {
+                      _fetchPermissionsForEvent(eventPk);
+                    }
+                  }
+                });
+              },
+              borderRadius: isExpanded
+                  ? const BorderRadius.vertical(top: Radius.circular(16))
+                  : BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppTheme.brandGradientStart.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: AppTheme.brandGradientStart.withValues(alpha: 0.35),
-                          width: 0.8,
+                    // Top Meta Row: Event Tag & Date
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.brandGradientStart.withValues(
+                              alpha: 0.14,
+                            ),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: AppTheme.brandGradientStart.withValues(
+                                alpha: 0.3,
+                              ),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 5,
+                                height: 5,
+                                decoration: const BoxDecoration(
+                                  color: AppTheme.brandGradientStart,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                'EVENT #$eventPk',
+                                style: const TextStyle(
+                                  color: AppTheme.brandGradientStart,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
+                        const Spacer(),
+                        if (startDate.isNotEmpty || endDate.isNotEmpty)
                           Container(
-                            width: 5,
-                            height: 5,
-                            decoration: const BoxDecoration(
-                              color: AppTheme.brandGradientStart,
-                              shape: BoxShape.circle,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 10,
+                                  color: Colors.white60,
+                                ),
+                                const SizedBox(width: 4.5),
+                                Text(
+                                  startDate.isNotEmpty && endDate.isNotEmpty
+                                      ? (startDate == endDate
+                                            ? startDate
+                                            : '$startDate - $endDate')
+                                      : (startDate.isNotEmpty
+                                            ? startDate
+                                            : endDate),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'EVENT #$eventPk',
-                            style: const TextStyle(
-                              color: AppTheme.brandGradientStart,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Event Name
+                    Text(
+                      eventName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.2,
+                        height: 1.25,
                       ),
                     ),
-                    const Spacer(),
-                    if (startDate.isNotEmpty || endDate.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.06),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.calendar_today_rounded, size: 10, color: Colors.white60),
-                            const SizedBox(width: 4),
-                            Text(
-                              startDate.isNotEmpty && endDate.isNotEmpty
-                                  ? '$startDate to $endDate'
-                                  : (startDate.isNotEmpty ? startDate : endDate),
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
 
-                // Event Title
-                Text(
-                  eventName.toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.4,
-                    height: 1.25,
-                  ),
-                ),
-
-                if (cleanDesc.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    cleanDesc,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 12.5,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-
-                // "KNOW MORE / HIDE SESSIONS" Button Row
-                Row(
-                  children: [
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        setState(() {
-                          if (isExpanded) {
-                            _expandedEventPk = null;
-                          } else {
-                            _expandedEventPk = eventPk;
-                            if (!_eventPermissions.containsKey(eventPk)) {
-                              _fetchPermissionsForEvent(eventPk);
-                            }
-                          }
-                        });
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
-                        decoration: BoxDecoration(
-                          gradient: AppTheme.brandGradient,
-                          borderRadius: BorderRadius.circular(25),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.brandGradientStart.withValues(alpha: isExpanded ? 0.5 : 0.3),
-                              blurRadius: isExpanded ? 10 : 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              isExpanded ? 'HIDE SESSIONS' : 'KNOW MORE',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 12,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            AnimatedRotation(
-                              turns: isExpanded ? 0.5 : 0.0,
-                              duration: const Duration(milliseconds: 200),
-                              child: const Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                color: Colors.white,
-                                size: 17,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    if (!isExpanded)
+                    // Short Description
+                    if (cleanDesc.isNotEmpty) ...[
+                      const SizedBox(height: 4),
                       Text(
-                        'Tap to access gates',
+                        cleanDesc,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.4),
-                          fontSize: 11,
-                          fontStyle: FontStyle.italic,
+                          color: Colors.white.withValues(alpha: 0.55),
+                          fontSize: 12,
+                          height: 1.3,
                         ),
                       ),
+                    ],
+                    const SizedBox(height: 12),
+
+                    // Bottom Action Row: Gate Count Pill + Expand Button
+                    Row(
+                      children: [
+                        if (totalGates != null && totalGates > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.meeting_room_outlined,
+                                  size: 12,
+                                  color: AppTheme.accentCyan,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  '$totalGates ${totalGates == 1 ? 'Gate' : 'Gates / Sessions'}',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          Text(
+                            isExpanded
+                                ? 'Showing active gates'
+                                : 'Tap to access gates',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.45),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+
+                        const Spacer(),
+
+                        // Expand Pill Button
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: isExpanded
+                                ? null
+                                : AppTheme.brandGradient,
+                            color: isExpanded
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : null,
+                            borderRadius: BorderRadius.circular(20),
+                            border: isExpanded
+                                ? Border.all(
+                                    color: Colors.white.withValues(alpha: 0.15),
+                                  )
+                                : null,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                isExpanded ? 'Hide Gates' : 'Open Gates',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 11.5,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              AnimatedRotation(
+                                turns: isExpanded ? 0.5 : 0.0,
+                                duration: const Duration(milliseconds: 200),
+                                child: const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
 
-          // ── KNOW MORE BOX (Sessions & Entrances with Check-in / Check-out) ──
+          // ── Expanded Know More Box (Entrances, Halls, Agendas, Sessions) ──
           if (isExpanded) ...[
             Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                color: const Color(0xFF121622),
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(15)),
+                color: const Color(0xFF11151E).withValues(alpha: 0.72),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(15),
+                ),
                 border: Border(
                   top: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: Colors.white.withValues(alpha: 0.08),
                     width: 1,
                   ),
                 ),
               ),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               child: _buildKnowMoreBox(eventPk, eventName),
             ),
           ],
@@ -1662,7 +1363,7 @@ class _HomeScreenState extends State<HomeScreen>
             'location': 'Gate #$defaultGate',
             'entrance_in_access': true,
             'entrance_out_access': true,
-          }
+          },
         ],
         hallList: const [],
         agendaList: const [],
@@ -1672,7 +1373,8 @@ class _HomeScreenState extends State<HomeScreen>
 
     // 1. Entrances
     List<Map<String, dynamic>> entranceList = [];
-    final entrancePerm = permission['entrance_permission'] as Map<String, dynamic>?;
+    final entrancePerm =
+        permission['entrance_permission'] as Map<String, dynamic>?;
     if (entrancePerm != null && entrancePerm['access'] != false) {
       final rawList = entrancePerm['entrance_list'] as List<dynamic>? ?? [];
       entranceList = rawList.whereType<Map<String, dynamic>>().toList();
@@ -1688,7 +1390,7 @@ class _HomeScreenState extends State<HomeScreen>
             'location': 'Gate #$gateId',
             'entrance_in_access': ent['checkin'] != false,
             'entrance_out_access': ent['checkout'] != false,
-          }
+          },
         ];
       }
     }
@@ -1711,13 +1413,17 @@ class _HomeScreenState extends State<HomeScreen>
 
     // 4. Sessions
     List<Map<String, dynamic>> sessionList = [];
-    final sessionPerm = permission['sessiontype_permission'] as Map<String, dynamic>?;
+    final sessionPerm =
+        permission['sessiontype_permission'] as Map<String, dynamic>?;
     if (sessionPerm != null && sessionPerm['access'] == true) {
       final rawList = sessionPerm['sessiontype_list'] as List<dynamic>? ?? [];
       sessionList = rawList.whereType<Map<String, dynamic>>().toList();
     }
 
-    if (entranceList.isEmpty && hallList.isEmpty && agendaList.isEmpty && sessionList.isEmpty) {
+    if (entranceList.isEmpty &&
+        hallList.isEmpty &&
+        agendaList.isEmpty &&
+        sessionList.isEmpty) {
       final gateId = context.read<ScannerLocalStorage>().getGateId();
       entranceList = [
         {
@@ -1726,7 +1432,7 @@ class _HomeScreenState extends State<HomeScreen>
           'location': 'Gate #$gateId',
           'entrance_in_access': true,
           'entrance_out_access': true,
-        }
+        },
       ];
     }
 
@@ -1757,10 +1463,12 @@ class _HomeScreenState extends State<HomeScreen>
         try {
           final parsed = jsonDecode(rawOffline) as Map<String, dynamic>;
           final event = parsed['event'] as Map<String, dynamic>?;
-          final cachedPk = (event?['pk'] as num?)?.toInt() ??
-                           (event?['id'] as num?)?.toInt() ??
-                           int.tryParse(event?['pk']?.toString() ?? '');
-          if ((cachedPk == eventId || _eventList.length == 1) && parsed['permission'] is Map) {
+          final cachedPk =
+              (event?['pk'] as num?)?.toInt() ??
+              (event?['id'] as num?)?.toInt() ??
+              int.tryParse(event?['pk']?.toString() ?? '');
+          if ((cachedPk == eventId || _eventList.length == 1) &&
+              parsed['permission'] is Map) {
             final perm = Map<String, dynamic>.from(parsed['permission'] as Map);
             _eventPermissions[eventId] = perm;
             sections = _parseSections(perm);
@@ -1783,7 +1491,9 @@ class _HomeScreenState extends State<HomeScreen>
               height: 22,
               child: CircularProgressIndicator(
                 strokeWidth: 2.2,
-                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.eventxproAccent),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppTheme.eventxproAccent,
+                ),
               ),
             ),
             SizedBox(height: 10),
@@ -1817,9 +1527,12 @@ class _HomeScreenState extends State<HomeScreen>
           const SizedBox(height: 10),
           ...entranceList.map((item) {
             final int entranceId = (item['entrance_id'] as num?)?.toInt() ?? 1;
-            final String title = item['entrance_name']?.toString() ?? 'Entrance';
+            final String title =
+                item['entrance_name']?.toString() ?? 'Entrance';
             final String? loc = item['location']?.toString();
-            final String displayTitle = loc != null && loc.isNotEmpty ? '$title - $loc' : title;
+            final String displayTitle = loc != null && loc.isNotEmpty
+                ? '$title - $loc'
+                : title;
             final bool inAccess = item['entrance_in_access'] != false;
             final bool outAccess = item['entrance_out_access'] != false;
 
@@ -1854,7 +1567,9 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             );
           }),
-          if (hallList.isNotEmpty || agendaList.isNotEmpty || sessionList.isNotEmpty)
+          if (hallList.isNotEmpty ||
+              agendaList.isNotEmpty ||
+              sessionList.isNotEmpty)
             const SizedBox(height: 16),
         ],
 
@@ -1962,8 +1677,7 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             );
           }),
-          if (sessionList.isNotEmpty)
-            const SizedBox(height: 16),
+          if (sessionList.isNotEmpty) const SizedBox(height: 16),
         ],
 
         // ── 4. SESSIONS (Matching OfflineSessionInOutCard.jsx & SessionInOutCard.jsx) ──
@@ -1976,8 +1690,14 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           const SizedBox(height: 10),
           ...sessionList.map((item) {
-            final int sessId = ((item['session_type_id'] ?? item['sessiontype_id']) as num?)?.toInt() ?? 0;
-            final String title = (item['sessiontype_name'] ?? item['session_type_name'])?.toString() ?? 'Session';
+            final int sessId =
+                ((item['session_type_id'] ?? item['sessiontype_id']) as num?)
+                    ?.toInt() ??
+                0;
+            final String title =
+                (item['sessiontype_name'] ?? item['session_type_name'])
+                    ?.toString() ??
+                'Session';
             final bool inAccess = item['sessiontype_in_access'] == true;
             final bool outAccess = item['sessiontype_out_access'] == true;
 
@@ -2021,36 +1741,21 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildCategoryHeader({
     required String title,
     required IconData icon,
-    required int count,
+    required int? count,
     Color accentColor = AppTheme.eventxproAccent,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: Colors.white.withValues(alpha: 0.12),
-            width: 1.2,
-          ),
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 10),
       child: Row(
         children: [
           Container(
-            width: 26,
-            height: 26,
+            width: 24,
+            height: 24,
             decoration: BoxDecoration(
               color: accentColor.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: accentColor.withValues(alpha: 0.35),
-                width: 1,
-              ),
+              borderRadius: BorderRadius.circular(6),
             ),
-            child: Center(
-              child: Icon(icon, size: 14, color: accentColor),
-            ),
+            child: Center(child: Icon(icon, size: 13, color: accentColor)),
           ),
           const SizedBox(width: 8),
           Text(
@@ -2058,27 +1763,29 @@ class _HomeScreenState extends State<HomeScreen>
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w800,
-              fontSize: 12.5,
+              fontSize: 11.5,
               letterSpacing: 0.6,
             ),
           ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: accentColor.withValues(alpha: 0.25)),
-            ),
-            child: Text(
-              '$count Available',
-              style: TextStyle(
-                color: accentColor,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
+          if (count != null) ...[
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: accentColor.withValues(alpha: 0.25)),
+              ),
+              child: Text(
+                '$count Available',
+                style: TextStyle(
+                  color: accentColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

@@ -11,7 +11,7 @@ import '../../widgets/app_background.dart';
 import '../../widgets/gradient_button.dart';
 import 'base_url_screen.dart';
 import 'forgot_password_screen.dart';
-import '../home/home_screen.dart';
+import '../main_navigation_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -70,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
+            MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
           );
         } else if (state is AuthUnauthenticated) {
           ScaffoldMessenger.of(context).hideCurrentSnackBar();
