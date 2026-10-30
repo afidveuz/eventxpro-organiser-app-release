@@ -218,6 +218,7 @@ class SessionPunchCard extends StatefulWidget {
   final bool hasInAccess;
   final bool hasOutAccess;
   final int refreshTrigger;
+  final int serverRefreshTrigger;
   final VoidCallback onCheckIn;
   final VoidCallback onCheckOut;
 
@@ -232,6 +233,7 @@ class SessionPunchCard extends StatefulWidget {
     required this.hasInAccess,
     required this.hasOutAccess,
     this.refreshTrigger = 0,
+    this.serverRefreshTrigger = 0,
     required this.onCheckIn,
     required this.onCheckOut,
   });
@@ -268,10 +270,44 @@ class _SessionPunchCardState extends State<SessionPunchCard>
     final bool configChanged = oldWidget.sessionId != widget.sessionId ||
         oldWidget.eventId != widget.eventId ||
         oldWidget.section != widget.section;
-    final bool triggerChanged = oldWidget.refreshTrigger != widget.refreshTrigger;
+    final bool serverTriggerChanged =
+        oldWidget.serverRefreshTrigger != widget.serverRefreshTrigger;
+    final bool localTriggerChanged =
+        oldWidget.refreshTrigger != widget.refreshTrigger;
 
-    if (configChanged || triggerChanged) {
-      notifyConfigOrTriggerChanged(forceRefresh: configChanged || triggerChanged);
+    if (configChanged || serverTriggerChanged) {
+      notifyConfigOrTriggerChanged(forceRefresh: true);
+    } else if (localTriggerChanged) {
+      // Local sync only: zero network requests
+      _syncFromLocalCache();
+    }
+  }
+
+  void _syncFromLocalCache() {
+    final service = _gateCountService ?? (mounted ? context.read<GateCountService>() : null);
+    if (service == null) return;
+
+    final cached = service.getCached(
+      widget.eventId,
+      widget.section,
+      widget.sessionId,
+      widget.sectionLocation,
+    );
+    if (cached != null) {
+      if (cached != _count && mounted) {
+        setState(() => _count = cached);
+      }
+    } else {
+      service.getLocalCountOnly(
+        eventId: widget.eventId,
+        section: widget.section,
+        actionId: widget.sessionId,
+        location: widget.sectionLocation,
+      ).then((local) {
+        if (mounted && local != _count) {
+          setState(() => _count = local);
+        }
+      });
     }
   }
 
@@ -310,28 +346,57 @@ class _SessionPunchCardState extends State<SessionPunchCard>
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(6),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF1E2638),
+            Color(0xFF151C2A),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: AppTheme.eventxproBorder,
+          color: Colors.white.withValues(alpha: 0.12),
           width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Session / Gate Title
-          Text(
-            widget.title.toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-            ),
+          // Session / Gate Title Row
+          Row(
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: const BoxDecoration(
+                  color: AppTheme.accentCyan,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.title.toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
 
@@ -368,92 +433,110 @@ class _SessionPunchCardState extends State<SessionPunchCard>
           // Total Check-In & Check-Out counts row
           // Matching React Native EventSections.jsx & SessionInOutCard.jsx styles.timeWrapper
           if (widget.hasInAccess || widget.hasOutAccess) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () {
                 HapticFeedback.lightImpact();
                 manualReload();
               },
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Total Check-in
-                  if (widget.hasInAccess)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Total Check-in: ',
-                          style: TextStyle(
-                            color: AppTheme.eventxproSuccess, // #8DFFBB
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Total Check-in
+                    if (widget.hasInAccess)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.login_rounded, size: 12, color: AppTheme.eventxproSuccess),
+                          const SizedBox(width: 5),
+                          const Text(
+                            'Total In: ',
+                            style: TextStyle(
+                              color: AppTheme.eventxproSuccess, // #8DFFBB
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        if (isLoading && _count.checkIn == 0)
-                          const SizedBox(
-                            width: 10,
-                            height: 10,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 1.5,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                AppTheme.eventxproSuccess,
+                          if (isLoading && _count.checkIn == 0)
+                            const SizedBox(
+                              width: 10,
+                              height: 10,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppTheme.eventxproSuccess,
+                                ),
+                              ),
+                            )
+                          else
+                            Text(
+                              '${_count.checkIn}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-                          )
-                        else
-                          Text(
-                            '${_count.checkIn}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                      ],
-                    )
-                  else
-                    const SizedBox.shrink(),
+                        ],
+                      )
+                    else
+                      const SizedBox.shrink(),
 
-                  // Total Check-out
-                  if (widget.hasOutAccess)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Total Check-out: ',
-                          style: TextStyle(
-                            color: AppTheme.eventxproDanger, // #FF6767
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                    // Total Check-out
+                    if (widget.hasOutAccess)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.logout_rounded, size: 12, color: AppTheme.eventxproDanger),
+                          const SizedBox(width: 5),
+                          const Text(
+                            'Total Out: ',
+                            style: TextStyle(
+                              color: AppTheme.eventxproDanger, // #FF6767
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        if (isLoading && _count.checkOut == 0)
-                          const SizedBox(
-                            width: 10,
-                            height: 10,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 1.5,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                AppTheme.eventxproDanger,
+                          if (isLoading && _count.checkOut == 0)
+                            const SizedBox(
+                              width: 10,
+                              height: 10,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppTheme.eventxproDanger,
+                                ),
+                              ),
+                            )
+                          else
+                            Text(
+                              '${_count.checkOut}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-                          )
-                        else
-                          Text(
-                            '${_count.checkOut}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                      ],
-                    )
-                  else
-                    const SizedBox.shrink(),
-                ],
+                        ],
+                      )
+                    else
+                      const SizedBox.shrink(),
+
+                    Icon(
+                      Icons.sync_rounded,
+                      size: 13,
+                      color: isLoading ? AppTheme.eventxproAccent : Colors.white30,
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -477,6 +560,7 @@ class AgendaPunchCard extends StatefulWidget {
   final bool hasInAccess;
   final bool hasOutAccess;
   final int refreshTrigger;
+  final int serverRefreshTrigger;
   final VoidCallback onCheckIn;
   final VoidCallback onCheckOut;
 
@@ -493,6 +577,7 @@ class AgendaPunchCard extends StatefulWidget {
     required this.hasInAccess,
     required this.hasOutAccess,
     this.refreshTrigger = 0,
+    this.serverRefreshTrigger = 0,
     required this.onCheckIn,
     required this.onCheckOut,
   });
@@ -527,10 +612,42 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
     super.didUpdateWidget(oldWidget);
     final bool configChanged = oldWidget.agendaId != widget.agendaId ||
         oldWidget.eventId != widget.eventId;
-    final bool triggerChanged = oldWidget.refreshTrigger != widget.refreshTrigger;
+    final bool serverTriggerChanged =
+        oldWidget.serverRefreshTrigger != widget.serverRefreshTrigger;
+    final bool localTriggerChanged =
+        oldWidget.refreshTrigger != widget.refreshTrigger;
 
-    if (configChanged || triggerChanged) {
-      notifyConfigOrTriggerChanged(forceRefresh: configChanged || triggerChanged);
+    if (configChanged || serverTriggerChanged) {
+      notifyConfigOrTriggerChanged(forceRefresh: true);
+    } else if (localTriggerChanged) {
+      // Local sync only: zero network requests
+      _syncFromLocalCache();
+    }
+  }
+
+  void _syncFromLocalCache() {
+    final service = _gateCountService ?? (mounted ? context.read<GateCountService>() : null);
+    if (service == null) return;
+
+    final cached = service.getCached(
+      widget.eventId,
+      'agenda',
+      widget.agendaId,
+    );
+    if (cached != null) {
+      if (cached != _count && mounted) {
+        setState(() => _count = cached);
+      }
+    } else {
+      service.getLocalCountOnly(
+        eventId: widget.eventId,
+        section: 'agenda',
+        actionId: widget.agendaId,
+      ).then((local) {
+        if (mounted && local != _count) {
+          setState(() => _count = local);
+        }
+      });
     }
   }
 
@@ -567,15 +684,29 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(6),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF1E2638),
+            Color(0xFF151C2A),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: AppTheme.eventxproBorder,
+          color: Colors.white.withValues(alpha: 0.12),
           width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -588,28 +719,27 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
                   widget.title.toUpperCase(),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
                     letterSpacing: 0.3,
                   ),
                 ),
               ),
               if (widget.agendaType != null && widget.agendaType!.isNotEmpty)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                   decoration: BoxDecoration(
-                    color: AppTheme.eventxproAccent.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
-                    border:
-                        Border.all(color: AppTheme.eventxproAccent, width: 0.8),
+                    color: AppTheme.eventxproAccent.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: AppTheme.eventxproAccent.withValues(alpha: 0.5), width: 0.8),
                   ),
                   child: Text(
                     widget.agendaType!.toUpperCase(),
                     style: const TextStyle(
                       color: AppTheme.eventxproAccent,
                       fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
                     ),
                   ),
                 ),
@@ -618,28 +748,24 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
 
           // Date & Time metadata row
           if (widget.date != null || widget.start != null || widget.end != null) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Row(
               children: [
                 if (widget.date != null && widget.date!.isNotEmpty) ...[
-                  const Icon(Icons.calendar_today_rounded,
-                      size: 12, color: Colors.white60),
+                  const Icon(Icons.calendar_today_rounded, size: 11, color: Colors.white60),
                   const SizedBox(width: 4),
                   Text(
                     widget.date!,
-                    style:
-                        const TextStyle(color: Colors.white60, fontSize: 11),
+                    style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(width: 12),
                 ],
                 if (widget.start != null || widget.end != null) ...[
-                  const Icon(Icons.access_time_rounded,
-                      size: 12, color: Colors.white60),
+                  const Icon(Icons.access_time_rounded, size: 11, color: Colors.white60),
                   const SizedBox(width: 4),
                   Text(
                     '${widget.start ?? ''}${widget.start != null && widget.end != null ? ' - ' : ''}${widget.end ?? ''}',
-                    style:
-                        const TextStyle(color: Colors.white60, fontSize: 11),
+                    style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500),
                   ),
                 ],
               ],
@@ -678,92 +804,110 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
 
           // Total Check-In & Check-Out counts row (Matching AgendaInOutCard.jsx)
           if (widget.hasInAccess || widget.hasOutAccess) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () {
                 HapticFeedback.lightImpact();
                 manualReload();
               },
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Total Check-in
-                  if (widget.hasInAccess)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Total Check-in: ',
-                          style: TextStyle(
-                            color: AppTheme.eventxproSuccess,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Total Check-in
+                    if (widget.hasInAccess)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.login_rounded, size: 12, color: AppTheme.eventxproSuccess),
+                          const SizedBox(width: 5),
+                          const Text(
+                            'Total In: ',
+                            style: TextStyle(
+                              color: AppTheme.eventxproSuccess,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        if (isLoading && _count.checkIn == 0)
-                          const SizedBox(
-                            width: 10,
-                            height: 10,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 1.5,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                AppTheme.eventxproSuccess,
+                          if (isLoading && _count.checkIn == 0)
+                            const SizedBox(
+                              width: 10,
+                              height: 10,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppTheme.eventxproSuccess,
+                                ),
+                              ),
+                            )
+                          else
+                            Text(
+                              '${_count.checkIn}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-                          )
-                        else
-                          Text(
-                            '${_count.checkIn}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                      ],
-                    )
-                  else
-                    const SizedBox.shrink(),
+                        ],
+                      )
+                    else
+                      const SizedBox.shrink(),
 
-                  // Total Check-out
-                  if (widget.hasOutAccess)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Total Check-out: ',
-                          style: TextStyle(
-                            color: AppTheme.eventxproDanger,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                    // Total Check-out
+                    if (widget.hasOutAccess)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.logout_rounded, size: 12, color: AppTheme.eventxproDanger),
+                          const SizedBox(width: 5),
+                          const Text(
+                            'Total Out: ',
+                            style: TextStyle(
+                              color: AppTheme.eventxproDanger,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        if (isLoading && _count.checkOut == 0)
-                          const SizedBox(
-                            width: 10,
-                            height: 10,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 1.5,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                AppTheme.eventxproDanger,
+                          if (isLoading && _count.checkOut == 0)
+                            const SizedBox(
+                              width: 10,
+                              height: 10,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppTheme.eventxproDanger,
+                                ),
+                              ),
+                            )
+                          else
+                            Text(
+                              '${_count.checkOut}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-                          )
-                        else
-                          Text(
-                            '${_count.checkOut}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                      ],
-                    )
-                  else
-                    const SizedBox.shrink(),
-                ],
+                        ],
+                      )
+                    else
+                      const SizedBox.shrink(),
+
+                    Icon(
+                      Icons.sync_rounded,
+                      size: 13,
+                      color: isLoading ? AppTheme.eventxproAccent : Colors.white30,
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -790,55 +934,76 @@ class _PunchButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
-      child: Container(
-        padding: const EdgeInsets.only(left: 10, right: 4, top: 4, bottom: 4),
-        decoration: BoxDecoration(
-          color: const Color(0x1FFFFFFF),
-          borderRadius: BorderRadius.circular(50),
-          border: Border.all(
-            color: AppTheme.eventxproBorder,
-            width: 1,
+    final bool isCheckIn = label.toUpperCase().contains('IN');
+    final Color primaryColor = isCheckIn ? const Color(0xFF00E676) : const Color(0xFFFF5252);
+    final Color bgColor = isCheckIn ? const Color(0xFF0E2E1C) : const Color(0xFF331217);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(30),
+        child: Container(
+          padding: const EdgeInsets.only(left: 12, right: 4, top: 4, bottom: 4),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: primaryColor.withValues(alpha: 0.45),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withValues(alpha: 0.15),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11.5,
-                  letterSpacing: 0.3,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isCheckIn ? const Color(0xFFE8FFF0) : const Color(0xFFFFECEE),
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                    letterSpacing: 0.4,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 4),
-            Container(
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                color: badgeColor,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 14,
-                  color: arrowColor,
+              const SizedBox(width: 4),
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: primaryColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryColor.withValues(alpha: 0.35),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 15,
+                    color: isCheckIn ? Colors.black : Colors.white,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

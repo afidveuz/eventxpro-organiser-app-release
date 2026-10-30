@@ -280,6 +280,10 @@ class GateCountService {
     }
   }
 
+  int _sessionAcceptedScans = 0;
+  int get sessionAcceptedScans => _sessionAcceptedScans;
+  void resetSessionScans() => _sessionAcceptedScans = 0;
+
   /// Increments local count in memory immediately upon a successful scan
   void incrementCount({
     required int eventId,
@@ -288,6 +292,7 @@ class GateCountService {
     required String punchType,
     String? location,
   }) {
+    _sessionAcceptedScans++;
     final key = _cacheKey(eventId, section, actionId, location);
     final current = _cache[key]?.count ?? const GateCheckInOutCount();
     final isCheckIn = punchType.toLowerCase().contains('in') ||
@@ -298,6 +303,30 @@ class GateCountService {
       checkOut: !isCheckIn ? current.checkOut + 1 : current.checkOut,
     );
     _cache[key] = _CacheEntry(updated, DateTime.now());
+  }
+
+  /// Retrieves count strictly from in-memory cache or SQLite database (ZERO network requests)
+  Future<GateCheckInOutCount> getLocalCountOnly({
+    required int eventId,
+    required String section,
+    required int actionId,
+    String? location,
+  }) async {
+    final key = _cacheKey(eventId, section, actionId, location);
+    final cached = _cache[key]?.count;
+    if (cached != null) return cached;
+
+    final local = await _dbHelper.getGateCheckInOutCount(
+      eventId: eventId,
+      section: section,
+      entranceId: actionId,
+    );
+    final count = GateCheckInOutCount(
+      checkIn: local['in'] ?? 0,
+      checkOut: local['out'] ?? 0,
+    );
+    _cache[key] = _CacheEntry(count, DateTime.now());
+    return count;
   }
 
   void clearCache() {
