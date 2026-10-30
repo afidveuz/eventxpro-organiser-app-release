@@ -10,7 +10,7 @@ import '../../bloc/auth/auth_state.dart';
 import '../../widgets/app_background.dart';
 import '../../widgets/gradient_button.dart';
 import 'base_url_screen.dart';
-import 'forgot_password_dialog.dart';
+import 'forgot_password_screen.dart';
 import '../home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -292,7 +292,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               Center(
                                 child: TextButton(
                                   onPressed: () {
-                                    ForgotPasswordDialog.show(context);
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const ForgotPasswordScreen(),
+                                      ),
+                                    );
                                   },
                                   child: const Text(
                                     'Forgot Password',

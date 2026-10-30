@@ -146,6 +146,7 @@ class _HomeScreenState extends State<HomeScreen>
     bool forceRefresh = false,
     bool silent = false,
   }) async {
+    if (!mounted) return;
     // 1. Prevent concurrent overlapping executions
     if (_isDashboardFetching) return;
 
@@ -493,14 +494,13 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     )
         .then((_) {
+      if (!mounted) return;
       // Re-fetch dashboard count upon returning from scanning session
       // Throttled (30s) and silent to prevent screen flicker and duplicate network requests
       _loadDashboardData(forceRefresh: false, silent: true);
-      if (mounted) {
-        setState(() {
-          _countRefreshTrigger++;
-        });
-      }
+      setState(() {
+        _countRefreshTrigger++;
+      });
     });
   }
 
@@ -508,51 +508,39 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.eventxproBg,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.eventxproNavy,
-              AppTheme.eventxproBg,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildTopBar(),
-              Expanded(
-                child: RefreshIndicator(
-                  color: AppTheme.eventxproAccent,
-                  backgroundColor: AppTheme.surfaceElevated,
-                  onRefresh: () => _loadDashboardData(forceRefresh: true, silent: true),
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // ── 1. Top Metrics Count Cards ────────────
-                        _buildCountCardsRow(),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildTopBar(),
+            Expanded(
+              child: RefreshIndicator(
+                color: AppTheme.eventxproAccent,
+                backgroundColor: AppTheme.surfaceElevated,
+                onRefresh: () => _loadDashboardData(forceRefresh: true, silent: true),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // ── 1. Top Metrics Count Cards ────────────
+                      _buildCountCardsRow(),
+                      const SizedBox(height: 14),
+
+                      if (_isOffline) ...[
+                        _buildOfflineSessionBanner(),
                         const SizedBox(height: 14),
-
-                        if (_isOffline) ...[
-                          _buildOfflineSessionBanner(),
-                          const SizedBox(height: 14),
-                        ],
-
-                        // ── 2. Events List / Know More ────────────
-                        _buildEventsSection(),
-                        const SizedBox(height: 32),
                       ],
-                    ),
+
+                      // ── 2. Events List / Know More ────────────
+                      _buildEventsSection(),
+                      const SizedBox(height: 32),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -579,51 +567,11 @@ class _HomeScreenState extends State<HomeScreen>
         children: [
           Row(
             children: [
-              // Logo & Branding
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: AppTheme.eventxproAccent,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.qr_code_2_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'EVENTXPRO',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      Text(
-                        'ORGANISER',
-                        style: TextStyle(
-                          color: AppTheme.eventxproAccent.withValues(alpha: 0.9),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              // Logo
+              Image.asset(
+                'assets/images/logo.png',
+                height: 32,
+                fit: BoxFit.contain,
               ),
               const Spacer(),
 
@@ -1108,11 +1056,11 @@ class _HomeScreenState extends State<HomeScreen>
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: AppTheme.eventxproAccent,
+                        gradient: AppTheme.brandGradient,
                         borderRadius: BorderRadius.circular(6),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.eventxproAccent.withValues(alpha: 0.4),
+                            color: AppTheme.brandGradientStart.withValues(alpha: 0.35),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),

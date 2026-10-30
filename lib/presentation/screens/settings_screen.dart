@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -392,27 +393,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // ── Section 2: Scanner & Attendance Preferences ─────────────
                 _buildSectionHeader('SCANNER & ATTENDANCE'),
 
-                _buildSettingRow(
-                  title: _isTopLevelTickets ? 'Disable top-level tickets' : 'Enable top-level tickets',
-                  subtitle: 'Allow priority tier access across gates',
-                  value: _isTopLevelTickets,
-                  onTap: _toggleTopLevelTickets,
+                _buildGlassCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: Column(
+                    children: [
+                      _buildSettingRow(
+                        title: _isTopLevelTickets ? 'Disable top-level tickets' : 'Enable top-level tickets',
+                        subtitle: 'Allow priority tier access across gates',
+                        value: _isTopLevelTickets,
+                        onTap: _toggleTopLevelTickets,
+                      ),
+                      Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
+                      _buildSettingRow(
+                        title: _isShortToast ? 'Disable short toast' : 'Enable short toast',
+                        subtitle: _isShortToast
+                            ? 'Continuous rush scanning active: brief top notifications'
+                            : 'Full attendee details card modal shown after each scan',
+                        value: _isShortToast,
+                        onTap: _toggleShortToast,
+                      ),
+                      Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
+                      _buildOfflineModeRow(),
+                    ],
+                  ),
                 ),
-
-                const Divider(color: AppTheme.surfaceBorder, height: 1),
-
-                _buildSettingRow(
-                  title: _isShortToast ? 'Disable short toast' : 'Enable short toast',
-                  subtitle: _isShortToast
-                      ? 'Continuous rush scanning active: brief top notifications'
-                      : 'Full attendee details card modal shown after each scan',
-                  value: _isShortToast,
-                  onTap: _toggleShortToast,
-                ),
-
-                const Divider(color: AppTheme.surfaceBorder, height: 1),
-
-                _buildOfflineModeRow(),
 
                 const SizedBox(height: 12),
 
@@ -474,19 +478,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final photoUrl = _resolveAvatarUrl(profile?.photo, authRepo.mediaUrl);
     final initials = profile?.initials ?? 'P';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceElevated,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.surfaceBorder),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return _buildGlassCard(
+      borderRadius: BorderRadius.circular(16),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -682,7 +675,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (email.isNotEmpty)
               _buildProfileDetailRow(
                 icon: Icons.email_outlined,
-                iconColor: AppTheme.accentCyan,
+                iconColor: AppTheme.eventxproAccent,
                 label: 'Email',
                 value: email,
               ),
@@ -693,7 +686,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (phone.isNotEmpty)
               _buildProfileDetailRow(
                 icon: Icons.phone_outlined,
-                iconColor: AppTheme.accentIndigo,
+                iconColor: AppTheme.eventxproAccent,
                 label: 'Phone',
                 value: phone,
               ),
@@ -760,24 +753,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildLogoutTile() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceElevated,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.eventxproDanger.withValues(alpha: 0.3)),
+  Widget _buildGlassCard({
+    required Widget child,
+    BorderRadius? borderRadius,
+    EdgeInsetsGeometry? padding,
+    Border? border,
+  }) {
+    final radius = borderRadius ?? BorderRadius.circular(14);
+    return ClipRRect(
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: radius,
+            border: border ??
+                Border.all(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  width: 1,
+                ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: child,
+        ),
       ),
+    );
+  }
+
+  Widget _buildLogoutTile() {
+    return _buildGlassCard(
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: AppTheme.eventxproDanger.withValues(alpha: 0.15),
+            color: AppTheme.eventxproAccent.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(10),
           ),
           child: const Icon(
             Icons.logout_rounded,
-            color: AppTheme.eventxproDanger,
+            color: AppTheme.eventxproAccent,
             size: 22,
           ),
         ),
@@ -908,8 +931,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 3),
                   Text(
                     _isOfflineMode
-                        ? 'Active • All scans queued locally in SQLite'
-                        : 'Scans validated via remote Django backend',
+                        ? 'Active • Scans saved locally and synced later'
+                        : 'Scans verified online in real-time',
                     style: TextStyle(
                       color: _isOfflineMode ? AppTheme.accentCyan : AppTheme.textMuted,
                       fontSize: 12,
@@ -931,9 +954,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppTheme.accentIndigo.withValues(alpha: 0.25),
+                      color: AppTheme.eventxproAccent.withValues(alpha: 0.25),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppTheme.accentIndigo.withValues(alpha: 0.5)),
+                      border: Border.all(color: AppTheme.eventxproAccent.withValues(alpha: 0.5)),
                     ),
                     child: _isSyncingData
                         ? const SizedBox(
@@ -973,7 +996,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: value ? AppTheme.accentIndigo : const Color(0xFF4A4B56),
+          color: value ? AppTheme.eventxproAccent : const Color(0xFF4A4B56),
         ),
         child: AnimatedAlign(
           duration: const Duration(milliseconds: 200),
@@ -992,23 +1015,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildOfflineSessionsTile() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceElevated,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.surfaceBorder),
-      ),
+    return _buildGlassCard(
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: AppTheme.accentIndigo.withValues(alpha: 0.15),
+            color: AppTheme.eventxproAccent.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(10),
           ),
           child: const Icon(
             Icons.inventory_2_outlined,
-            color: AppTheme.accentIndigo,
+            color: AppTheme.eventxproAccent,
             size: 24,
           ),
         ),
@@ -1068,12 +1086,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildCheckUpdateTile() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceElevated,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.surfaceBorder),
-      ),
+    return _buildGlassCard(
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Container(
@@ -1097,7 +1110,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         subtitle: const Text(
-          'Verify latest version on Firebase',
+          'Check if a newer version is available',
           style: TextStyle(
             color: AppTheme.textMuted,
             fontSize: 12,

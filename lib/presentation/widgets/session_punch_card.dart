@@ -4,6 +4,208 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/services/gate_count_service.dart';
 import '../../core/theme/app_theme.dart';
 
+/// Mixin that enables viewport-based on-demand lazy loading for punch cards.
+/// Instead of fetching counts immediately on widget mount (which causes 20+ parallel requests),
+/// the card checks if it is within or near the visible scroll viewport (with prefetch buffer).
+/// If off-screen, it subscribes to the enclosing ScrollPosition and loads only when scrolled near.
+mixin LazyCountLoaderMixin<T extends StatefulWidget> on State<T> {
+  ScrollPosition? _scrollPosition;
+  bool _hasLoaded = false;
+  bool _isLoading = false;
+  bool _needsForceRefresh = false;
+  bool _isActive = false;
+  bool _isPostFrameScheduled = false;
+
+  bool get isLoading => _isLoading;
+  bool get hasLoaded => _hasLoaded;
+
+  /// Abstract method implemented by punch cards to execute count retrieval
+  Future<void> performLoadCount({bool forceRefresh = false});
+
+  @override
+  void initState() {
+    super.initState();
+    _isActive = true;
+    // Schedule visibility check on next frame after layout completes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_isActive && mounted) {
+        checkVisibilityAndTrigger();
+      }
+    });
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    _isActive = true;
+    if (!_hasLoaded && !_isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_isActive && mounted) {
+          checkVisibilityAndTrigger();
+        }
+      });
+    }
+  }
+
+  @override
+  void deactivate() {
+    _isActive = false;
+    _unsubscribeFromScroll();
+    super.deactivate();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isActive && !_hasLoaded && !_isLoading) {
+      _updateScrollSubscription();
+    }
+  }
+
+  /// Determines if the widget's RenderBox is within the visible viewport (+ prefetch buffer)
+  bool isInViewport({double margin = 100.0}) {
+    if (!_isActive || !mounted) return false;
+
+    try {
+      final renderObject = context.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize || !renderObject.attached) {
+        return false;
+      }
+
+      final offset = renderObject.localToGlobal(Offset.zero);
+      final top = offset.dy;
+      final bottom = top + renderObject.size.height;
+      final viewportHeight = _scrollPosition?.viewportDimension ?? 900.0;
+
+      return bottom >= -margin && top <= viewportHeight + margin;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void checkVisibilityAndTrigger({bool forceRefresh = false}) {
+    if (!_isActive || !mounted) return;
+    if ((_hasLoaded && !forceRefresh) || _isLoading) return;
+
+    if (isInViewport()) {
+      _unsubscribeFromScroll();
+      _executeLoad(forceRefresh: forceRefresh);
+    } else {
+      _subscribeToScroll(forceRefresh: forceRefresh);
+    }
+  }
+
+  void notifyConfigOrTriggerChanged({bool forceRefresh = false}) {
+    _hasLoaded = false;
+    if (forceRefresh) {
+      _needsForceRefresh = true;
+    }
+    if (!_isActive || !mounted) return;
+
+    if (!_isPostFrameScheduled) {
+      _isPostFrameScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _isPostFrameScheduled = false;
+        if (!_isActive || !mounted) return;
+        final force = _needsForceRefresh;
+        _needsForceRefresh = false;
+        if (isInViewport()) {
+          _unsubscribeFromScroll();
+          _executeLoad(forceRefresh: force);
+        } else {
+          _subscribeToScroll(forceRefresh: force);
+        }
+      });
+    }
+  }
+
+  void manualReload() {
+    if (!_isActive || !mounted) return;
+    _unsubscribeFromScroll();
+    _executeLoad(forceRefresh: true);
+  }
+
+  void _executeLoad({bool forceRefresh = false}) {
+    if (_isLoading || !_isActive || !mounted) return;
+    setState(() => _isLoading = true);
+    _hasLoaded = true;
+
+    performLoadCount(forceRefresh: forceRefresh).whenComplete(() {
+      if (_isActive && mounted) {
+        setState(() => _isLoading = false);
+      }
+    });
+  }
+
+  void _updateScrollSubscription() {
+    if (!_isActive || !mounted) return;
+    try {
+      final scrollable = Scrollable.maybeOf(context);
+      if (scrollable == null) return;
+      final currentPos = scrollable.position;
+      if (_scrollPosition != currentPos) {
+        _unsubscribeFromScroll();
+        _scrollPosition = currentPos;
+        _scrollPosition?.addListener(_handleScroll);
+      }
+    } catch (_) {}
+  }
+
+  void _subscribeToScroll({bool forceRefresh = false}) {
+    if (!_isActive || !mounted) return;
+
+    if (forceRefresh) {
+      _needsForceRefresh = true;
+    }
+
+    try {
+      final scrollable = Scrollable.maybeOf(context);
+      if (scrollable == null) {
+        _executeLoad(forceRefresh: forceRefresh);
+        return;
+      }
+
+      final currentPos = scrollable.position;
+      if (_scrollPosition != currentPos) {
+        _unsubscribeFromScroll();
+        _scrollPosition = currentPos;
+        _scrollPosition?.addListener(_handleScroll);
+      }
+    } catch (_) {}
+  }
+
+  void _handleScroll() {
+    if (!_isActive || !mounted) {
+      _unsubscribeFromScroll();
+      return;
+    }
+
+    if (_hasLoaded && !_needsForceRefresh) {
+      _unsubscribeFromScroll();
+      return;
+    }
+
+    if (isInViewport()) {
+      final force = _needsForceRefresh;
+      _unsubscribeFromScroll();
+      _executeLoad(forceRefresh: force);
+    }
+  }
+
+  void _unsubscribeFromScroll() {
+    _scrollPosition?.removeListener(_handleScroll);
+    _scrollPosition = null;
+    _needsForceRefresh = false;
+  }
+
+  @override
+  void dispose() {
+    _isActive = false;
+    _unsubscribeFromScroll();
+    super.dispose();
+  }
+}
+
 /// Reusable Check-in & Check-out card for Entrances, Halls, and Sessions.
 /// Replicates React Native EventSections.jsx & SessionInOutCard.jsx with separate check-in and check-out counts.
 class SessionPunchCard extends StatefulWidget {
@@ -38,43 +240,54 @@ class SessionPunchCard extends StatefulWidget {
   State<SessionPunchCard> createState() => _SessionPunchCardState();
 }
 
-class _SessionPunchCardState extends State<SessionPunchCard> {
+class _SessionPunchCardState extends State<SessionPunchCard>
+    with LazyCountLoaderMixin<SessionPunchCard> {
   GateCheckInOutCount _count = const GateCheckInOutCount();
-  bool _isLoading = false;
+  GateCountService? _gateCountService;
 
   @override
-  void initState() {
-    super.initState();
-    _loadCount();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _gateCountService ??= context.read<GateCountService>();
+    if (_count == const GateCheckInOutCount()) {
+      final cached = _gateCountService?.getCached(
+        widget.eventId,
+        widget.section,
+        widget.sessionId,
+        widget.sectionLocation,
+      );
+      if (cached != null) {
+        _count = cached;
+      }
+    }
   }
 
   @override
   void didUpdateWidget(covariant SessionPunchCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.refreshTrigger != widget.refreshTrigger ||
-        oldWidget.sessionId != widget.sessionId ||
+    final bool configChanged = oldWidget.sessionId != widget.sessionId ||
         oldWidget.eventId != widget.eventId ||
-        oldWidget.section != widget.section) {
-      _loadCount(forceRefresh: true);
+        oldWidget.section != widget.section;
+    final bool triggerChanged = oldWidget.refreshTrigger != widget.refreshTrigger;
+
+    if (configChanged || triggerChanged) {
+      notifyConfigOrTriggerChanged(forceRefresh: configChanged || triggerChanged);
     }
   }
 
-  Future<void> _loadCount({bool forceRefresh = false}) async {
-    final service = context.read<GateCountService>();
+  @override
+  Future<void> performLoadCount({bool forceRefresh = false}) async {
+    final service = _gateCountService ?? (mounted ? context.read<GateCountService>() : null);
+    if (service == null) return;
 
-    // Instant O(1) in-memory cached lookup if available
     final cached = service.getCached(
       widget.eventId,
       widget.section,
       widget.sessionId,
       widget.sectionLocation,
     );
-    if (cached != null) {
-      _count = cached;
-    }
-
-    if (mounted) {
-      setState(() => _isLoading = cached == null);
+    if (cached != null && mounted) {
+      setState(() => _count = cached);
     }
 
     try {
@@ -89,14 +302,9 @@ class _SessionPunchCardState extends State<SessionPunchCard> {
       if (mounted) {
         setState(() {
           _count = fresh;
-          _isLoading = false;
         });
       }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+    } catch (_) {}
   }
 
   @override
@@ -161,85 +369,92 @@ class _SessionPunchCardState extends State<SessionPunchCard> {
           // Matching React Native EventSections.jsx & SessionInOutCard.jsx styles.timeWrapper
           if (widget.hasInAccess || widget.hasOutAccess) ...[
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Total Check-in
-                if (widget.hasInAccess)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Total Check-in: ',
-                        style: TextStyle(
-                          color: AppTheme.eventxproSuccess, // #8DFFBB
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                manualReload();
+              },
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Total Check-in
+                  if (widget.hasInAccess)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Total Check-in: ',
+                          style: TextStyle(
+                            color: AppTheme.eventxproSuccess, // #8DFFBB
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      if (_isLoading && _count.checkIn == 0)
-                        const SizedBox(
-                          width: 10,
-                          height: 10,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppTheme.eventxproSuccess,
+                        if (isLoading && _count.checkIn == 0)
+                          const SizedBox(
+                            width: 10,
+                            height: 10,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppTheme.eventxproSuccess,
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            '${_count.checkIn}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        )
-                      else
-                        Text(
-                          '${_count.checkIn}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                    ],
-                  )
-                else
-                  const SizedBox.shrink(),
+                      ],
+                    )
+                  else
+                    const SizedBox.shrink(),
 
-                // Total Check-out
-                if (widget.hasOutAccess)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Total Check-out: ',
-                        style: TextStyle(
-                          color: AppTheme.eventxproDanger, // #FF6767
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                  // Total Check-out
+                  if (widget.hasOutAccess)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Total Check-out: ',
+                          style: TextStyle(
+                            color: AppTheme.eventxproDanger, // #FF6767
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      if (_isLoading && _count.checkOut == 0)
-                        const SizedBox(
-                          width: 10,
-                          height: 10,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppTheme.eventxproDanger,
+                        if (isLoading && _count.checkOut == 0)
+                          const SizedBox(
+                            width: 10,
+                            height: 10,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppTheme.eventxproDanger,
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            '${_count.checkOut}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        )
-                      else
-                        Text(
-                          '${_count.checkOut}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                    ],
-                  )
-                else
-                  const SizedBox.shrink(),
-              ],
+                      ],
+                    )
+                  else
+                    const SizedBox.shrink(),
+                ],
+              ),
             ),
           ],
         ],
@@ -286,40 +501,51 @@ class AgendaPunchCard extends StatefulWidget {
   State<AgendaPunchCard> createState() => _AgendaPunchCardState();
 }
 
-class _AgendaPunchCardState extends State<AgendaPunchCard> {
+class _AgendaPunchCardState extends State<AgendaPunchCard>
+    with LazyCountLoaderMixin<AgendaPunchCard> {
   GateCheckInOutCount _count = const GateCheckInOutCount();
-  bool _isLoading = false;
+  GateCountService? _gateCountService;
 
   @override
-  void initState() {
-    super.initState();
-    _loadCount();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _gateCountService ??= context.read<GateCountService>();
+    if (_count == const GateCheckInOutCount()) {
+      final cached = _gateCountService?.getCached(
+        widget.eventId,
+        'agenda',
+        widget.agendaId,
+      );
+      if (cached != null) {
+        _count = cached;
+      }
+    }
   }
 
   @override
   void didUpdateWidget(covariant AgendaPunchCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.refreshTrigger != widget.refreshTrigger ||
-        oldWidget.agendaId != widget.agendaId ||
-        oldWidget.eventId != widget.eventId) {
-      _loadCount(forceRefresh: true);
+    final bool configChanged = oldWidget.agendaId != widget.agendaId ||
+        oldWidget.eventId != widget.eventId;
+    final bool triggerChanged = oldWidget.refreshTrigger != widget.refreshTrigger;
+
+    if (configChanged || triggerChanged) {
+      notifyConfigOrTriggerChanged(forceRefresh: configChanged || triggerChanged);
     }
   }
 
-  Future<void> _loadCount({bool forceRefresh = false}) async {
-    final service = context.read<GateCountService>();
+  @override
+  Future<void> performLoadCount({bool forceRefresh = false}) async {
+    final service = _gateCountService ?? (mounted ? context.read<GateCountService>() : null);
+    if (service == null) return;
 
     final cached = service.getCached(
       widget.eventId,
       'agenda',
       widget.agendaId,
     );
-    if (cached != null) {
-      _count = cached;
-    }
-
-    if (mounted) {
-      setState(() => _isLoading = cached == null);
+    if (cached != null && mounted) {
+      setState(() => _count = cached);
     }
 
     try {
@@ -333,14 +559,9 @@ class _AgendaPunchCardState extends State<AgendaPunchCard> {
       if (mounted) {
         setState(() {
           _count = fresh;
-          _isLoading = false;
         });
       }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+    } catch (_) {}
   }
 
   @override
@@ -458,85 +679,92 @@ class _AgendaPunchCardState extends State<AgendaPunchCard> {
           // Total Check-In & Check-Out counts row (Matching AgendaInOutCard.jsx)
           if (widget.hasInAccess || widget.hasOutAccess) ...[
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Total Check-in
-                if (widget.hasInAccess)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Total Check-in: ',
-                        style: TextStyle(
-                          color: AppTheme.eventxproSuccess,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                manualReload();
+              },
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Total Check-in
+                  if (widget.hasInAccess)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Total Check-in: ',
+                          style: TextStyle(
+                            color: AppTheme.eventxproSuccess,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      if (_isLoading && _count.checkIn == 0)
-                        const SizedBox(
-                          width: 10,
-                          height: 10,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppTheme.eventxproSuccess,
+                        if (isLoading && _count.checkIn == 0)
+                          const SizedBox(
+                            width: 10,
+                            height: 10,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppTheme.eventxproSuccess,
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            '${_count.checkIn}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        )
-                      else
-                        Text(
-                          '${_count.checkIn}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                    ],
-                  )
-                else
-                  const SizedBox.shrink(),
+                      ],
+                    )
+                  else
+                    const SizedBox.shrink(),
 
-                // Total Check-out
-                if (widget.hasOutAccess)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Total Check-out: ',
-                        style: TextStyle(
-                          color: AppTheme.eventxproDanger,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                  // Total Check-out
+                  if (widget.hasOutAccess)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Total Check-out: ',
+                          style: TextStyle(
+                            color: AppTheme.eventxproDanger,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      if (_isLoading && _count.checkOut == 0)
-                        const SizedBox(
-                          width: 10,
-                          height: 10,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppTheme.eventxproDanger,
+                        if (isLoading && _count.checkOut == 0)
+                          const SizedBox(
+                            width: 10,
+                            height: 10,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppTheme.eventxproDanger,
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            '${_count.checkOut}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        )
-                      else
-                        Text(
-                          '${_count.checkOut}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                    ],
-                  )
-                else
-                  const SizedBox.shrink(),
-              ],
+                      ],
+                    )
+                  else
+                    const SizedBox.shrink(),
+                ],
+              ),
             ),
           ],
         ],

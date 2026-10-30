@@ -71,9 +71,89 @@ class AuthRemoteDatasource {
           : response.data as Map<String, dynamic>;
       return data;
     } on DioException catch (dioErr) {
+      String? backendMsg;
+      if (dioErr.response?.data is Map) {
+        backendMsg = dioErr.response?.data['message']?.toString();
+      }
       return {
         'status': false,
-        'message': ApiClient.formatDioError(dioErr),
+        'message': backendMsg ?? ApiClient.formatDioError(dioErr),
+      };
+    } catch (e) {
+      return {
+        'status': false,
+        'message': 'Unexpected error occurred. Please try again.',
+      };
+    }
+  }
+
+  /// Validate 4-digit OTP for password reset
+  Future<Map<String, dynamic>> validateOtp({
+    required String email,
+    required int otp,
+  }) async {
+    try {
+      final response = await _apiClient.dio.post(
+        AppConstants.otpValidationEndpoint,
+        data: {
+          'email': email.trim(),
+          'otp': otp,
+        },
+      );
+
+      final data = response.data is String
+          ? jsonDecode(response.data as String) as Map<String, dynamic>
+          : response.data as Map<String, dynamic>;
+      return data;
+    } on DioException catch (dioErr) {
+      String? backendMsg;
+      if (dioErr.response?.data is Map) {
+        backendMsg = dioErr.response?.data['message']?.toString();
+      }
+      return {
+        'status': false,
+        'message': backendMsg ?? ApiClient.formatDioError(dioErr),
+      };
+    } catch (e) {
+      return {
+        'status': false,
+        'message': 'Unexpected error occurred. Please try again.',
+      };
+    }
+  }
+
+  /// Reset password using temporary token received from OTP validation
+  Future<Map<String, dynamic>> resetPassword({
+    required String password,
+    required String confirmPassword,
+    required String resetToken,
+  }) async {
+    try {
+      final response = await _apiClient.dio.post(
+        AppConstants.resetPasswordEndpoint,
+        data: {
+          'password': password,
+          'confirm_password': confirmPassword,
+        },
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $resetToken',
+          },
+        ),
+      );
+
+      final data = response.data is String
+          ? jsonDecode(response.data as String) as Map<String, dynamic>
+          : response.data as Map<String, dynamic>;
+      return data;
+    } on DioException catch (dioErr) {
+      String? backendMsg;
+      if (dioErr.response?.data is Map) {
+        backendMsg = dioErr.response?.data['message']?.toString();
+      }
+      return {
+        'status': false,
+        'message': backendMsg ?? ApiClient.formatDioError(dioErr),
       };
     } catch (e) {
       return {

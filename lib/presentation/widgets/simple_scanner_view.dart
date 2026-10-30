@@ -500,30 +500,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
     return Stack(
       children: [
-        // ── 1. Top Radial Brand Aura ──────────────────────────────
-        Positioned(
-          top: -80,
-          left: 0,
-          right: 0,
-          height: 380,
-          child: const RepaintBoundary(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(0, -0.65),
-                  radius: 1.15,
-                  colors: [
-                    Color(0x35C10067),
-                    Color(0x10C10067),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // ── 2. Main Content Layout ────────────────────────────────
+        // ── Main Content Layout ────────────────────────────────────
         SafeArea(
           child: Column(
             children: [
@@ -580,7 +557,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Circular White Back Button with Accent Border (EventTopBar.jsx)
+          // Circular Back Button
           InkWell(
             onTap: () {
               HapticFeedback.lightImpact();
@@ -588,19 +565,15 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             },
             borderRadius: BorderRadius.circular(50),
             child: Container(
-              width: 42,
-              height: 42,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: Colors.white,
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppTheme.eventxproAccent,
-                  width: 2.2,
-                ),
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.eventxproAccent.withValues(alpha: 0.25),
-                    blurRadius: 8,
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
                 ],

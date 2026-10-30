@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/config/app_constants.dart';
+import '../../core/theme/app_theme.dart';
 
 class GradientButton extends StatelessWidget {
   final String text;
@@ -10,6 +11,7 @@ class GradientButton extends StatelessWidget {
   final bool sm;
   final double? width;
   final IconData? icon;
+  final Gradient? gradient;
 
   const GradientButton({
     super.key,
@@ -21,13 +23,28 @@ class GradientButton extends StatelessWidget {
     this.sm = false,
     this.width,
     this.icon,
+    this.gradient,
   });
 
   @override
   Widget build(BuildContext context) {
     final height = sm ? 40.0 : 48.0;
     final borderRadius = BorderRadius.circular(isRound ? 50.0 : 12.0);
-    final bgColor = isFade ? AppConstants.brandGrey : AppConstants.brandAccent;
+    final isDisabled = onPressed == null && !isLoading;
+
+    final effectiveGradient = isFade
+        ? null
+        : (gradient ??
+            (isDisabled
+                ? LinearGradient(
+                    colors: [
+                      AppTheme.brandGradientStart.withValues(alpha: 0.5),
+                      AppTheme.brandGradientEnd.withValues(alpha: 0.5),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : AppTheme.brandGradient));
 
     return SizedBox(
       width: width ?? double.infinity,
@@ -39,15 +56,18 @@ class GradientButton extends StatelessWidget {
           borderRadius: borderRadius,
           child: Ink(
             decoration: BoxDecoration(
-              color: (onPressed == null && !isLoading)
-                  ? bgColor.withValues(alpha: 0.5)
-                  : bgColor,
+              color: isFade
+                  ? (isDisabled
+                      ? AppConstants.brandGrey.withValues(alpha: 0.5)
+                      : AppConstants.brandGrey)
+                  : (effectiveGradient == null ? AppConstants.brandAccent : null),
+              gradient: effectiveGradient,
               borderRadius: borderRadius,
-              boxShadow: isFade || onPressed == null
+              boxShadow: isFade || isDisabled
                   ? null
                   : [
                       BoxShadow(
-                        color: AppConstants.brandAccent.withValues(alpha: 0.4),
+                        color: AppTheme.brandGradientStart.withValues(alpha: 0.35),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),

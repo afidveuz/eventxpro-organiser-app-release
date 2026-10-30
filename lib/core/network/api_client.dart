@@ -30,12 +30,16 @@ class ApiClient {
           // Always keep baseUrl aligned with stored setting
           options.baseUrl = _localStorage.getBaseUrl();
 
-          final token = _localStorage.getToken();
-          if (token != null && token.isNotEmpty) {
-            options.headers['Authorization'] = 'Bearer $token';
+          if (!options.headers.containsKey('Authorization')) {
+            final token = _localStorage.getToken();
+            if (token != null && token.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer $token';
+            }
           }
           debugPrint('🌐 [API REQ] ${options.method} ${options.baseUrl}${options.path}');
-          CrashlyticsService().log('HTTP ${options.method} ${options.path}');
+          if (options.extra['skipCrashlyticsReport'] != true) {
+            CrashlyticsService().log('HTTP ${options.method} ${options.path}');
+          }
           return handler.next(options);
         },
         onResponse: (response, handler) {
@@ -53,7 +57,8 @@ class ApiClient {
               error.type == DioExceptionType.sendTimeout ||
               error.type == DioExceptionType.connectionError;
 
-          if (isServerDown) {
+          final skipCrashlytics = error.requestOptions.extra['skipCrashlyticsReport'] == true;
+          if (isServerDown && !skipCrashlytics) {
             CrashlyticsService().recordServerDown(
               endpoint: error.requestOptions.path,
               baseUrl: error.requestOptions.baseUrl,
@@ -74,7 +79,9 @@ class ApiClient {
             final path = error.requestOptions.path;
             final isAuthEndpoint = path.contains(AppConstants.loginEndpoint) ||
                 path.contains(AppConstants.refreshTokenEndpoint) ||
-                path.contains(AppConstants.generateOtpEndpoint);
+                path.contains(AppConstants.generateOtpEndpoint) ||
+                path.contains(AppConstants.otpValidationEndpoint) ||
+                path.contains(AppConstants.resetPasswordEndpoint);
 
             if (isAuthEndpoint || !_localStorage.isLoggedIn) {
               return handler.next(error);

@@ -36,6 +36,15 @@ class AppTheme {
   static const Color eventxproBorder = Color(0x66FFFFFF); // rgba(255, 255, 255, 0.40)
   static const Color eventxproDarkText = Color(0xFF1E1638);
 
+  // Brand Linear Gradient: 135deg (#f43f5e -> #7c3aed)
+  static const Color brandGradientStart = Color(0xFFF43F5E); // #f43f5e
+  static const Color brandGradientEnd = Color(0xFF7C3AED);   // #7c3aed
+  static const LinearGradient brandGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [brandGradientStart, brandGradientEnd],
+  );
+
   static ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,

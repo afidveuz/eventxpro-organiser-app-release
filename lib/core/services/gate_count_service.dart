@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../data/datasources/offline_database_helper.dart';
 import '../../data/datasources/scanner_local_storage.dart';
@@ -40,6 +42,13 @@ class GateCheckInOutCount {
   int get hashCode => checkIn.hashCode ^ checkOut.hashCode;
 }
 
+class _CacheEntry {
+  final GateCheckInOutCount count;
+  final DateTime timestamp;
+
+  _CacheEntry(this.count, this.timestamp);
+}
+
 /// Service to fetch and manage separate check-in and check-out counts for every gate/session
 /// Matching React Native EventXPro hook: `src/screens/Events/hooks/useCount.js`
 class GateCountService {
@@ -47,8 +56,19 @@ class GateCountService {
   final OfflineDatabaseHelper _dbHelper;
   final ScannerLocalStorage _localStorage;
 
-  // In-memory cache for ultra-fast instant UI rendering
-  final Map<String, GateCheckInOutCount> _cache = {};
+  // In-memory cache with timestamp for ultra-fast instant UI rendering
+  final Map<String, _CacheEntry> _cache = {};
+
+  // In-flight deduplication: map of cache key to active Future
+  final Map<String, Future<GateCheckInOutCount>> _inFlight = {};
+
+  // Concurrency limiter: max 3 concurrent network requests to prevent server socket drops
+  static const int _maxConcurrent = 3;
+  int _activeRequests = 0;
+  final List<Completer<void>> _waitQueue = [];
+
+  // Default cache TTL for background checks (30s)
+  static const Duration _cacheTtl = Duration(seconds: 30);
 
   GateCountService({
     required ApiClient apiClient,
@@ -63,7 +83,25 @@ class GateCountService {
   }
 
   GateCheckInOutCount? getCached(int eventId, String section, int actionId, [String? location]) {
-    return _cache[_cacheKey(eventId, section, actionId, location)];
+    return _cache[_cacheKey(eventId, section, actionId, location)]?.count;
+  }
+
+  /// Concurrency queue to throttle simultaneous network calls
+  Future<T> _enqueue<T>(Future<T> Function() task) async {
+    while (_activeRequests >= _maxConcurrent) {
+      final completer = Completer<void>();
+      _waitQueue.add(completer);
+      await completer.future;
+    }
+    _activeRequests++;
+    try {
+      return await task();
+    } finally {
+      _activeRequests--;
+      if (_waitQueue.isNotEmpty) {
+        _waitQueue.removeAt(0).complete();
+      }
+    }
   }
 
   /// Fetches check-in and check-out count for a specific gate/entrance/session
@@ -77,10 +115,43 @@ class GateCountService {
   }) async {
     final key = _cacheKey(eventId, section, actionId, location);
 
-    if (!forceRefresh && _cache.containsKey(key)) {
-      return _cache[key]!;
+    // Fast-path: Return cached count if still fresh and not force-refreshing
+    final cachedEntry = _cache[key];
+    if (!forceRefresh && cachedEntry != null) {
+      final isFresh = DateTime.now().difference(cachedEntry.timestamp) < _cacheTtl;
+      if (isFresh) {
+        return cachedEntry.count;
+      }
     }
 
+    // In-flight deduplication: If a request for this exact target is currently pending, share it
+    if (_inFlight.containsKey(key)) {
+      return _inFlight[key]!;
+    }
+
+    final future = _executeGetCounts(
+      key: key,
+      eventId: eventId,
+      section: section,
+      actionId: actionId,
+      location: location,
+    );
+
+    _inFlight[key] = future;
+    try {
+      return await future;
+    } finally {
+      _inFlight.remove(key);
+    }
+  }
+
+  Future<GateCheckInOutCount> _executeGetCounts({
+    required String key,
+    required int eventId,
+    required String section,
+    required int actionId,
+    String? location,
+  }) async {
     // Map internal section identifier to backend action_type
     final String actionType;
     switch (section.toLowerCase()) {
@@ -116,11 +187,11 @@ class GateCountService {
         checkIn: local['in'] ?? 0,
         checkOut: local['out'] ?? 0,
       );
-      _cache[key] = count;
+      _cache[key] = _CacheEntry(count, DateTime.now());
       return count;
     }
 
-    // 2. Online Mode: Query backend API
+    // 2. Online Mode: Query backend API throttled via concurrency queue
     try {
       final queryParams = <String, dynamic>{
         'event_id': eventId,
@@ -131,12 +202,9 @@ class GateCountService {
         queryParams['location'] = location;
       }
 
-      final res = await _apiClient.dio.get(
-        AppConstants.showCountsEndpoint,
-        queryParameters: queryParams,
-      );
+      final res = await _enqueue(() => _fetchWithRetry(queryParams));
 
-      if (res.statusCode == 200 && res.data != null) {
+      if (res != null && res.statusCode == 200 && res.data != null) {
         final data = res.data is Map
             ? Map<String, dynamic>.from(res.data as Map)
             : Map<String, dynamic>.from(jsonDecode(res.data.toString()) as Map);
@@ -162,7 +230,7 @@ class GateCountService {
             checkIn: serverIn + pendingIn,
             checkOut: serverOut + pendingOut,
           );
-          _cache[key] = count;
+          _cache[key] = _CacheEntry(count, DateTime.now());
           return count;
         }
       }
@@ -180,8 +248,36 @@ class GateCountService {
       checkIn: local['in'] ?? 0,
       checkOut: local['out'] ?? 0,
     );
-    _cache[key] = count;
+    _cache[key] = _CacheEntry(count, DateTime.now());
     return count;
+  }
+
+  /// Performs network GET with 1 transient retry on connection error
+  Future<Response?> _fetchWithRetry(Map<String, dynamic> queryParams) async {
+    try {
+      return await _apiClient.dio.get(
+        AppConstants.showCountsEndpoint,
+        queryParameters: queryParams,
+        options: Options(
+          extra: {'skipCrashlyticsReport': true},
+        ),
+      );
+    } on DioException catch (e) {
+      // If transient connection drop (e.g. connection closed before header), retry once
+      final isConnectionIssue = e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout;
+      if (isConnectionIssue) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        return await _apiClient.dio.get(
+          AppConstants.showCountsEndpoint,
+          queryParameters: queryParams,
+          options: Options(
+            extra: {'skipCrashlyticsReport': true},
+          ),
+        );
+      }
+      rethrow;
+    }
   }
 
   /// Increments local count in memory immediately upon a successful scan
@@ -193,7 +289,7 @@ class GateCountService {
     String? location,
   }) {
     final key = _cacheKey(eventId, section, actionId, location);
-    final current = _cache[key] ?? const GateCheckInOutCount();
+    final current = _cache[key]?.count ?? const GateCheckInOutCount();
     final isCheckIn = punchType.toLowerCase().contains('in') ||
         punchType.toLowerCase().contains('entry');
 
@@ -201,7 +297,7 @@ class GateCountService {
       checkIn: isCheckIn ? current.checkIn + 1 : current.checkIn,
       checkOut: !isCheckIn ? current.checkOut + 1 : current.checkOut,
     );
-    _cache[key] = updated;
+    _cache[key] = _CacheEntry(updated, DateTime.now());
   }
 
   void clearCache() {

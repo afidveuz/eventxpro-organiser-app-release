@@ -85,6 +85,23 @@ class AuthRepository {
   Future<Map<String, dynamic>> generateOtp(String email) =>
       _remoteDatasource.generateOtp(email: email);
 
+  Future<Map<String, dynamic>> validateOtp({
+    required String email,
+    required int otp,
+  }) =>
+      _remoteDatasource.validateOtp(email: email, otp: otp);
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String password,
+    required String confirmPassword,
+    required String resetToken,
+  }) =>
+      _remoteDatasource.resetPassword(
+        password: password,
+        confirmPassword: confirmPassword,
+        resetToken: resetToken,
+      );
+
   /// Fetches full user profile from 'organizer/user-profile' matching React Native useProfile.
   /// Falls back to cached profile when offline.
   Future<UserProfileModel?> getUserProfile({bool forceRefresh = false}) async {

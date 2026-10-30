@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
 import '../../../core/services/offline_export_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/datasources/offline_database_helper.dart';
-import '../../../data/models/checkin_record.dart';
 import '../../bloc/scanner_bloc.dart';
 import '../../bloc/scanner_event.dart';
 import 'offline_checkin_list_screen.dart';
 
 /// Offline Sessions screen matching `OfflineSection.jsx` in the React Native EventXPro app.
 /// Lists sessions: Entrances, Halls, Agendas, and Sessions.
-/// Shows live preview of recent offline scans with DES Encrypted codes,
-/// allows syncing all pending records and viewing check-in tables per session.
+/// Allows syncing all pending records and viewing check-in tables per session.
 class OfflineSessionsScreen extends StatefulWidget {
   const OfflineSessionsScreen({super.key});
 
@@ -27,12 +24,10 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
     'agenda': {'total': 0, 'unsynced': 0},
     'session': {'total': 0, 'unsynced': 0},
   };
-  List<CheckinRecord> _recentCheckins = [];
   bool _isLoading = true;
   bool _isSyncing = false;
   bool _isDownloading = false;
   final OfflineExportService _exportService = OfflineExportService();
-  final DateFormat _dateFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
 
   final List<_SessionConfig> _sessions = const [
     _SessionConfig(
@@ -75,12 +70,10 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
     setState(() => _isLoading = true);
     final db = context.read<OfflineDatabaseHelper>();
     final summary = await db.getSectionSummary();
-    final recent = await db.getCheckins(limit: 6);
 
     if (mounted) {
       setState(() {
         _sectionSummary = summary;
-        _recentCheckins = recent;
         _isLoading = false;
       });
     }
@@ -392,11 +385,6 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
 
                   // ── Session Cards ─────────────────────────────────────
                   ..._sessions.map((session) => _buildSessionCard(session)),
-
-                  const SizedBox(height: 20),
-
-                  // ── Recent Offline Scans Feed ───────────────
-                  _buildRecentScansSection(),
 
                   const SizedBox(height: 16),
                 ],
@@ -711,174 +699,7 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
     );
   }
 
-  /// Displays the recent scans recorded offline
-  Widget _buildRecentScansSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceElevated,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.surfaceBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Expanded(
-                child: Row(
-                  children: [
-                    Icon(Icons.qr_code_2_rounded, color: AppTheme.eventxproAccent, size: 18),
-                    SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'RECENT OFFLINE SCANS',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (_recentCheckins.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppTheme.eventxproAccent.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Latest ${_recentCheckins.length}',
-                    style: const TextStyle(
-                      color: AppTheme.eventxproAccent,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
 
-          if (_recentCheckins.isEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              alignment: Alignment.center,
-              child: const Text(
-                'No offline scans recorded yet.\nScans validated offline will appear here.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppTheme.textMuted,
-                  fontSize: 12,
-                  height: 1.4,
-                ),
-              ),
-            )
-          else
-            ..._recentCheckins.map((record) {
-              final displayCode = record.encryptedCode.isNotEmpty ? record.encryptedCode : record.code;
-              final isCheckIn = record.scanType.toLowerCase().contains('in');
-              final formattedTime = _dateFormat.format(record.timestamp);
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF131722),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppTheme.surfaceBorder),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Top tag row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: isCheckIn
-                                      ? AppTheme.eventxproSuccess.withValues(alpha: 0.15)
-                                      : const Color(0xFFFF6767).withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  isCheckIn ? 'Check-in' : 'Check-out',
-                                  style: TextStyle(
-                                    color: isCheckIn ? AppTheme.eventxproSuccess : const Color(0xFFFF6767),
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  'Gate #${record.entranceId} (${record.section.toUpperCase()})',
-                                  style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          formattedTime,
-                          style: const TextStyle(color: AppTheme.textMuted, fontSize: 10),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-
-                    // Encrypted Code row (matches eventxproorganiser)
-                    Row(
-                      children: [
-                        const Icon(Icons.qr_code_2_rounded, color: AppTheme.eventxproAccent, size: 13),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'ENCRYPTED CODE: ',
-                          style: TextStyle(
-                            color: AppTheme.eventxproAccent,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            displayCode,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              fontFamily: 'monospace',
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            }),
-        ],
-      ),
-    );
-  }
 }
 
 class _SessionConfig {

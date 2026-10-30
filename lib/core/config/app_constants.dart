@@ -15,6 +15,8 @@ class AppConstants {
   static const String countriesEndpoint = 'microsite/v2/countries/';
   static const String refreshTokenEndpoint = 'exhibitor/refresh_token';
   static const String generateOtpEndpoint = 'organizer/generate-otp';
+  static const String otpValidationEndpoint = 'organizer/otp-validation';
+  static const String resetPasswordEndpoint = 'organizer/reset-password';
   static const String userProfileEndpoint = 'organizer/user-profile';
   static const String scanValidateEndpoint = '/api/v1/access-control/scans/validate/';
   static const String eventEntranceEndpoint = 'organizer/event-entrance';
@@ -36,6 +38,8 @@ class AppConstants {
   static const Color brandBorder = Color(0x99FFFFFF); // rgba(255, 255, 255, 0.60)
   static const Color brandError = Color(0xFFF14C4C);
   static const Color brandGrey = Color(0xFFABABAB);
+  static const Color brandGradientStart = Color(0xFFF43F5E); // #f43f5e
+  static const Color brandGradientEnd = Color(0xFF7C3AED);   // #7c3aed
 
   // Timing Benchmarks & Thresholds
   /// Benchmark: 300 ms suppression for identical barcode/QR value on the same device.

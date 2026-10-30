@@ -46,20 +46,24 @@ class KioskScannerScreen extends StatefulWidget {
 
 class _KioskScannerScreenState extends State<KioskScannerScreen>
     with RouteAware, WidgetsBindingObserver {
+  ScannerBloc? _scannerBloc;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
+    _scannerBloc = context.read<ScannerBloc>();
     // Enable hardware scanning when scanner screen is active
-    context.read<ScannerBloc>().add(const ScannerScanningResumed());
+    _scannerBloc?.add(const ScannerScanningResumed());
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       if (widget.initialPunchType != null ||
           widget.initialGateId != null ||
           widget.initialEventId != null ||
           widget.section != null) {
-        context.read<ScannerBloc>().add(
+        _scannerBloc?.add(
               ScannerConfigChanged(
                 scanType: widget.initialPunchType,
                 gateId: widget.initialGateId,
@@ -75,6 +79,7 @@ class _KioskScannerScreenState extends State<KioskScannerScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _scannerBloc = context.read<ScannerBloc>();
     final modalRoute = ModalRoute.of(context);
     if (modalRoute is PageRoute) {
       appRouteObserver.subscribe(this, modalRoute);
@@ -85,8 +90,8 @@ class _KioskScannerScreenState extends State<KioskScannerScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     appRouteObserver.unsubscribe(this);
-    // Pause scanning when leaving the scanner screen
-    context.read<ScannerBloc>().add(const ScannerScanningPaused());
+    // Pause scanning when leaving the scanner screen safely via saved bloc reference
+    _scannerBloc?.add(const ScannerScanningPaused());
     super.dispose();
   }
 
@@ -94,38 +99,39 @@ class _KioskScannerScreenState extends State<KioskScannerScreen>
   @override
   void didPush() {
     // Screen pushed and visible
-    context.read<ScannerBloc>().add(const ScannerScanningResumed());
+    _scannerBloc?.add(const ScannerScanningResumed());
   }
 
   @override
   void didPopNext() {
     // Screen foregrounded again (e.g. Settings screen closed)
-    context.read<ScannerBloc>().add(const ScannerScanningResumed());
+    _scannerBloc?.add(const ScannerScanningResumed());
   }
 
   @override
   void didPushNext() {
     // Another screen pushed on top of scanner (e.g. Settings screen opened)
-    context.read<ScannerBloc>().add(const ScannerScanningPaused());
+    _scannerBloc?.add(const ScannerScanningPaused());
   }
 
   @override
   void didPop() {
     // Scanner screen popped back to home
-    context.read<ScannerBloc>().add(const ScannerScanningPaused());
+    _scannerBloc?.add(const ScannerScanningPaused());
   }
 
   // WidgetsBindingObserver overrides
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
     if (state == AppLifecycleState.resumed) {
       final isCurrent = ModalRoute.of(context)?.isCurrent ?? false;
       if (isCurrent) {
-        context.read<ScannerBloc>().add(const ScannerScanningResumed());
+        _scannerBloc?.add(const ScannerScanningResumed());
       }
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
-      context.read<ScannerBloc>().add(const ScannerScanningPaused());
+      _scannerBloc?.add(const ScannerScanningPaused());
     }
   }
 
