@@ -177,6 +177,9 @@ void main() {
       expect(mockDatasource.lastNewPassword, 'Secret@123');
       expect(mockDatasource.lastConfirmPassword, 'Secret@123');
       expect(mockDatasource.lastResetToken, 'mock-reset-bearer-token-12345');
+
+      // Allow toast auto-close timer to elapse cleanly
+      await tester.pump(const Duration(seconds: 4));
     });
   });
 }

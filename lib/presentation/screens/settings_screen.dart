@@ -10,6 +10,7 @@ import '../../core/services/app_update_service.dart';
 import '../../core/services/audio_feedback_service.dart';
 import '../../core/services/device_detection_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/app_toast.dart';
 import '../../data/datasources/offline_database_helper.dart';
 import '../../data/datasources/scanner_local_storage.dart';
 import '../../data/models/user_profile_model.dart';
@@ -281,12 +282,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             await storage.setOfflineData(jsonEncode(cachePayload));
 
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Offline event data synced successfully.'),
-                  backgroundColor: AppTheme.statusSuccess,
-                  behavior: SnackBarBehavior.floating,
-                ),
+              AppToast.showSuccess(
+                message: 'Offline event data synced successfully.',
               );
             }
           } else {
@@ -315,22 +312,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return;
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sync failed: ${ApiClient.formatDioError(dioErr)}'),
-            backgroundColor: AppTheme.statusRejected,
-            behavior: SnackBarBehavior.floating,
-          ),
+        AppToast.showError(
+          message: 'Sync failed: ${ApiClient.formatDioError(dioErr)}',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sync failed: ${e.toString().replaceAll('Exception:', '').trim()}'),
-            backgroundColor: AppTheme.statusRejected,
-            behavior: SnackBarBehavior.floating,
-          ),
+        AppToast.showError(
+          message: 'Sync failed: ${e.toString().replaceAll('Exception:', '').trim()}',
         );
       }
     } finally {
@@ -1245,14 +1234,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _reprovisionScanner() async {
     final success = await DeviceDetectionService().reprovisionScanner();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success
-              ? 'Scanner Profile Re-provisioned successfully'
-              : 'Re-provision command sent to hardware engine'),
-          backgroundColor: AppTheme.accentIndigo,
-          duration: const Duration(seconds: 2),
-        ),
+      AppToast.showInfo(
+        message: success
+            ? 'Scanner Profile Re-provisioned successfully'
+            : 'Re-provision command sent to hardware engine',
+        primaryColor: AppTheme.accentIndigo,
+        duration: const Duration(seconds: 2),
       );
     }
   }

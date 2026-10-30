@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import '../theme/app_theme.dart';
+import '../utils/app_toast.dart';
 import '../../presentation/widgets/update_dialog.dart';
 
 import 'remote_config_service.dart';
@@ -142,12 +142,9 @@ class AppUpdateService {
     if (info.hasUpdate) {
       await UpdateDialog.show(context, info);
     } else if (showLatestToast) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('EventXPro is up to date (v${info.currentVersion}).'),
-          backgroundColor: AppTheme.statusSuccess,
-          duration: const Duration(seconds: 2),
-        ),
+      AppToast.showSuccess(
+        message: 'EventXPro is up to date (v${info.currentVersion}).',
+        duration: const Duration(seconds: 2),
       );
     }
     return info;

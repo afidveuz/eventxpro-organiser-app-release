@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:toastification/toastification.dart';
 import 'core/cache/scan_memory_cache.dart';
 import 'core/network/api_client.dart';
 import 'core/services/crashlytics_service.dart';
@@ -181,16 +182,18 @@ class EventXProApp extends StatelessWidget {
             )..add(const ScannerInitialized()),
           ),
         ],
-        child: MaterialApp(
-          navigatorKey: appNavigatorKey,
-          navigatorObservers: [appRouteObserver],
-          title: 'EventXPro Organiser',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.darkTheme,
-          home: SplashScreen(
-            authenticatedHome: HomeScreen(
-              zebraAdapter: zebraAdapter,
-              simulatorAdapter: simulatorAdapter,
+        child: ToastificationWrapper(
+          child: MaterialApp(
+            navigatorKey: appNavigatorKey,
+            navigatorObservers: [appRouteObserver],
+            title: 'EventXPro Organiser',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.darkTheme,
+            home: SplashScreen(
+              authenticatedHome: HomeScreen(
+                zebraAdapter: zebraAdapter,
+                simulatorAdapter: simulatorAdapter,
+              ),
             ),
           ),
         ),

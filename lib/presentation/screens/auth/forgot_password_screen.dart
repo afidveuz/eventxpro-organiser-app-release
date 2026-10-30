@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/config/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../widgets/app_background.dart';
 import '../../widgets/gradient_button.dart';
@@ -215,16 +216,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     if (result['status'] == true) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            (result['message'] as String?)?.isNotEmpty == true
-                ? result['message'] as String
-                : 'Password reset successfully! Please login with your new password.',
-          ),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
+      AppToast.showSuccess(
+        context: context,
+        message: (result['message'] as String?)?.isNotEmpty == true
+            ? result['message'] as String
+            : 'Password reset successfully! Please login with your new password.',
+        duration: const Duration(seconds: 3),
       );
       Navigator.of(context).pop();
     } else {

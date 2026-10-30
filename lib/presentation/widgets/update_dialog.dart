@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/app_update_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/app_toast.dart';
 
 /// Legacy alias for backward compatibility with existing call sites
 typedef UpdateDialog = UpdateBottomSheet;
@@ -40,19 +41,13 @@ class UpdateBottomSheet extends StatelessWidget {
         mode: LaunchMode.externalApplication,
       );
       if (!launched && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not open APK download link. Please verify browser is available.'),
-            backgroundColor: AppTheme.statusRejected,
-          ),
+        AppToast.showError(
+          message: 'Could not open APK download link. Please verify browser is available.',
         );
       }
     } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invalid APK download URL in Remote Config.'),
-          backgroundColor: AppTheme.statusRejected,
-        ),
+      AppToast.showError(
+        message: 'Invalid APK download URL in Remote Config.',
       );
     }
   }
