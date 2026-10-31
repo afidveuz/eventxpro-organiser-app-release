@@ -49,6 +49,27 @@ class AttendeeRemoteDatasource {
     }
   }
 
+  /// Fetches attendee OTP for admin viewing
+  /// GET `organizer/admin/view-register-user-otp?uid=$uid`
+  Future<Map<String, dynamic>?> getAttendeeOtp({required String uid}) async {
+    try {
+      final response = await _apiClient.dio.get(
+        'organizer/admin/view-register-user-otp',
+        queryParameters: {'uid': uid},
+      );
+      if (response.data != null) {
+        final data = response.data is Map<String, dynamic>
+            ? response.data as Map<String, dynamic>
+            : jsonDecode(response.data.toString()) as Map<String, dynamic>;
+        return data;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[AttendeeRemoteDatasource] getAttendeeOtp error: $e');
+      return null;
+    }
+  }
+
   /// Fetches paginated list of attendees for an event metric
   /// Endpoints: 'event-register-users', 'totalattendees-list', 'noshow-list', 'today-visits', 'checkin-list'
   Future<AttendeePaginatedResult> getEventAttendees({

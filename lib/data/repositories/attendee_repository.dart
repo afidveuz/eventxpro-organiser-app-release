@@ -12,6 +12,10 @@ class AttendeeRepository {
     return _remoteDatasource.getAttendeeDetails(attendeeId: attendeeId);
   }
 
+  Future<Map<String, dynamic>?> getAttendeeOtp({required String uid}) {
+    return _remoteDatasource.getAttendeeOtp(uid: uid);
+  }
+
   Future<AttendeePaginatedResult> getEventAttendees({
     required int eventId,
     required String endPoint,

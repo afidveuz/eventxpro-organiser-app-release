@@ -81,7 +81,7 @@ class AttendeeListItemModel {
       lastname: json['lastname']?.toString(),
       designation: json['designation']?.toString(),
       companyName: json['company_name']?.toString() ?? json['company']?.toString(),
-      country: json['country']?.toString(),
+      country: json['country']?.toString() ?? json['country_name']?.toString(),
       uniqueId: json['unique_id']?.toString() ??
           json['ticket_id']?.toString() ??
           json['urn']?.toString(),
@@ -92,7 +92,7 @@ class AttendeeListItemModel {
           json['photo_url']?.toString() ??
           json['user_image']?.toString(),
       email: json['email']?.toString(),
-      mobile: json['mobile']?.toString(),
+      mobile: json['mobile']?.toString() ?? json['phone']?.toString(),
       address: json['address']?.toString(),
       punchType: json['punch_type']?.toString(),
       isCheckedIn: json['is_checked_in'] == true || json['checked_in'] == true,

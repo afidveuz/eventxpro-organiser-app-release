@@ -847,17 +847,42 @@ class _EventAttendeesScreenState extends State<EventAttendeesScreen> {
     final photoUrl = _resolveImageUrl(item.photoUrl);
     final isPunching = _punchingPk == item.pk;
     final isCheckIn = (widget.actionType ?? 'check_in') == 'check_in';
+    final authRepo = context.read<AuthRepository>();
+    final isAdmin = authRepo.currentUser?.isAdmin == true;
+
+    final hasDesignation = item.designation != null && item.designation!.trim().isNotEmpty;
+    final hasCompany = item.companyName != null && item.companyName!.trim().isNotEmpty;
+    final roleCompanyText = [
+      if (hasDesignation) item.designation!.trim(),
+      if (hasCompany) item.companyName!.trim(),
+    ].join(' • ');
+
+    final hasTicketName = item.ticketName != null && item.ticketName!.trim().isNotEmpty;
+    final hasUrn = item.uniqueId != null && item.uniqueId!.trim().isNotEmpty;
+    final hasCountry = item.country != null && item.country!.trim().isNotEmpty;
+    final isCheckedIn = item.isCheckedIn == true;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF1E2538),
+            Color(0xFF131722),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.32),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -865,54 +890,94 @@ class _EventAttendeesScreenState extends State<EventAttendeesScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () => _openAttendeeDetails(item),
-          borderRadius: BorderRadius.circular(12),
+          onLongPress: hasUrn
+              ? () {
+                  Clipboard.setData(ClipboardData(text: item.uniqueId!));
+                  HapticFeedback.lightImpact();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('URN copied: ${item.uniqueId}'),
+                      duration: const Duration(seconds: 1),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              : null,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: AppTheme.brandGradientStart.withValues(alpha: 0.1),
+          highlightColor: Colors.white.withValues(alpha: 0.04),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar (Photo or Colored Initial)
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: item.avatarColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: ClipOval(
-                    child: photoUrl != null && photoUrl.isNotEmpty
-                        ? Image.network(
-                            photoUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Center(
-                              child: Text(
-                                item.initials,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 18,
-                                ),
-                              ),
-                            ),
-                          )
-                        : Center(
-                            child: Text(
-                              item.initials,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 18,
-                              ),
+                // ── 1. Avatar with Fallback & Checked-In Indicator ────────
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: item.avatarColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: item.avatarColor.withValues(alpha: 0.45),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: item.avatarColor.withValues(alpha: 0.2),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12.5),
+                        child: photoUrl != null && photoUrl.isNotEmpty
+                            ? Image.network(
+                                photoUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _buildAvatarFallback(item),
+                              )
+                            : _buildAvatarFallback(item),
+                      ),
+                    ),
+                    if (isCheckedIn)
+                      Positioned(
+                        bottom: -2,
+                        right: -2,
+                        child: Container(
+                          width: 16,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF131722),
+                              width: 2,
                             ),
                           ),
-                  ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.check_rounded,
+                              size: 10,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 13),
 
-                // Details Text
+                // ── 2. Information Column ──────────────────────────────────
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       // Full Name
                       Text(
@@ -920,121 +985,339 @@ class _EventAttendeesScreenState extends State<EventAttendeesScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF0F172A),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          letterSpacing: -0.2,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
 
-                      // Ticket Name or Category
-                      if (item.ticketName != null && item.ticketName!.isNotEmpty) ...[
-                        Text(
-                          item.ticketName!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFFC10067),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 11.5,
+                      // Ticket Name Pill / Category Badge
+                      if (hasTicketName) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFC10067).withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: const Color(0xFFC10067).withValues(alpha: 0.35),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.confirmation_number_outlined,
+                                size: 10.5,
+                                color: Color(0xFFFF4081),
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  item.ticketName!.toUpperCase(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFFFF6497),
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 1),
+                        const SizedBox(height: 4),
                       ],
 
-                      // Designation & Company
-                      if (item.designation != null && item.designation!.isNotEmpty) ...[
-                        Text(
-                          item.designation!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF64748B),
-                            fontWeight: FontWeight.w500,
-                            fontSize: 11.5,
-                          ),
+                      // Designation & Company Row
+                      if (roleCompanyText.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.business_center_outlined,
+                              size: 12,
+                              color: Color(0xFF94A3B8),
+                            ),
+                            const SizedBox(width: 4.5),
+                            Expanded(
+                              child: Text(
+                                roleCompanyText,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ] else if (item.companyName != null && item.companyName!.isNotEmpty) ...[
-                        Text(
-                          item.companyName!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF64748B),
-                            fontWeight: FontWeight.w500,
-                            fontSize: 11.5,
-                          ),
-                        ),
+                        const SizedBox(height: 5),
                       ],
 
-                      // URN Badge
-                      if (item.uniqueId != null && item.uniqueId!.isNotEmpty) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          'URN: ${item.uniqueId!}',
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
-                            color: Color(0xFF94A3B8),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                      // Chips Row: URN, Location, Checked-in Status
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (hasUrn)
+                            InkWell(
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: item.uniqueId!));
+                                HapticFeedback.lightImpact();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('URN copied: ${item.uniqueId}'),
+                                    duration: const Duration(seconds: 1),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6.5,
+                                  vertical: 2.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: const Color(0xFF3B82F6).withValues(alpha: 0.28),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.fingerprint_rounded,
+                                      size: 11,
+                                      color: Color(0xFF60A5FA),
+                                    ),
+                                    const SizedBox(width: 3.5),
+                                    Text(
+                                      item.uniqueId!,
+                                      style: const TextStyle(
+                                        fontFamily: 'monospace',
+                                        color: Color(0xFF93C5FD),
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          if (hasCountry)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.08),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.location_on_outlined,
+                                    size: 10.5,
+                                    color: Color(0xFF94A3B8),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    item.country!,
+                                    style: const TextStyle(
+                                      color: Color(0xFFCBD5E1),
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (isCheckedIn)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 10.5,
+                                    color: Color(0xFF34D399),
+                                  ),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'Checked In',
+                                    style: TextStyle(
+                                      color: Color(0xFF6EE7B7),
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 10),
 
-                // Action: In Session Mode, show Check-in/Check-out button
+                // ── 3. Right Rail: Session Punch Button or Chevron + Admin OTP ──
                 if (widget.isSessionMode) ...[
-                  const SizedBox(width: 8),
                   isPunching
                       ? const SizedBox(
                           width: 32,
                           height: 32,
                           child: Padding(
                             padding: EdgeInsets.all(6),
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                            ),
                           ),
                         )
-                      : ElevatedButton(
-                          onPressed: () => _punchAttendee(item),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isCheckIn
-                                ? const Color(0xFF10B981)
-                                : const Color(0xFFEF4444),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
+                      : Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: isCheckIn
+                                  ? [const Color(0xFF10B981), const Color(0xFF059669)]
+                                  : [const Color(0xFFF43F5E), const Color(0xFFE11D48)],
                             ),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 0,
+                            borderRadius: BorderRadius.circular(9),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (isCheckIn
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFFF43F5E))
+                                    .withValues(alpha: 0.3),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                isCheckIn ? 'IN' : 'OUT',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 11.5,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => _punchAttendee(item),
+                              borderRadius: BorderRadius.circular(9),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      isCheckIn
+                                          ? Icons.login_rounded
+                                          : Icons.logout_rounded,
+                                      size: 12,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      isCheckIn ? 'IN' : 'OUT',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 11.5,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(width: 3),
-                              const Icon(Icons.arrow_forward_ios_rounded, size: 10),
-                            ],
+                            ),
                           ),
                         ),
                 ] else ...[
-                  // Arrow Indicator
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Color(0xFFCBD5E1),
-                    size: 20,
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Circular Chevron
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            width: 1,
+                          ),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            color: Colors.white70,
+                            size: 11,
+                          ),
+                        ),
+                      ),
+
+                      // Admin OTP Action Button
+                      if (isAdmin && item.uid != null && item.uid!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => _showOtpDialog(item),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF59E0B).withValues(alpha: 0.14),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+                                  width: 1,
+                                ),
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.key_rounded,
+                                  color: Color(0xFFFBBF24),
+                                  size: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ],
@@ -1042,6 +1325,224 @@ class _EventAttendeesScreenState extends State<EventAttendeesScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAvatarFallback(AttendeeListItemModel item) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            item.avatarColor,
+            item.avatarColor.withValues(alpha: 0.75),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          item.initials,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Admin dialog to view and copy Attendee Registration OTP matching React Native
+  Future<void> _showOtpDialog(AttendeeListItemModel item) async {
+    if (item.uid == null || item.uid!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Missing user identifier for OTP lookup'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    HapticFeedback.lightImpact();
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogCtx) {
+        return FutureBuilder<Map<String, dynamic>?>(
+          future: context.read<AttendeeRepository>().getAttendeeOtp(uid: item.uid!),
+          builder: (context, snapshot) {
+            final isLoading = snapshot.connectionState == ConnectionState.waiting;
+            final data = snapshot.data;
+            final isSuccess = data != null && data['status'] == true;
+            final email = data?['email']?.toString() ?? item.email ?? '';
+            final otp = data?['otp']?.toString() ?? '';
+            final message = data?['message']?.toString() ?? 'Unable to retrieve OTP.';
+
+            return Dialog(
+              backgroundColor: const Color(0xFF131722),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  width: 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF59E0B).withValues(alpha: 0.16),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.key_rounded,
+                                color: Color(0xFFF59E0B),
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Text(
+                              'Access OTP',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white60, size: 20),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () => Navigator.of(dialogCtx).pop(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (isLoading) ...[
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
+                          ),
+                        ),
+                      ),
+                    ] else if (!isSuccess || otp.isEmpty) ...[
+                      Text(
+                        message,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFFF87171),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ] else ...[
+                      if (email.isNotEmpty) ...[
+                        const Text(
+                          'EMAIL',
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          email,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+                      const Text(
+                        'REGISTRATION OTP',
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              otp,
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                color: Color(0xFFFBBF24),
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 4,
+                              ),
+                            ),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Clipboard.setData(ClipboardData(text: otp));
+                                HapticFeedback.lightImpact();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('OTP copied to clipboard!'),
+                                    duration: Duration(seconds: 1),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.copy_rounded, size: 14),
+                              label: const Text('Copy'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFC10067),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1087,13 +1588,62 @@ class _EventAttendeesScreenState extends State<EventAttendeesScreen> {
     return ListView.builder(
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: 4,
+      itemCount: 5,
       itemBuilder: (context, index) => Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        height: 72,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
+          color: const Color(0xFF131722),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.05),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 140,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 90,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 180,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
