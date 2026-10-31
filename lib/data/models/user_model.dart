@@ -19,10 +19,9 @@ class UserModel extends Equatable {
     return UserModel(
       username: json['username'] as String? ?? '',
       name: json['name'] as String? ?? '',
-      isAdmin: (json['is_admin'] as bool?) ??
-          (json['is_company_admin'] as bool?) ??
-          (json['isAdmin'] as bool?) ??
-          false,
+      isAdmin: (json['is_admin'] == true) ||
+          (json['is_company_admin'] == true) ||
+          (json['isAdmin'] == true),
       token: token ?? json['token'] as String?,
       refreshToken: refreshToken ?? json['refresh_token'] as String? ?? json['refreshToken'] as String?,
     );

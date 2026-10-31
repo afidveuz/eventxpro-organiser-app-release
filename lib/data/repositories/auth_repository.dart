@@ -120,12 +120,11 @@ class AuthRepository {
             ? response['data'] as Map<String, dynamic>
             : response;
 
-        // Retain isAdmin from current logged-in user if backend doesn't return it
+        // Retain isAdmin from current logged-in user (e.g. is_company_admin set at login)
         final current = _localStorage.getUser();
-        if (!dataMap.containsKey('is_admin') &&
-            !dataMap.containsKey('isAdmin') &&
-            current != null) {
-          dataMap['isAdmin'] = current.isAdmin;
+        if (current != null && current.isAdmin) {
+          dataMap['isAdmin'] = true;
+          dataMap['is_admin'] = true;
         }
 
         final profile = UserProfileModel.fromJson(dataMap);

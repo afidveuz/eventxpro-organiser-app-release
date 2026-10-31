@@ -22,6 +22,8 @@ import '../bloc/scanner_event.dart';
 import '../bloc/scanner_state.dart';
 import 'auth/login_screen.dart';
 import 'offline/offline_sessions_screen.dart';
+import 'onsite_qr_verification_screen.dart';
+import 'qr_blacklist_screen.dart';
 
 /// Settings screen matching the React Native EventXPro Organiser Settings screen.
 /// Includes:
@@ -409,7 +411,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 const SizedBox(height: 12),
 
-                // ── Section 3: Offline Sessions Navigation ──────────────────
+                // ── Section 3: Verification & Access Control ───────────────
+                if (!_isOfflineMode) ...[
+                  _buildSectionHeader('SECURITY & ACCESS CONTROL'),
+                  _buildOnsiteQrVerificationTile(),
+                  const SizedBox(height: 10),
+                  _buildQrBlacklistTile(),
+                  const SizedBox(height: 12),
+                ],
+
+                // ── Section 4: Offline Sessions Navigation ──────────────────
                 _buildSectionHeader('OFFLINE STORAGE & SYNC'),
 
                 _buildOfflineSessionsTile(),
@@ -999,6 +1010,153 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Future<(int, String)> _resolveCurrentEvent() async {
+    final storage = context.read<ScannerLocalStorage>();
+    int eventId = storage.getEventId();
+    String eventName = 'Event #$eventId';
+    final offlineData = storage.getOfflineData();
+    if (offlineData != null && offlineData.isNotEmpty) {
+      try {
+        final map = jsonDecode(offlineData) as Map<String, dynamic>;
+        final ev = map['event'] as Map<String, dynamic>?;
+        if (ev != null) {
+          eventId = (ev['pk'] as num?)?.toInt() ?? (ev['id'] as num?)?.toInt() ?? eventId;
+          eventName = ev['publish_event_name']?.toString() ?? eventName;
+        }
+      } catch (_) {}
+    }
+
+    if (eventId == 1) {
+      try {
+        final apiClient = context.read<ApiClient>();
+        final dashRes = await apiClient.dio.get('organizer/dashboard');
+        if (dashRes.statusCode == 200 && dashRes.data != null) {
+          final data = dashRes.data is Map
+              ? dashRes.data as Map<String, dynamic>
+              : jsonDecode(dashRes.data.toString()) as Map<String, dynamic>;
+          final rawEvents = data['event_list'] as List<dynamic>? ?? [];
+          if (rawEvents.isNotEmpty) {
+            final firstEvt = rawEvents.first as Map<String, dynamic>;
+            final pk = (firstEvt['pk'] as num?)?.toInt() ??
+                (firstEvt['id'] as num?)?.toInt() ??
+                int.tryParse(firstEvt['pk']?.toString() ?? '') ??
+                int.tryParse(firstEvt['id']?.toString() ?? '');
+            if (pk != null) {
+              eventId = pk;
+              eventName = firstEvt['publish_event_name']?.toString() ?? eventName;
+              await storage.setEventId(pk);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    return (eventId, eventName);
+  }
+
+  Widget _buildOnsiteQrVerificationTile() {
+    return _buildGlassCard(
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF23A618).withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(
+            Icons.confirmation_number_outlined,
+            color: Color(0xFF23A618),
+            size: 24,
+          ),
+        ),
+        title: const Text(
+          'On-Site QR Verification',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: const Text(
+          'Verify voucher coupons & view attendee registrations',
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 12,
+          ),
+        ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios_rounded,
+          color: AppTheme.textMuted,
+          size: 16,
+        ),
+        onTap: () async {
+          final (eventId, eventName) = await _resolveCurrentEvent();
+          if (!mounted) return;
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => OnsiteQrVerificationScreen(
+                eventId: eventId,
+                eventName: eventName,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildQrBlacklistTile() {
+    return _buildGlassCard(
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFD32F2F).withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(
+            Icons.block_rounded,
+            color: Color(0xFFD32F2F),
+            size: 24,
+          ),
+        ),
+        title: const Text(
+          'QR Blacklist',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: const Text(
+          'Inspect attendee badges & block or unblock admittance',
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            fontSize: 12,
+          ),
+        ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios_rounded,
+          color: AppTheme.textMuted,
+          size: 16,
+        ),
+        onTap: () async {
+          final (eventId, eventName) = await _resolveCurrentEvent();
+          if (!mounted) return;
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => QrBlacklistScreen(
+                eventId: eventId,
+                eventName: eventName,
+              ),
+            ),
+          );
+        },
       ),
     );
   }

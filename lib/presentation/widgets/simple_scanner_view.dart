@@ -67,7 +67,6 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
   ScannerDecisionState? _currentToastDecision;
   Timer? _toastDismissTimer;
   String? _lastCameraScannedToken;
-  DateTime? _lastCameraScanTime;
 
   GateCheckInOutCount _gateCount = const GateCheckInOutCount();
   bool _hasLoadedGateCount = false;
@@ -819,15 +818,10 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                           for (final barcode in capture.barcodes) {
                             final rawVal = barcode.rawValue?.trim();
                             if (rawVal != null && rawVal.isNotEmpty) {
-                              final now = DateTime.now();
-                              if (_lastCameraScannedToken == rawVal && _lastCameraScanTime != null) {
-                                final elapsed = now.difference(_lastCameraScanTime!).inMilliseconds;
-                                if (elapsed < 1500) {
-                                  return; // suppress rapid duplicate frame of identical token
-                                }
+                              if (_lastCameraScannedToken == rawVal) {
+                                return; // Suppress repetitive scanning of same badge until another badge is scanned
                               }
                               _lastCameraScannedToken = rawVal;
-                              _lastCameraScanTime = now;
                               debugPrint('[CAMERA SCAN DETECTED] 📷 Scanned barcode: "$rawVal"');
                               HapticFeedback.lightImpact();
                               context
@@ -1878,6 +1872,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) {
         return Container(
@@ -1889,27 +1884,33 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Sheet handle
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 10, bottom: 6),
-                  width: 44,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    borderRadius: BorderRadius.circular(2),
+          child: SafeArea(
+            top: false,
+            left: false,
+            right: false,
+            bottom: true,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Sheet handle
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 6),
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: _buildDecisionCard(decState, isModal: true),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: _buildDecisionCard(decState, isModal: true),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

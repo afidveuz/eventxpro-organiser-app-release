@@ -30,10 +30,9 @@ class UserProfileModel extends Equatable {
       email: (map['email'] as String?)?.trim() ?? '',
       phone: (map['phone'] as String?)?.trim() ?? '',
       photo: map['photo'] as String?,
-      isAdmin: (map['is_admin'] as bool?) ??
-          (map['is_company_admin'] as bool?) ??
-          (map['isAdmin'] as bool?) ??
-          false,
+      isAdmin: (map['is_admin'] == true) ||
+          (map['is_company_admin'] == true) ||
+          (map['isAdmin'] == true),
     );
   }
 

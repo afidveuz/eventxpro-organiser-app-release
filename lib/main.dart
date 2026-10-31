@@ -122,6 +122,7 @@ void main() async {
   runApp(EventXProApp(
     scannerRepository: scannerRepository,
     scannerLocalStorage: scannerLocalStorage,
+    authLocalStorage: authLocalStorage,
     authRepository: authRepository,
     offlineDbHelper: offlineDbHelper,
     apiClient: apiClient,
@@ -135,6 +136,7 @@ void main() async {
 class EventXProApp extends StatelessWidget {
   final ScannerRepositoryImpl scannerRepository;
   final ScannerLocalStorage scannerLocalStorage;
+  final AuthLocalStorage authLocalStorage;
   final AuthRepository authRepository;
   final OfflineDatabaseHelper offlineDbHelper;
   final ApiClient apiClient;
@@ -147,6 +149,7 @@ class EventXProApp extends StatelessWidget {
     super.key,
     required this.scannerRepository,
     required this.scannerLocalStorage,
+    required this.authLocalStorage,
     required this.authRepository,
     required this.offlineDbHelper,
     required this.apiClient,
@@ -160,11 +163,13 @@ class EventXProApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
       providers: [
+        RepositoryProvider<AuthLocalStorage>.value(value: authLocalStorage),
         RepositoryProvider<AuthRepository>.value(value: authRepository),
         RepositoryProvider<ScannerLocalStorage>.value(value: scannerLocalStorage),
         RepositoryProvider<OfflineDatabaseHelper>.value(value: offlineDbHelper),
         RepositoryProvider<ApiClient>.value(value: apiClient),
         RepositoryProvider<GateCountService>.value(value: gateCountService),
+        RepositoryProvider<HardwareScannerAdapter>.value(value: defaultAdapter),
       ],
       child: MultiBlocProvider(
         providers: [
