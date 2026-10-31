@@ -719,7 +719,7 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            'Position your phone to make sure the attendee QR code is within the frame',
+            'Position the attendee QR code within the frame',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13.5,
@@ -900,7 +900,7 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
               const SizedBox(width: 8),
               Text(
                 _isCameraMode
-                    ? 'Phone Camera Active'
+                    ? 'Camera Active'
                     : 'Hardware Scanner Ready',
                 style: const TextStyle(
                   fontSize: 12,

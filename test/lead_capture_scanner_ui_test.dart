@@ -121,7 +121,7 @@ void main() {
       // Viewfinder guidance
       expect(find.text('Scan any QR'), findsOneWidget);
       expect(
-        find.text('Position your phone to make sure the attendee QR code is within the frame'),
+        find.text('Position the attendee QR code within the frame'),
         findsOneWidget,
       );
 
@@ -158,7 +158,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
 
       // Should now show camera controls and camera active indicator
-      expect(find.text('Phone Camera Active'), findsOneWidget);
+      expect(find.text('Camera Active'), findsOneWidget);
       expect(find.byIcon(Icons.flash_off_rounded), findsOneWidget);
       expect(find.byIcon(Icons.cameraswitch_rounded), findsOneWidget);
       expect(find.byIcon(Icons.qr_code_scanner_rounded), findsOneWidget);

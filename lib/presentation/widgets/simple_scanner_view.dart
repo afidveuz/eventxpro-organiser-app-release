@@ -594,7 +594,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            'Position your phone to make sure the QR code is within the frame',
+            'Position the QR code within the frame',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13.5,
@@ -784,8 +784,8 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
               const SizedBox(width: 8),
               Text(
                 _isCameraActive
-                    ? 'Phone Camera Active'
-                    : 'Zebra Hardware Scanner Ready',
+                    ? 'Camera Active'
+                    : 'Hardware Scanner Ready',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
