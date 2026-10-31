@@ -28,15 +28,21 @@ import 'widgets/lead_captured_modal_sheet.dart';
 /// - Dual hardware broadcast scanning (Honeywell ScanPal EDA51 & Zebra TC15/TC21) and camera scanning
 /// - Authoritative Lead Decision Card with instant rating selector (Hot/Warm/Cold)
 /// - Continuous scanning (Rush Mode) with top-floating notification toast
-/// - Control dock with mode switcher, flashlight, camera flip, rush mode, and manual ticket entry
+/// - Control dock with mode switcher, flashlight, camera flip, and rush mode
 class LeadCaptureScreen extends StatefulWidget {
   final int? eventId;
   final String? eventName;
+  final bool isRootTab;
+  final bool isActive;
+  final VoidCallback? onOpenLeads;
 
   const LeadCaptureScreen({
     super.key,
     this.eventId,
     this.eventName,
+    this.isRootTab = false,
+    this.isActive = true,
+    this.onOpenLeads,
   });
 
   @override
@@ -82,7 +88,7 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
     _laserController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1700),
-    )..repeat(reverse: true);
+    );
 
     _laserAnimation = Tween<double>(begin: 0.05, end: 0.95).animate(
       CurvedAnimation(parent: _laserController, curve: Curves.easeInOut),
@@ -92,21 +98,25 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2200),
-    )..repeat();
+    );
 
     _pulseAnimation = CurvedAnimation(
       parent: _pulseController,
       curve: Curves.easeOut,
     );
 
-    // Pause global gate check-in scanner while in lead capture mode
-    try {
-      context.read<ScannerBloc>().add(const ScannerScanningPaused());
-    } catch (_) {}
-
     // Initialize dedicated enterprise hardware adapter (Honeywell + Zebra)
     _hardwareAdapter = EnterpriseHardwareAdapter();
     _initHardwareScanner();
+
+    if (widget.isActive) {
+      _laserController.repeat(reverse: true);
+      _pulseController.repeat();
+      // Pause global gate check-in scanner while in lead capture mode
+      try {
+        context.read<ScannerBloc>().add(const ScannerScanningPaused());
+      } catch (_) {}
+    }
   }
 
   @override
@@ -118,11 +128,52 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
         final storage = context.read<ScannerLocalStorage>();
         _isCameraMode = storage.isCameraEnabled;
         _isShortToast = storage.isShortToastEnabled;
-        if (_isCameraMode) {
+        if (_isCameraMode && widget.isActive) {
           _initCamera();
         }
       } catch (_) {}
     }
+  }
+
+  @override
+  void didUpdateWidget(covariant LeadCaptureScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive != oldWidget.isActive) {
+      if (widget.isActive) {
+        _onActivated();
+      } else {
+        _onDeactivated();
+      }
+    }
+  }
+
+  void _onActivated() {
+    try {
+      context.read<ScannerBloc>().add(const ScannerScanningPaused());
+    } catch (_) {}
+
+    _laserController.repeat(reverse: true);
+    _pulseController.repeat();
+
+    if (_isCameraMode) {
+      if (_cameraController == null) {
+        _initCamera();
+      } else {
+        _cameraController?.start();
+      }
+    }
+  }
+
+  void _onDeactivated() {
+    try {
+      context.read<ScannerBloc>().add(const ScannerScanningResumed());
+    } catch (_) {}
+
+    _laserController.stop();
+    _pulseController.stop();
+
+    _isTorchOn = false;
+    _cameraController?.stop();
   }
 
   Future<void> _initHardwareScanner() async {
@@ -148,10 +199,12 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
     _hardwareAdapter.dispose();
     _cameraController?.dispose();
 
-    // Resume global gate check-in scanner
-    try {
-      context.read<ScannerBloc>().add(const ScannerScanningResumed());
-    } catch (_) {}
+    // Resume global gate check-in scanner if was active
+    if (widget.isActive) {
+      try {
+        context.read<ScannerBloc>().add(const ScannerScanningResumed());
+      } catch (_) {}
+    }
 
     super.dispose();
   }
@@ -431,183 +484,7 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
     }
   }
 
-  // ── Manual Ticket Entry Sheet (Matching Checkin Scanner) ────────────
-  void _showManualEntrySheet() {
-    HapticFeedback.selectionClick();
-    final textController = TextEditingController();
 
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) {
-        return Container(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
-          ),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1B2130),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border.all(
-              color: AppTheme.eventxproAccent.withValues(alpha: 0.4),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.6),
-                blurRadius: 32,
-                offset: const Offset(0, -6),
-              ),
-            ],
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-              // Sheet Handle
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-
-              // Title
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppTheme.eventxproAccent.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.keyboard_outlined,
-                      color: AppTheme.eventxproAccent,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Manual Lead Entry',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Enter or paste the attendee badge token or unique ID to manually capture lead.',
-                style: TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 12.5,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Input TextField
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF131722),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppTheme.eventxproAccent.withValues(alpha: 0.5),
-                    width: 1.2,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: textController,
-                        autofocus: true,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.6,
-                        ),
-                        decoration: const InputDecoration(
-                          hintText: 'e.g. ATT-98234-A7',
-                          hintStyle: TextStyle(
-                            color: Colors.white38,
-                            fontSize: 14,
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          border: InputBorder.none,
-                        ),
-                        onSubmitted: (val) {
-                          if (val.trim().isNotEmpty) {
-                            Navigator.of(sheetCtx).pop();
-                            _onBarcodeDecoded(val.trim());
-                          }
-                        },
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Paste from clipboard',
-                      icon: const Icon(Icons.paste_rounded, color: Colors.white70),
-                      onPressed: () async {
-                        final data = await Clipboard.getData('text/plain');
-                        if (data?.text != null) {
-                          textController.text = data!.text!.trim();
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Submit Button
-              ElevatedButton(
-                onPressed: () {
-                  final code = textController.text.trim();
-                  if (code.isNotEmpty) {
-                    Navigator.of(sheetCtx).pop();
-                    _onBarcodeDecoded(code);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.eventxproAccent,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'CAPTURE LEAD',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -621,6 +498,7 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
         children: [
           // ── Main Content Layout ────────────────────────────────────
           SafeArea(
+            bottom: !widget.isRootTab,
             child: Column(
               children: [
                 // Top Bar (Matching React Native EventTopBar.jsx)
@@ -640,7 +518,7 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
                   ),
                 ),
 
-                // Bottom Dock: Mode switch, flashlight, flip, rush mode, manual entry
+                // Bottom Dock: Mode switch, flashlight, flip, rush mode
                 _buildControlDock(),
 
                 // Sleek Telemetry Footer
@@ -659,6 +537,7 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
             ),
         ],
       ),
+      bottomNavigationBar: widget.isRootTab ? null : _buildStandaloneBottomBar(),
     );
   }
 
@@ -671,36 +550,39 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Circular White Back Button
-          InkWell(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Navigator.of(context).pop(_hasCapturedAny);
-            },
-            borderRadius: BorderRadius.circular(50),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
+          // Circular White Back Button (hidden if root tab to maintain centered title)
+          if (!widget.isRootTab)
+            InkWell(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).pop(_hasCapturedAny);
+              },
+              borderRadius: BorderRadius.circular(50),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 16,
+                    color: Color(0xFF171C26),
                   ),
-                ],
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  size: 16,
-                  color: Color(0xFF171C26),
                 ),
               ),
-            ),
-          ),
+            )
+          else
+            const SizedBox(width: 40, height: 40),
 
           const SizedBox(width: 14),
 
@@ -767,31 +649,31 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
 
           const SizedBox(width: 10),
 
-          // Action: Leads List Shortcut (Matching Settings Button in SimpleScannerView)
+          // Action: Leads List Shortcut
           InkWell(
             onTap: () async {
               HapticFeedback.lightImpact();
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => LeadsListScreen(
-                    eventId: widget.eventId,
-                    eventName: widget.eventName,
+              if (widget.onOpenLeads != null) {
+                widget.onOpenLeads!();
+              } else {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => LeadsListScreen(
+                      eventId: widget.eventId,
+                      eventName: widget.eventName,
+                    ),
                   ),
-                ),
-              );
+                );
+              }
             },
             borderRadius: BorderRadius.circular(50),
             child: Container(
               width: 40,
               height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFF212836),
+              decoration: const BoxDecoration(
+                color: Color(0xFF212836),
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppTheme.eventxproBorder,
-                  width: 1.2,
-                ),
               ),
               child: const Icon(
                 Icons.list_alt_rounded,
@@ -1805,31 +1687,6 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
               ),
             ),
           ),
-
-          const SizedBox(width: 14),
-
-          // Manual Badge / Ticket Code Input Button
-          InkWell(
-            onTap: _showManualEntrySheet,
-            borderRadius: BorderRadius.circular(50),
-            child: Container(
-              height: 50,
-              width: 50,
-              decoration: BoxDecoration(
-                color: const Color(0xFF222838),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.25),
-                  width: 1.5,
-                ),
-              ),
-              child: const Icon(
-                Icons.keyboard_alt_outlined,
-                size: 22,
-                color: Colors.white,
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -1841,14 +1698,8 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141924),
-        border: Border(
-          top: BorderSide(
-            color: Colors.white.withValues(alpha: 0.08),
-            width: 1,
-          ),
-        ),
+      decoration: const BoxDecoration(
+        color: Color(0xFF141924),
       ),
       child: Row(
         children: [
@@ -1858,9 +1709,6 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
             decoration: BoxDecoration(
               color: AppTheme.eventxproSuccess.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: AppTheme.eventxproSuccess.withValues(alpha: 0.35),
-              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1883,59 +1731,25 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
             ),
           ),
 
-          const SizedBox(width: 8),
-
-          // Engine Status Pill
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: const Color(0xFF202636),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.12),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _isCameraMode
-                        ? AppTheme.accentCyan
-                        : AppTheme.statusSuccess,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _isCameraMode ? 'Camera' : 'EDA51 / Zebra',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white70,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
           const Spacer(),
 
           // Event Identifier Pill
           Flexible(
             child: InkWell(
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => LeadsListScreen(
-                      eventId: widget.eventId,
-                      eventName: widget.eventName,
+                if (widget.onOpenLeads != null) {
+                  widget.onOpenLeads!();
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => LeadsListScreen(
+                        eventId: widget.eventId,
+                        eventName: widget.eventName,
+                      ),
                     ),
-                  ),
-                );
+                  );
+                }
               },
               borderRadius: BorderRadius.circular(10),
               child: Container(
@@ -1944,9 +1758,6 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
                 decoration: BoxDecoration(
                   color: const Color(0xFF202636),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.12),
-                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -2097,6 +1908,132 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
         .fadeIn(duration: 180.ms)
         .slideY(
             begin: -0.25, end: 0, duration: 200.ms, curve: Curves.easeOutQuad);
+  }
+
+  Widget _buildStandaloneBottomBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF10141E).withValues(alpha: 0.98),
+        border: Border(
+          top: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.45),
+            blurRadius: 20,
+            offset: const Offset(0, -6),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStandaloneNavItem(
+                icon: Icons.home_outlined,
+                activeIcon: Icons.home_rounded,
+                label: 'Home',
+                isSelected: false,
+                onTap: () {
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+              ),
+              _buildStandaloneNavItem(
+                icon: Icons.qr_code_scanner_outlined,
+                activeIcon: Icons.qr_code_scanner_rounded,
+                label: 'Scan Lead',
+                isSelected: true,
+                onTap: () {},
+              ),
+              _buildStandaloneNavItem(
+                icon: Icons.badge_outlined,
+                activeIcon: Icons.badge_rounded,
+                label: 'Leads',
+                isSelected: false,
+                onTap: () {
+                  if (widget.onOpenLeads != null) {
+                    widget.onOpenLeads!();
+                  } else {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => LeadsListScreen(
+                          eventId: widget.eventId,
+                          eventName: widget.eventName,
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+              _buildStandaloneNavItem(
+                icon: Icons.settings_outlined,
+                activeIcon: Icons.settings_rounded,
+                label: 'Settings',
+                isSelected: false,
+                onTap: () {
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStandaloneNavItem({
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final activeColor = AppTheme.brandGradientStart;
+    final inactiveColor = Colors.white.withValues(alpha: 0.42);
+
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkResponse(
+          onTap: onTap,
+          containedInkWell: true,
+          highlightShape: BoxShape.rectangle,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isSelected ? activeIcon : icon,
+                  size: 22,
+                  color: isSelected ? activeColor : inactiveColor,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : inactiveColor,
+                    fontSize: isSelected ? 11 : 10.5,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

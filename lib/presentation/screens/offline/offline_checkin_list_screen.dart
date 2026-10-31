@@ -246,7 +246,7 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
                   ),
                   child: Column(
                     children: [
-                      _buildMetaRow('Punch Action', isCheckIn ? 'Check-In' : 'Check-Out', isCheckIn ? AppTheme.eventxproSuccess : const Color(0xFFFF6767)),
+                      _buildMetaRow('Punch Action', isCheckIn ? 'Check-In' : 'Check-Out', isCheckIn ? AppTheme.eventxproSuccess : AppTheme.eventxproDanger),
                       const SizedBox(height: 8),
                       _buildMetaRow('Gate / Entrance', 'Gate #${record.entranceId} (${record.entranceLocation.isNotEmpty ? record.entranceLocation : widget.sessionTitle})', Colors.white),
                       const SizedBox(height: 8),
@@ -254,7 +254,7 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
                       const SizedBox(height: 8),
                       _buildMetaRow('Server Sync Status', record.isSynced ? 'Synced to Server' : 'Local SQLite Pending', record.isSynced ? AppTheme.eventxproSuccess : AppTheme.accentOrange),
                       const SizedBox(height: 8),
-                      _buildMetaRow('Registration Status', record.isNotExist ? 'Unregistered' : 'Registered', record.isNotExist ? const Color(0xFFFF6767) : AppTheme.eventxproSuccess),
+                      _buildMetaRow('Registration Status', record.isNotExist ? 'Unregistered' : 'Registered', record.isNotExist ? AppTheme.eventxproDanger : AppTheme.eventxproSuccess),
                     ],
                   ),
                 ),
@@ -889,19 +889,19 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
                         decoration: BoxDecoration(
                           color: isCheckIn
                               ? AppTheme.eventxproSuccess.withValues(alpha: 0.15)
-                              : const Color(0xFFFF6767).withValues(alpha: 0.15),
+                              : AppTheme.eventxproDanger.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
                             color: isCheckIn
                                 ? AppTheme.eventxproSuccess.withValues(alpha: 0.4)
-                                : const Color(0xFFFF6767).withValues(alpha: 0.4),
+                                : AppTheme.eventxproDanger.withValues(alpha: 0.4),
                             width: 0.8,
                           ),
                         ),
                         child: Text(
                           isCheckIn ? 'Check-in' : 'Check-out',
                           style: TextStyle(
-                            color: isCheckIn ? AppTheme.eventxproSuccess : const Color(0xFFFF6767),
+                            color: isCheckIn ? AppTheme.eventxproSuccess : AppTheme.eventxproDanger,
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                           ),

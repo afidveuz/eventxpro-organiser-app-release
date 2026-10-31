@@ -303,184 +303,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     return punchTime.trim();
   }
 
-  void _showManualEntrySheet() {
-    HapticFeedback.selectionClick();
-    final textController = TextEditingController();
 
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) {
-        return Container(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
-          ),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1B2130),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border.all(
-              color: AppTheme.eventxproAccent.withValues(alpha: 0.4),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.6),
-                blurRadius: 32,
-                offset: const Offset(0, -6),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Sheet Handle
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-
-              // Title
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppTheme.eventxproAccent.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.keyboard_outlined,
-                      color: AppTheme.eventxproAccent,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Manual Ticket Entry',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Enter or paste the ticket QR token code to manually validate admission.',
-                style: TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 12.5,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Input TextField
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF131722),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppTheme.eventxproAccent.withValues(alpha: 0.5),
-                    width: 1.2,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: textController,
-                        autofocus: true,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.6,
-                        ),
-                        decoration: const InputDecoration(
-                          hintText: 'e.g. TICKET-98234-A7',
-                          hintStyle: TextStyle(
-                            color: Colors.white38,
-                            fontSize: 14,
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          border: InputBorder.none,
-                        ),
-                        onSubmitted: (val) {
-                          if (val.trim().isNotEmpty) {
-                            Navigator.of(sheetCtx).pop();
-                            context
-                                .read<ScannerBloc>()
-                                .add(ScannerRawBarcodeReceived(val.trim()));
-                          }
-                        },
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Paste from clipboard',
-                      icon: const Icon(Icons.paste_rounded, color: Colors.white70),
-                      onPressed: () async {
-                        final data = await Clipboard.getData('text/plain');
-                        if (data?.text != null) {
-                          textController.text = data!.text!.trim();
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Submit Button
-              ElevatedButton(
-                onPressed: () {
-                  final code = textController.text.trim();
-                  if (code.isNotEmpty) {
-                    Navigator.of(sheetCtx).pop();
-                    context
-                        .read<ScannerBloc>()
-                        .add(ScannerRawBarcodeReceived(code));
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.eventxproAccent,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'Verify Ticket',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   @override
   void dispose() {
@@ -523,7 +346,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                 ),
               ),
 
-              // Bottom Dock: Mode switch, flashlight, flip, manual entry
+              // Bottom Dock: Mode switch, flashlight, flip
               _buildControlDock(),
 
               // Sleek Telemetry Footer
@@ -2373,30 +2196,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             ),
           ),
 
-          const SizedBox(width: 14),
 
-          // Manual Ticket Code Input Button
-          InkWell(
-            onTap: _showManualEntrySheet,
-            borderRadius: BorderRadius.circular(50),
-            child: Container(
-              height: 50,
-              width: 50,
-              decoration: BoxDecoration(
-                color: const Color(0xFF222838),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.25),
-                  width: 1.5,
-                ),
-              ),
-              child: const Icon(
-                Icons.keyboard_alt_outlined,
-                size: 22,
-                color: Colors.white,
-              ),
-            ),
-          ),
         ],
       ),
     );

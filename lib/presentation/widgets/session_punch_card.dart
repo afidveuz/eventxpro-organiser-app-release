@@ -351,10 +351,6 @@ class _SessionPunchCardState extends State<SessionPunchCard>
       decoration: BoxDecoration(
         color: const Color(0xFF181F2E).withValues(alpha: 0.70),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.12),
-          width: 1,
-        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -440,12 +436,12 @@ class _SessionPunchCardState extends State<SessionPunchCard>
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.login_rounded, size: 12, color: Color(0xFF10B981)),
+                          const Icon(Icons.login_rounded, size: 12, color: Color(0xFF059669)),
                           const SizedBox(width: 5),
                           const Text(
                             'Total In: ',
                             style: TextStyle(
-                              color: Color(0xFF34D399),
+                              color: Color(0xFF10B981),
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
@@ -457,7 +453,7 @@ class _SessionPunchCardState extends State<SessionPunchCard>
                               child: CircularProgressIndicator(
                                 strokeWidth: 1.5,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Color(0xFF10B981),
+                                  Color(0xFF059669),
                                 ),
                               ),
                             )
@@ -480,12 +476,12 @@ class _SessionPunchCardState extends State<SessionPunchCard>
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.logout_rounded, size: 12, color: Color(0xFFF43F5E)),
+                          const Icon(Icons.logout_rounded, size: 12, color: Color(0xFFBE123C)),
                           const SizedBox(width: 5),
                           const Text(
                             'Total Out: ',
                             style: TextStyle(
-                              color: Color(0xFFFB7185),
+                              color: Color(0xFFE11D48),
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
@@ -497,7 +493,7 @@ class _SessionPunchCardState extends State<SessionPunchCard>
                               child: CircularProgressIndicator(
                                 strokeWidth: 1.5,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Color(0xFFF43F5E),
+                                  Color(0xFFBE123C),
                                 ),
                               ),
                             )
@@ -674,10 +670,6 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
       decoration: BoxDecoration(
         color: const Color(0xFF181F2E).withValues(alpha: 0.70),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.12),
-          width: 1,
-        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -702,7 +694,6 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
                   decoration: BoxDecoration(
                     color: AppTheme.eventxproAccent.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: AppTheme.eventxproAccent.withValues(alpha: 0.5), width: 0.8),
                   ),
                   child: Text(
                     widget.agendaType!.toUpperCase(),
@@ -796,12 +787,12 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.login_rounded, size: 12, color: Color(0xFF10B981)),
+                          const Icon(Icons.login_rounded, size: 12, color: Color(0xFF059669)),
                           const SizedBox(width: 5),
                           const Text(
                             'Total In: ',
                             style: TextStyle(
-                              color: Color(0xFF34D399),
+                              color: Color(0xFF10B981),
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
@@ -813,7 +804,7 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
                               child: CircularProgressIndicator(
                                 strokeWidth: 1.5,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Color(0xFF10B981),
+                                  Color(0xFF059669),
                                 ),
                               ),
                             )
@@ -836,12 +827,12 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.logout_rounded, size: 12, color: Color(0xFFF43F5E)),
+                          const Icon(Icons.logout_rounded, size: 12, color: Color(0xFFBE123C)),
                           const SizedBox(width: 5),
                           const Text(
                             'Total Out: ',
                             style: TextStyle(
-                              color: Color(0xFFFB7185),
+                              color: Color(0xFFE11D48),
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
@@ -853,7 +844,7 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
                               child: CircularProgressIndicator(
                                 strokeWidth: 1.5,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Color(0xFFF43F5E),
+                                  Color(0xFFBE123C),
                                 ),
                               ),
                             )
@@ -905,12 +896,16 @@ class _PunchButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isCheckIn = label.toUpperCase().contains('IN');
-    // High-contrast vibrant colors: Emerald Green for Check-In, Ruby Rose-Red for Check-Out
-    final Color primaryColor = isCheckIn ? const Color(0xFF10B981) : const Color(0xFFF43F5E);
+    // Darker rich tones for Check-In and Check-Out
+    final Color primaryColor = isCheckIn
+        ? const Color(0xFF047857) // Deep Dark Emerald Green
+        : const Color(0xFF9F1239); // Deep Dark Crimson / Ruby Red
     final Color bgColor = isCheckIn
-        ? const Color(0xFF082F1E).withValues(alpha: 0.85)
-        : const Color(0xFF381018).withValues(alpha: 0.85);
-    final Color textColor = isCheckIn ? const Color(0xFFD1FAE5) : const Color(0xFFFFE4E6);
+        ? const Color(0xFF02261C) // Deep Dark Green background
+        : const Color(0xFF26050B); // Deep Dark Red background
+    final Color textColor = isCheckIn
+        ? const Color(0xFF10B981) // Darker rich Emerald Green
+        : const Color(0xFFE11D48); // Darker rich Crimson Red
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -924,10 +919,6 @@ class _PunchButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(
-              color: primaryColor.withValues(alpha: 0.50),
-              width: 1.2,
-            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,

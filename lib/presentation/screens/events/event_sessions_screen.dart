@@ -313,10 +313,6 @@ class _EventSessionsScreenState extends State<EventSessionsScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppTheme.brandGradientStart,
-                    width: 2,
-                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.25),

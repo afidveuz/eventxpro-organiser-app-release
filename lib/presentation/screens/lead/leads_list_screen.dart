@@ -15,12 +15,14 @@ class LeadsListScreen extends StatefulWidget {
   final int? eventId;
   final String? eventName;
   final bool isRootTab;
+  final VoidCallback? onOpenScanLead;
 
   const LeadsListScreen({
     super.key,
     this.eventId,
     this.eventName,
     this.isRootTab = false,
+    this.onOpenScanLead,
   });
 
   @override
@@ -173,6 +175,10 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
   }
 
   Future<void> _openCaptureScreen() async {
+    if (widget.onOpenScanLead != null) {
+      widget.onOpenScanLead!();
+      return;
+    }
     final captured = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -272,10 +278,9 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
                   )
                 : Container(
                     padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: AppTheme.surfaceElevated,
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppTheme.surfaceBorder),
                     ),
                     child: const Icon(
                       Icons.file_download_outlined,
@@ -343,9 +348,6 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: const BoxDecoration(
         color: AppTheme.surface,
-        border: Border(
-          bottom: BorderSide(color: AppTheme.surfaceBorder),
-        ),
       ),
       child: Column(
         children: [
@@ -354,7 +356,6 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
             decoration: BoxDecoration(
               color: AppTheme.surfaceElevated,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppTheme.surfaceBorder),
             ),
             child: TextField(
               controller: _searchController,
@@ -403,7 +404,6 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
                 decoration: BoxDecoration(
                   color: AppTheme.accentIndigo.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppTheme.accentIndigo.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -445,10 +445,6 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
         decoration: BoxDecoration(
           color: isSelected ? color.withValues(alpha: 0.2) : AppTheme.surfaceElevated,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? color : AppTheme.surfaceBorder,
-            width: isSelected ? 1.5 : 1,
-          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -528,10 +524,9 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: AppTheme.surfaceElevated,
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppTheme.surfaceBorder),
                 ),
                 child: const Icon(Icons.badge_outlined, size: 48, color: AppTheme.textMuted),
               ),

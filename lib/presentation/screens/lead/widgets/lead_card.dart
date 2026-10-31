@@ -46,7 +46,6 @@ class LeadCard extends StatelessWidget {
   Widget _buildLeadTypeBadge(String type) {
     final upper = type.toUpperCase();
     Color bg;
-    Color border;
     Color text;
     IconData icon;
     String label;
@@ -54,14 +53,12 @@ class LeadCard extends StatelessWidget {
     switch (upper) {
       case 'HOT':
         bg = const Color(0xFFFF3B30).withValues(alpha: 0.15);
-        border = const Color(0xFFFF3B30).withValues(alpha: 0.5);
         text = const Color(0xFFFF5252);
         icon = Icons.local_fire_department_rounded;
         label = 'HOT';
         break;
       case 'WARM':
         bg = const Color(0xFFFF9500).withValues(alpha: 0.15);
-        border = const Color(0xFFFF9500).withValues(alpha: 0.5);
         text = const Color(0xFFFFA726);
         icon = Icons.wb_sunny_rounded;
         label = 'WARM';
@@ -69,7 +66,6 @@ class LeadCard extends StatelessWidget {
       case 'COLD':
       default:
         bg = const Color(0xFF007AFF).withValues(alpha: 0.15);
-        border = const Color(0xFF007AFF).withValues(alpha: 0.5);
         text = const Color(0xFF42A5F5);
         icon = Icons.ac_unit_rounded;
         label = 'COLD';
@@ -81,7 +77,6 @@ class LeadCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: border, width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -112,10 +107,6 @@ class LeadCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF131722),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.08),
-          width: 1,
-        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.3),
@@ -138,12 +129,8 @@ class LeadCard extends StatelessWidget {
                 Container(
                   width: 50,
                   height: 50,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppTheme.brandGradientStart.withValues(alpha: 0.5),
-                      width: 1.5,
-                    ),
                   ),
                   child: ClipOval(
                     child: photoUrl != null

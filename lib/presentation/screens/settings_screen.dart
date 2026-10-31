@@ -33,10 +33,12 @@ import 'lead/leads_list_screen.dart';
 /// - Gate and device hardware settings
 class SettingsScreen extends StatefulWidget {
   final bool isRootTab;
+  final VoidCallback? onOpenScanLead;
 
   const SettingsScreen({
     super.key,
     this.isRootTab = false,
+    this.onOpenScanLead,
   });
 
   @override
@@ -842,6 +844,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               size: 14,
             ),
             onTap: () {
+              if (widget.onOpenScanLead != null) {
+                widget.onOpenScanLead!();
+                return;
+              }
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const LeadCaptureScreen()),

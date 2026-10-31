@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/adapters/simulated_hardware_adapter.dart';
@@ -11,6 +12,7 @@ import 'settings_screen.dart';
 
 enum NavigationTab {
   home,
+  scanLead,
   leads,
   settings,
 }
@@ -44,18 +46,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   void _selectTab(NavigationTab tab) {
     if (_currentTab != tab) {
+      HapticFeedback.lightImpact();
       setState(() {
         _currentTab = tab;
       });
     }
-  }
-
-  void _openLeadScanner() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const LeadCaptureScreen(),
-      ),
-    );
   }
 
   @override
@@ -65,8 +60,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     return ValueListenableBuilder<bool>(
       valueListenable: storage.leadCapturePermissionNotifier,
       builder: (context, hasLeadPermission, _) {
-        // Fallback: If user was on leads tab but permission was revoked, switch to home
-        if (!hasLeadPermission && _currentTab == NavigationTab.leads) {
+        // Fallback: If user was on leads/scanLead tab but permission was revoked, switch to home
+        if (!hasLeadPermission &&
+            (_currentTab == NavigationTab.leads || _currentTab == NavigationTab.scanLead)) {
           _currentTab = NavigationTab.home;
         }
 
@@ -78,9 +74,21 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             onOpenSettings: () => _selectTab(NavigationTab.settings),
             onOpenLeads: hasLeadPermission ? () => _selectTab(NavigationTab.leads) : null,
           ),
-          if (hasLeadPermission)
-            LeadsListScreen(isRootTab: true),
-          SettingsScreen(isRootTab: true),
+          if (hasLeadPermission) ...[
+            LeadCaptureScreen(
+              isRootTab: true,
+              isActive: _currentTab == NavigationTab.scanLead,
+              onOpenLeads: () => _selectTab(NavigationTab.leads),
+            ),
+            LeadsListScreen(
+              isRootTab: true,
+              onOpenScanLead: () => _selectTab(NavigationTab.scanLead),
+            ),
+          ],
+          SettingsScreen(
+            isRootTab: true,
+            onOpenScanLead: hasLeadPermission ? () => _selectTab(NavigationTab.scanLead) : null,
+          ),
         ];
 
         // Resolve integer index inside the IndexedStack
@@ -90,23 +98,25 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             case NavigationTab.home:
               activeStackIndex = 0;
               break;
-            case NavigationTab.leads:
+            case NavigationTab.scanLead:
               activeStackIndex = 1;
               break;
-            case NavigationTab.settings:
+            case NavigationTab.leads:
               activeStackIndex = 2;
+              break;
+            case NavigationTab.settings:
+              activeStackIndex = 3;
               break;
           }
         } else {
           switch (_currentTab) {
             case NavigationTab.home:
+            case NavigationTab.scanLead:
+            case NavigationTab.leads:
               activeStackIndex = 0;
               break;
             case NavigationTab.settings:
               activeStackIndex = 1;
-              break;
-            case NavigationTab.leads:
-              activeStackIndex = 0;
               break;
           }
         }
@@ -135,7 +145,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget _buildBottomBar(bool hasLeadPermission) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF131722).withValues(alpha: 0.98),
+        color: const Color(0xFF10141E).withValues(alpha: 0.98),
         border: Border(
           top: BorderSide(
             color: Colors.white.withValues(alpha: 0.08),
@@ -144,16 +154,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
+            color: Colors.black.withValues(alpha: 0.45),
+            blurRadius: 20,
+            offset: const Offset(0, -6),
           ),
         ],
       ),
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           child: hasLeadPermission
               ? _buildLeadEnabledBar()
               : _buildTwoItemBar(),
@@ -174,7 +184,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           isSelected: _currentTab == NavigationTab.home,
           onTap: () => _selectTab(NavigationTab.home),
         ),
-        _buildActionScanButton(),
+        _buildNavItem(
+          icon: Icons.qr_code_scanner_outlined,
+          activeIcon: Icons.qr_code_scanner_rounded,
+          label: 'Scan Lead',
+          isSelected: _currentTab == NavigationTab.scanLead,
+          onTap: () => _selectTab(NavigationTab.scanLead),
+        ),
         _buildNavItem(
           icon: Icons.badge_outlined,
           activeIcon: Icons.badge_rounded,
@@ -194,25 +210,29 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   /// 2-item clean bar when Lead Capture is disabled (Home & Settings)
+  /// Full-width layout with generous, symmetrically spaced touch areas
   Widget _buildTwoItemBar() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        _buildNavItem(
-          icon: Icons.home_outlined,
-          activeIcon: Icons.home_rounded,
-          label: 'Home',
-          isSelected: _currentTab == NavigationTab.home,
-          onTap: () => _selectTab(NavigationTab.home),
-        ),
-        _buildNavItem(
-          icon: Icons.settings_outlined,
-          activeIcon: Icons.settings_rounded,
-          label: 'Settings',
-          isSelected: _currentTab == NavigationTab.settings,
-          onTap: () => _selectTab(NavigationTab.settings),
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildNavItem(
+            icon: Icons.home_outlined,
+            activeIcon: Icons.home_rounded,
+            label: 'Home',
+            isSelected: _currentTab == NavigationTab.home,
+            onTap: () => _selectTab(NavigationTab.home),
+          ),
+          _buildNavItem(
+            icon: Icons.settings_outlined,
+            activeIcon: Icons.settings_rounded,
+            label: 'Settings',
+            isSelected: _currentTab == NavigationTab.settings,
+            onTap: () => _selectTab(NavigationTab.settings),
+          ),
+        ],
+      ),
     );
   }
 
@@ -223,100 +243,56 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    final activeColor = AppTheme.brandGradientStart; // #C10067
-    final inactiveColor = Colors.white.withValues(alpha: 0.45);
+    final activeColor = AppTheme.brandGradientStart;
+    final inactiveColor = Colors.white.withValues(alpha: 0.42);
 
     return Expanded(
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
+        child: InkResponse(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          containedInkWell: true,
+          highlightShape: BoxShape.rectangle,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: activeColor.withValues(alpha: 0.12),
+          highlightColor: Colors.white.withValues(alpha: 0.04),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.symmetric(vertical: 6),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? activeColor.withValues(alpha: 0.16)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                // Micro-scale icon transition
+                AnimatedScale(
+                  scale: isSelected ? 1.15 : 1.0,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutBack,
                   child: Icon(
                     isSelected ? activeIcon : icon,
-                    size: 21,
+                    size: 22,
                     color: isSelected ? activeColor : inactiveColor,
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 4),
+                // Smooth typography transition
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOut,
                   style: TextStyle(
                     color: isSelected ? Colors.white : inactiveColor,
-                    fontSize: 10.5,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                    fontSize: isSelected ? 11 : 10.5,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                     letterSpacing: 0.2,
+                  ),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  /// Distinct center quick-action scan button (matching React Native center QR button)
-  Widget _buildActionScanButton() {
-    return Expanded(
-      child: GestureDetector(
-        onTap: _openLeadScanner,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                gradient: AppTheme.brandGradient,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.25),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.brandGradientStart.withValues(alpha: 0.45),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.qr_code_scanner_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
-            ),
-            const SizedBox(height: 3),
-            const Text(
-              'Scan Lead',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
         ),
       ),
     );

@@ -290,10 +290,6 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppTheme.brandGradientStart,
-                    width: 2,
-                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.25),
@@ -398,15 +394,11 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF171D2B).withValues(alpha: 0.85),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.12),
-          width: 1.2,
-        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -488,10 +480,6 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        width: 0.8,
-                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -569,10 +557,6 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
           decoration: BoxDecoration(
             color: const Color(0xFF10B981).withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: const Color(0xFF10B981).withValues(alpha: 0.65),
-              width: 1.4,
-            ),
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFF10B981).withValues(alpha: 0.15),
@@ -589,10 +573,6 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF10B981).withValues(alpha: 0.25),
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.8),
-                    width: 1.2,
-                  ),
                 ),
                 child: const Center(
                   child: Icon(
@@ -755,10 +735,6 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.12),
-                width: 1,
-              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -802,12 +778,8 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
     final tile = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF161C28).withValues(alpha: 0.75),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.12),
-          width: 1,
-        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -963,10 +935,6 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.10),
-              width: 1,
-            ),
           ),
           child: Row(
             children: [

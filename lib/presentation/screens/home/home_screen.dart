@@ -21,6 +21,44 @@ import '../kiosk_scanner_screen.dart';
 import '../offline/offline_sessions_screen.dart';
 import '../../widgets/session_punch_card.dart';
 
+/// Custom painter that renders a modern tech dot-grid pattern
+/// with subtle micro-cross accents that interact with atmospheric background glow orbs.
+class _HomeScreenPatternPainter extends CustomPainter {
+  const _HomeScreenPatternPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final dotPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.04)
+      ..style = PaintingStyle.fill;
+
+    final crossPaint = Paint()
+      ..color = AppTheme.brandGradientStart.withValues(alpha: 0.08)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    const double spacing = 26.0;
+    const double dotRadius = 1.0;
+
+    int rowIndex = 0;
+    for (double y = spacing / 2; y < size.height; y += spacing, rowIndex++) {
+      int colIndex = 0;
+      for (double x = spacing / 2; x < size.width; x += spacing, colIndex++) {
+        // Decorative micro-cross at regular intervals (every 6th cell)
+        if (rowIndex % 6 == 0 && colIndex % 6 == 0) {
+          canvas.drawLine(Offset(x - 3, y), Offset(x + 3, y), crossPaint);
+          canvas.drawLine(Offset(x, y - 3), Offset(x, y + 3), crossPaint);
+        } else {
+          canvas.drawCircle(Offset(x, y), dotRadius, dotPaint);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 /// Cached parsed sections for high-performance zero-delay expansion
 class _ParsedEventSections {
   final List<Map<String, dynamic>> entranceList;
@@ -527,24 +565,128 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. Background image matching React Native eventxproorganiser
+          // 1. Base background image
           Positioned.fill(
             child: Image.asset('assets/images/bg.png', fit: BoxFit.cover),
           ),
 
-          // 2. Smooth subtle fade overlay (reduced opacity)
+          // 2. Multi-point Aurora Glow Orbs (Unique Color Pattern Atmosphere)
+          // Top-right signature Magenta/Pink orb
+          Positioned(
+            top: -60,
+            right: -50,
+            child: IgnorePointer(
+              child: Container(
+                width: 280,
+                height: 280,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFFC10067).withValues(alpha: 0.28),
+                      const Color(0xFFF43F5E).withValues(alpha: 0.12),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.45, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Top-left Electric Indigo / Violet orb
+          Positioned(
+            top: 100,
+            left: -80,
+            child: IgnorePointer(
+              child: Container(
+                width: 290,
+                height: 290,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFF4F46E5).withValues(alpha: 0.24),
+                      const Color(0xFF7C3AED).withValues(alpha: 0.10),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.45, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Mid-right Cyber Cyan shimmer orb
+          Positioned(
+            top: 380,
+            right: -70,
+            child: IgnorePointer(
+              child: Container(
+                width: 240,
+                height: 240,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFF0EA5E9).withValues(alpha: 0.18),
+                      const Color(0xFF06B6D4).withValues(alpha: 0.06),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Bottom-left Deep Navy & Purple pool
+          Positioned(
+            bottom: -50,
+            left: -50,
+            child: IgnorePointer(
+              child: Container(
+                width: 320,
+                height: 320,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFF0C1A52).withValues(alpha: 0.45),
+                      const Color(0xFF312E81).withValues(alpha: 0.20),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // 3. Geometric Tech Dot-Grid Pattern overlay
           Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFF131722).withValues(alpha: 0.35),
-                    AppTheme.eventxproBg.withValues(alpha: 0.15),
-                    const Color(0xFF0D111A).withValues(alpha: 0.45),
-                  ],
-                  stops: const [0.0, 0.45, 1.0],
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: const _HomeScreenPatternPainter(),
+              ),
+            ),
+          ),
+
+          // 4. Subtle contrast & vignette overlay
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFF131722).withValues(alpha: 0.35),
+                      Colors.transparent,
+                      const Color(0xFF0D111A).withValues(alpha: 0.50),
+                    ],
+                    stops: const [0.0, 0.45, 1.0],
+                  ),
                 ),
               ),
             ),
@@ -601,98 +743,104 @@ class _HomeScreenState extends State<HomeScreen> {
   // ── Top Header / App Bar ─────────────────────────────────────────
   Widget _buildTopBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
       decoration: BoxDecoration(
-        color: const Color(0xFF131722).withValues(alpha: 0.50),
-        border: Border(
-          bottom: BorderSide(
-            color: Colors.white.withValues(alpha: 0.08),
-            width: 1,
-          ),
-        ),
+        color: const Color(0xFF131722).withValues(alpha: 0.70),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // EventXPro Logo
-          Image.asset(
-            'assets/images/logo.png',
-            height: 28,
-            fit: BoxFit.contain,
-          ),
-          const SizedBox(width: 10),
-
-          // Offline status chip
-          if (_isOffline)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF3B30).withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFFF3B30).withValues(alpha: 0.5),
-                  width: 0.8,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+            child: Row(
+              children: [
+                // EventXPro Logo
+                Image.asset(
+                  'assets/images/logo.png',
+                  height: 28,
+                  fit: BoxFit.contain,
                 ),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.wifi_off_rounded,
-                    size: 11,
-                    color: Color(0xFFFF5252),
-                  ),
-                  SizedBox(width: 4),
-                  Text(
-                    'Offline',
-                    style: TextStyle(
-                      color: Color(0xFFFF5252),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 10.5,
+                const SizedBox(width: 10),
+
+                // Offline status chip
+                if (_isOffline)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF3B30).withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.wifi_off_rounded,
+                          size: 11,
+                          color: Color(0xFFFF5252),
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Offline',
+                          style: TextStyle(
+                            color: Color(0xFFFF5252),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
 
-          const Spacer(),
+                const Spacer(),
 
-          // Refresh Button
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _isLoading
-                  ? null
-                  : () => _handleManualRefresh(silent: false),
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.06),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
-                    width: 1,
+                // Refresh Button
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _isLoading
+                        ? null
+                        : () => _handleManualRefresh(silent: false),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.06),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 15,
+                                height: 15,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppTheme.eventxproAccent,
+                                  ),
+                                ),
+                              )
+                            : const Icon(
+                                Icons.refresh_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                      ),
+                    ),
                   ),
                 ),
-                child: Center(
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 15,
-                          height: 15,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppTheme.eventxproAccent,
-                            ),
-                          ),
-                        )
-                      : const Icon(
-                          Icons.refresh_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                ),
+              ],
+            ),
+          ),
+          // Subtle brand accent hairline at the bottom of top bar
+          Container(
+            height: 1.5,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppTheme.brandGradientStart.withValues(alpha: 0.50),
+                  AppTheme.brandGradientEnd.withValues(alpha: 0.40),
+                  Colors.transparent,
+                ],
               ),
             ),
           ),
@@ -701,30 +849,40 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Metrics Count Cards (Compact with unified icon color & transparency) ──
+  // ── Metrics Count Cards (Unique colorful themes per metric) ──
   Widget _buildCountCardsRow() {
-    const iconColor = AppTheme.brandGradientStart;
-
     return Row(
       children: [
-        // Total Events Card
+        // Total Events Card (Indigo/Violet Accent)
         Expanded(
           child: _buildMetricCard(
             title: 'ACTIVE EVENTS',
             count: _totalEvents,
             icon: Icons.event_available_rounded,
-            iconColor: iconColor,
+            iconColor: const Color(0xFF818CF8),
+            iconBgColor: const Color(0xFF6366F1).withValues(alpha: 0.18),
+            gradientColors: [
+              const Color(0xFF1B1E38).withValues(alpha: 0.90),
+              const Color(0xFF131526).withValues(alpha: 0.90),
+            ],
+            shadowColor: const Color(0xFF4F46E5).withValues(alpha: 0.15),
           ),
         ),
         const SizedBox(width: 10),
 
-        // Scanned Users Card (tappable to view offline records)
+        // Scanned Users Card (Magenta/Rose Accent)
         Expanded(
           child: _buildMetricCard(
             title: 'TOTAL SCANS',
             count: _totalScannedCount,
             icon: Icons.qr_code_scanner_rounded,
-            iconColor: iconColor,
+            iconColor: const Color(0xFFFB7185),
+            iconBgColor: const Color(0xFFF43F5E).withValues(alpha: 0.18),
+            gradientColors: [
+              const Color(0xFF2C1525).withValues(alpha: 0.90),
+              const Color(0xFF1A0F19).withValues(alpha: 0.90),
+            ],
+            shadowColor: const Color(0xFFE11D48).withValues(alpha: 0.15),
             isClickable: true,
             onTap: () async {
               await Navigator.of(context).push(
@@ -745,21 +903,29 @@ class _HomeScreenState extends State<HomeScreen> {
     required int count,
     required IconData icon,
     required Color iconColor,
+    required Color iconBgColor,
+    required List<Color> gradientColors,
+    required Color shadowColor,
     bool isClickable = false,
     VoidCallback? onTap,
   }) {
     final card = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF161C28).withValues(alpha: 0.65),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.10),
-          width: 1,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: gradientColors,
         ),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
+            color: shadowColor,
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -771,7 +937,7 @@ class _HomeScreenState extends State<HomeScreen> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.14),
+              color: iconBgColor,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(child: Icon(icon, size: 16, color: iconColor)),
@@ -800,7 +966,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white.withValues(alpha: 0.55),
+                    color: Colors.white.withValues(alpha: 0.65),
                     letterSpacing: 0.3,
                   ),
                 ),
@@ -811,7 +977,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Icon(
               Icons.chevron_right_rounded,
               size: 16,
-              color: Colors.white.withValues(alpha: 0.35),
+              color: iconColor.withValues(alpha: 0.70),
             ),
         ],
       ),
@@ -849,10 +1015,6 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           color: const Color(0xFFFF9800).withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: const Color(0xFFFF9800).withValues(alpha: 0.35),
-            width: 1,
-          ),
         ),
         child: const Row(
           children: [
@@ -902,15 +1064,41 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const Spacer(),
-        if (_eventList.isNotEmpty)
-          Text(
-            '${_eventList.length} ${_eventList.length == 1 ? 'Event' : 'Events'} Assigned',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.5),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppTheme.brandGradientStart.withValues(alpha: 0.18),
+                AppTheme.brandGradientEnd.withValues(alpha: 0.18),
+              ],
             ),
+            borderRadius: BorderRadius.circular(8),
           ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.brandGradientStart,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                '$_totalEvents ACTIVE',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -928,7 +1116,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
         ),
         child: const Center(
           child: Column(
@@ -970,7 +1157,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
         ),
         child: Column(
           children: [
@@ -980,7 +1166,6 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.05),
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: const Icon(
                 Icons.event_busy_rounded,
@@ -1013,9 +1198,8 @@ class _HomeScreenState extends State<HomeScreen> {
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.white,
-                side: BorderSide(
-                  color: AppTheme.brandGradientStart.withValues(alpha: 0.6),
-                ),
+                side: BorderSide.none,
+                backgroundColor: Colors.white.withValues(alpha: 0.08),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -1069,12 +1253,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isExpanded
-              ? AppTheme.brandGradientStart.withValues(alpha: 0.45)
-              : Colors.white.withValues(alpha: 0.12),
-          width: 1.2,
-        ),
         boxShadow: [
           BoxShadow(
             color: isExpanded
@@ -1126,12 +1304,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               alpha: 0.15,
                             ),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: AppTheme.brandGradientStart.withValues(
-                                alpha: 0.35,
-                              ),
-                              width: 0.8,
-                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -1167,10 +1339,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.06),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.08),
-                                width: 0.8,
-                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -1263,11 +1431,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                     alpha: 0.15,
                                   ),
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: AppTheme.brandGradientStart
-                                        .withValues(alpha: 0.45),
-                                    width: 1,
-                                  ),
                                 ),
                                 child: const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1339,14 +1502,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ? Colors.white.withValues(alpha: 0.08)
                                       : null,
                                   borderRadius: BorderRadius.circular(10),
-                                  border: isExpanded
-                                      ? Border.all(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.18,
-                                          ),
-                                          width: 1,
-                                        )
-                                      : null,
                                   boxShadow: isExpanded
                                       ? null
                                       : [
@@ -1418,12 +1573,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: const Color(0xFF11151E).withValues(alpha: 0.72),
                 borderRadius: const BorderRadius.vertical(
                   bottom: Radius.circular(15),
-                ),
-                border: Border(
-                  top: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.08),
-                    width: 1,
-                  ),
                 ),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -1861,7 +2010,6 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: BoxDecoration(
                 color: accentColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: accentColor.withValues(alpha: 0.25)),
               ),
               child: Text(
                 '$count Available',

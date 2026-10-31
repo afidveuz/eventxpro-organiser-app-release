@@ -30,9 +30,9 @@ class AppTheme {
   static const Color eventxproNavy = Color(0xFF0C1A52);
   static const Color eventxproAccent = Color(0xFFC10067); // Signature Magenta Pink
   static const Color eventxproCardBg = Color(0xFFFFFFFF);
-  static const Color eventxproSuccess = Color(0xFF8DFFBB); // Check-in Green
-  static const Color eventxproSuccessDark = Color(0xFF39BD76);
-  static const Color eventxproDanger = Color(0xFFFF6767); // Check-out Red
+  static const Color eventxproSuccess = Color(0xFF10B981); // Darker rich Check-in Green
+  static const Color eventxproSuccessDark = Color(0xFF047857); // Deep dark Check-in Green
+  static const Color eventxproDanger = Color(0xFFE11D48); // Darker rich Check-out Red
   static const Color eventxproBorder = Color(0x66FFFFFF); // rgba(255, 255, 255, 0.40)
   static const Color eventxproDarkText = Color(0xFF1E1638);
 
