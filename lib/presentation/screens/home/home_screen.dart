@@ -588,80 +588,10 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. Base background image with hardware-accelerated fade-in entrance
-          Positioned.fill(
-            child: const FadeInBackgroundImage(
-              imagePath: 'assets/images/bg.png',
-              duration: Duration(milliseconds: 800),
-              curve: Curves.easeOutCubic,
-            ),
-          ),
+          // Screen background (fade-in image, aurora glow orbs, contrast overlay)
+          const AppBackgroundLayer(),
 
-          // 2. Multi-point Aurora Glow Orbs for ambient depth
-          Positioned(
-            top: -60,
-            right: -50,
-            child: IgnorePointer(
-              child: Container(
-                width: 280,
-                height: 280,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      const Color(0xFFC10067).withValues(alpha: 0.20),
-                      const Color(0xFFF43F5E).withValues(alpha: 0.08),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.45, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 100,
-            left: -80,
-            child: IgnorePointer(
-              child: Container(
-                width: 290,
-                height: 290,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      const Color(0xFF4F46E5).withValues(alpha: 0.18),
-                      const Color(0xFF7C3AED).withValues(alpha: 0.08),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.45, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // 3. Subtle contrast & fade overlay
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      const Color(0xFF0B0F19).withValues(alpha: 0.65),
-                      const Color(0xFF0B0F19).withValues(alpha: 0.50),
-                      const Color(0xFF0B0F19).withValues(alpha: 0.85),
-                    ],
-                    stops: const [0.0, 0.45, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // 4. Foreground content
+          // Foreground content
           SafeArea(
             child: Column(
               children: [

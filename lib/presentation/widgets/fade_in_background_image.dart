@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+export 'app_background_layer.dart';
+
 /// A reusable widget that displays an asset background image with a smooth,
 /// hardware-accelerated fade-in entrance animation.
 ///

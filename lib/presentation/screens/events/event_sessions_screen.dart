@@ -253,29 +253,7 @@ class _EventSessionsScreenState extends State<EventSessionsScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background Image with fade-in entrance
-          Positioned.fill(
-            child: const FadeInBackgroundImage(
-              imagePath: 'assets/images/bg.png',
-              duration: Duration(milliseconds: 800),
-              curve: Curves.easeOutCubic,
-            ),
-          ),
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFF131722).withValues(alpha: 0.35),
-                    AppTheme.eventxproBg.withValues(alpha: 0.20),
-                    const Color(0xFF0D111A).withValues(alpha: 0.50),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          const AppBackgroundLayer(),
           SafeArea(
             child: Column(
               children: [

@@ -104,26 +104,52 @@ class _SplashScreenState extends State<SplashScreen> {
               children: [
                 Hero(
                   tag: 'app_logo',
-                  child: Image.asset(
-                    'assets/images/logo.png',
-                    width: 180,
-                    height: 180,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) => const Icon(
-                      Icons.qr_code_scanner_rounded,
-                      size: 96,
-                      color: Colors.white,
-                    ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Subtle ambient glow behind logo
+                      Container(
+                        width: 150,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFC10067).withValues(alpha: 0.22),
+                              blurRadius: 40,
+                              spreadRadius: 6,
+                            ),
+                            BoxShadow(
+                              color: const Color(0xFF7C3AED).withValues(alpha: 0.16),
+                              blurRadius: 50,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Image.asset(
+                        'assets/images/logo.png',
+                        width: 180,
+                        height: 180,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) => const Icon(
+                          Icons.qr_code_scanner_rounded,
+                          size: 96,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 )
-                    .animate()
-                    .scale(
-                      duration: 800.ms,
-                      curve: Curves.easeOutBack,
-                      begin: const Offset(0.6, 0.6),
-                      end: const Offset(1.0, 1.0),
+                    .animate(onPlay: (controller) => controller.repeat(reverse: true))
+                    .scaleXY(
+                      begin: 0.80,
+                      end: 1.20,
+                      duration: 2000.ms,
+                      curve: Curves.easeInOutCubic,
                     )
-                    .fadeIn(duration: 600.ms),
+                    .animate()
+                    .fadeIn(duration: 700.ms, curve: Curves.easeOut),
                 const SizedBox(height: 24),
                 const SizedBox(
                   width: 24,

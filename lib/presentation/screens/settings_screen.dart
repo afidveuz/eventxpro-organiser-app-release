@@ -20,6 +20,7 @@ import '../bloc/auth/auth_event.dart';
 import '../bloc/scanner_bloc.dart';
 import '../bloc/scanner_event.dart';
 import '../bloc/scanner_state.dart';
+import '../widgets/fade_in_background_image.dart';
 import 'auth/login_screen.dart';
 import 'offline/offline_sessions_screen.dart';
 import 'lead/lead_capture_screen.dart';
@@ -373,7 +374,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Divider(color: AppTheme.surfaceBorder, height: 1),
         ),
       ),
-      body: RefreshIndicator(
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const AppBackgroundLayer(),
+          RefreshIndicator(
         color: AppTheme.eventxproAccent,
         backgroundColor: AppTheme.surfaceElevated,
         onRefresh: () async {
@@ -465,7 +470,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           },
         ),
       ),
-    );
+    ],
+  ),
+);
   }
 
   Widget _buildSectionHeader(String title) {

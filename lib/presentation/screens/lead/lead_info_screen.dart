@@ -5,6 +5,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/models/lead_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/lead_repository.dart';
+import '../../widgets/fade_in_background_image.dart';
 
 const int _maxNotesLength = 500;
 
@@ -213,21 +214,25 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
             child: Divider(color: AppTheme.surfaceBorder, height: 1),
           ),
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          child: Column(
-            children: [
-              // Attendee Header Card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceElevated,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppTheme.surfaceBorder),
-                ),
-                child: Column(
-                  children: [
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            const AppBackgroundLayer(),
+            SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Column(
+                children: [
+                  // Attendee Header Card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfaceElevated,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppTheme.surfaceBorder),
+                    ),
+                    child: Column(
+                      children: [
                     Container(
                       width: 80,
                       height: 80,
@@ -459,8 +464,10 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
             ],
           ),
         ),
-      ),
-    );
+      ],
+    ),
+  ),
+);
   }
 
   Widget _buildTypePill({

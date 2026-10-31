@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/models/lead_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/lead_repository.dart';
+import '../../widgets/fade_in_background_image.dart';
 import 'lead_info_screen.dart';
 
 /// Screen displaying comprehensive profile, contact info, ratings, notes,
@@ -187,66 +188,72 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
             ),
         ],
       ),
-      body: _isLoading && lead == null
-          ? const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentIndigo),
-              ),
-            )
-          : _errorMessage != null && lead == null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.error_outline_rounded,
-                            size: 48, color: AppTheme.statusRejected),
-                        const SizedBox(height: 16),
-                        Text(
-                          _errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: AppTheme.textSecondary),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: _fetchDetails,
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Try Again'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.accentIndigo,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const AppBackgroundLayer(),
+          _isLoading && lead == null
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentIndigo),
                   ),
                 )
-              : RefreshIndicator(
-                  onRefresh: _fetchDetails,
-                  color: AppTheme.accentIndigo,
-                  backgroundColor: AppTheme.surface,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildHeroCard(lead!),
-                        const SizedBox(height: 16),
-                        _buildContactActions(lead),
-                        const SizedBox(height: 16),
-                        _buildNotesCard(lead),
-                        const SizedBox(height: 16),
-                        _buildInformationCard(lead),
-                        const SizedBox(height: 16),
-                        if (lead.checkinHistory != null && lead.checkinHistory!.isNotEmpty)
-                          _buildHistorySection(lead),
-                        const SizedBox(height: 40),
-                      ],
+              : _errorMessage != null && lead == null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.error_outline_rounded,
+                                size: 48, color: AppTheme.statusRejected),
+                            const SizedBox(height: 16),
+                            Text(
+                              _errorMessage!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: AppTheme.textSecondary),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: _fetchDetails,
+                              icon: const Icon(Icons.refresh_rounded),
+                              label: const Text('Try Again'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.accentIndigo,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _fetchDetails,
+                      color: AppTheme.accentIndigo,
+                      backgroundColor: AppTheme.surface,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildHeroCard(lead!),
+                            const SizedBox(height: 16),
+                            _buildContactActions(lead),
+                            const SizedBox(height: 16),
+                            _buildNotesCard(lead),
+                            const SizedBox(height: 16),
+                            _buildInformationCard(lead),
+                            const SizedBox(height: 16),
+                            if (lead.checkinHistory != null && lead.checkinHistory!.isNotEmpty)
+                              _buildHistorySection(lead),
+                            const SizedBox(height: 40),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+        ],
+      ),
     );
   }
 

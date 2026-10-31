@@ -25,37 +25,8 @@ class AppBackground extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Ambient dark gradient fallback (provides depth while image is fading in)
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(0, -0.2),
-                  radius: 1.2,
-                  colors: [
-                    Color(0xFF262C40),
-                    Color(0xFF131722),
-                    Color(0xFF0C1019),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Background Image with fade-in animation
-          Positioned.fill(
-            child: animateBackground
-                ? FadeInBackgroundImage(
-                    imagePath: 'assets/images/bg.png',
-                    duration: animationDuration,
-                    fit: BoxFit.cover,
-                  )
-                : Image.asset(
-                    'assets/images/bg.png',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const SizedBox.shrink(),
-                  ),
+          AppBackgroundLayer(
+            duration: animationDuration,
           ),
 
           // Offline indicator badge (blinking style matching React Native)

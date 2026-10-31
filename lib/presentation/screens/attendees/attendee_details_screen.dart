@@ -144,29 +144,7 @@ class _AttendeeDetailsScreenState extends State<AttendeeDetailsScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background pattern with fade-in entrance
-          Positioned.fill(
-            child: const FadeInBackgroundImage(
-              imagePath: 'assets/images/bg.png',
-              duration: Duration(milliseconds: 800),
-              curve: Curves.easeOutCubic,
-            ),
-          ),
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFF131722).withValues(alpha: 0.35),
-                    AppTheme.eventxproBg.withValues(alpha: 0.15),
-                    const Color(0xFF0D111A).withValues(alpha: 0.65),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          const AppBackgroundLayer(),
 
           SafeArea(
             child: Column(

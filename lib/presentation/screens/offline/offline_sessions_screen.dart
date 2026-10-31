@@ -6,6 +6,7 @@ import '../../../core/utils/app_toast.dart';
 import '../../../data/datasources/offline_database_helper.dart';
 import '../../bloc/scanner_bloc.dart';
 import '../../bloc/scanner_event.dart';
+import '../../widgets/fade_in_background_image.dart';
 import 'offline_checkin_list_screen.dart';
 
 /// Offline Sessions screen matching `OfflineSection.jsx` in the React Native EventXPro app.
@@ -306,43 +307,49 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
           child: Divider(color: AppTheme.surfaceBorder, height: 1),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.eventxproAccent))
-          : RefreshIndicator(
-              onRefresh: _loadSummary,
-              color: AppTheme.eventxproAccent,
-              backgroundColor: AppTheme.surfaceElevated,
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                children: [
-                  // ── Top Stats Banner ──────────────────────────────────
-                  _buildHeaderStats(),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const AppBackgroundLayer(),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator(color: AppTheme.eventxproAccent))
+              : RefreshIndicator(
+                  onRefresh: _loadSummary,
+                  color: AppTheme.eventxproAccent,
+                  backgroundColor: AppTheme.surfaceElevated,
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    children: [
+                      // ── Top Stats Banner ──────────────────────────────────
+                      _buildHeaderStats(),
 
-                  const SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
-                  // ── SESSIONS Header ───────────────────────────────────
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                    child: Text(
-                      'SESSION CATEGORIES',
-                      style: TextStyle(
-                        color: AppTheme.textMuted,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.0,
+                      // ── SESSIONS Header ───────────────────────────────────
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                        child: Text(
+                          'SESSION CATEGORIES',
+                          style: TextStyle(
+                            color: AppTheme.textMuted,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
                       ),
-                    ),
+
+                      const SizedBox(height: 8),
+
+                      // ── Session Cards ─────────────────────────────────────
+                      ..._sessions.map((session) => _buildSessionCard(session)),
+
+                      const SizedBox(height: 16),
+                    ],
                   ),
-
-                  const SizedBox(height: 8),
-
-                  // ── Session Cards ─────────────────────────────────────
-                  ..._sessions.map((session) => _buildSessionCard(session)),
-
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
+                ),
+        ],
+      ),
       bottomNavigationBar: _buildBottomBar(),
     );
   }
