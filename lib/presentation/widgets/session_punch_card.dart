@@ -349,8 +349,12 @@ class _SessionPunchCardState extends State<SessionPunchCard>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF181F2E).withValues(alpha: 0.70),
+        color: const Color(0xFF131926),
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFF1E273A),
+          width: 1.0,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -362,7 +366,7 @@ class _SessionPunchCardState extends State<SessionPunchCard>
                 width: 7,
                 height: 7,
                 decoration: const BoxDecoration(
-                  color: AppTheme.accentCyan,
+                  color: Color(0xFF00D68F),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -374,7 +378,7 @@ class _SessionPunchCardState extends State<SessionPunchCard>
                     color: Colors.white,
                     fontSize: 13.5,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 0.4,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
@@ -382,16 +386,15 @@ class _SessionPunchCardState extends State<SessionPunchCard>
           ),
           const SizedBox(height: 12),
 
-          // Check-in & Check-out Buttons Row (Matching OfflineEventSection.jsx)
+          // Check-in & Check-out Buttons Row
           Row(
             children: [
               // CHECK-IN BUTTON
               if (widget.hasInAccess)
                 Expanded(
-                  child: _PunchButton(
+                  child: _ActionButton(
                     label: 'CHECK-IN',
-                    badgeColor: AppTheme.eventxproSuccess, // #8DFFBB
-                    arrowColor: Colors.black,
+                    isCheckIn: true,
                     onTap: widget.onCheckIn,
                   ),
                 ),
@@ -402,10 +405,9 @@ class _SessionPunchCardState extends State<SessionPunchCard>
               // CHECK-OUT BUTTON
               if (widget.hasOutAccess)
                 Expanded(
-                  child: _PunchButton(
+                  child: _ActionButton(
                     label: 'CHECK-OUT',
-                    badgeColor: AppTheme.eventxproDanger, // #FF6767
-                    arrowColor: Colors.white,
+                    isCheckIn: false,
                     onTap: widget.onCheckOut,
                   ),
                 ),
@@ -413,116 +415,125 @@ class _SessionPunchCardState extends State<SessionPunchCard>
           ),
 
           // Total Check-In & Check-Out counts row
-          // Matching React Native EventSections.jsx & SessionInOutCard.jsx styles.timeWrapper
           if (widget.hasInAccess || widget.hasOutAccess) ...[
-            const SizedBox(height: 10),
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                manualReload();
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Total Check-in
-                    if (widget.hasInAccess)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.login_rounded, size: 12, color: Color(0xFF059669)),
-                          const SizedBox(width: 5),
-                          const Text(
-                            'Total In: ',
-                            style: TextStyle(
-                              color: Color(0xFF10B981),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          if (isLoading && _count.checkIn == 0)
-                            const SizedBox(
-                              width: 10,
-                              height: 10,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Color(0xFF059669),
-                                ),
-                              ),
-                            )
-                          else
-                            Text(
-                              '${_count.checkIn}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                        ],
-                      )
-                    else
-                      const SizedBox.shrink(),
-
-                    // Total Check-out
-                    if (widget.hasOutAccess)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.logout_rounded, size: 12, color: Color(0xFFBE123C)),
-                          const SizedBox(width: 5),
-                          const Text(
-                            'Total Out: ',
-                            style: TextStyle(
-                              color: Color(0xFFE11D48),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          if (isLoading && _count.checkOut == 0)
-                            const SizedBox(
-                              width: 10,
-                              height: 10,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Color(0xFFBE123C),
-                                ),
-                              ),
-                            )
-                          else
-                            Text(
-                              '${_count.checkOut}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                        ],
-                      )
-                    else
-                      const SizedBox.shrink(),
-
-                    Icon(
-                      Icons.sync_rounded,
-                      size: 13,
-                      color: isLoading ? AppTheme.eventxproAccent : Colors.white30,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            const SizedBox(height: 12),
+            _buildStatsRow(),
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildStatsRow() {
+    return Row(
+      children: [
+        // Total In
+        if (widget.hasInAccess) ...[
+          Container(
+            width: 3,
+            height: 12,
+            decoration: BoxDecoration(
+              color: const Color(0xFF00E676),
+              borderRadius: BorderRadius.circular(1.5),
+            ),
+          ),
+          const SizedBox(width: 6),
+          const Text(
+            'Total In',
+            style: TextStyle(
+              color: Color(0xFF8E9BAE),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: 6),
+          if (isLoading && _count.checkIn == 0)
+            const SizedBox(
+              width: 10,
+              height: 10,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Color(0xFF00E676),
+                ),
+              ),
+            )
+          else
+            Text(
+              '${_count.checkIn}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          const SizedBox(width: 20),
+        ],
+
+        // Total Out
+        if (widget.hasOutAccess) ...[
+          Container(
+            width: 3,
+            height: 12,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF5252),
+              borderRadius: BorderRadius.circular(1.5),
+            ),
+          ),
+          const SizedBox(width: 6),
+          const Text(
+            'Total Out',
+            style: TextStyle(
+              color: Color(0xFF8E9BAE),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: 6),
+          if (isLoading && _count.checkOut == 0)
+            const SizedBox(
+              width: 10,
+              height: 10,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Color(0xFFFF5252),
+                ),
+              ),
+            )
+          else
+            Text(
+              '${_count.checkOut}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+        ],
+
+        const Spacer(),
+
+        // Sync / Refresh button
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              manualReload();
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(
+                Icons.sync_rounded,
+                size: 16,
+                color: isLoading ? const Color(0xFF00E676) : const Color(0xFF64748B),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -668,8 +679,12 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF181F2E).withValues(alpha: 0.70),
+        color: const Color(0xFF131926),
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFF1E273A),
+          width: 1.0,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -677,6 +692,16 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Container(
+                margin: const EdgeInsets.only(top: 5),
+                width: 7,
+                height: 7,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF00D68F),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   widget.title.toUpperCase(),
@@ -684,7 +709,7 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
                     color: Colors.white,
                     fontSize: 13.5,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 0.3,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
@@ -741,10 +766,9 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
             children: [
               if (widget.hasInAccess)
                 Expanded(
-                  child: _PunchButton(
+                  child: _ActionButton(
                     label: 'CHECK-IN',
-                    badgeColor: AppTheme.eventxproSuccess,
-                    arrowColor: Colors.black,
+                    isCheckIn: true,
                     onTap: widget.onCheckIn,
                   ),
                 ),
@@ -754,158 +778,158 @@ class _AgendaPunchCardState extends State<AgendaPunchCard>
 
               if (widget.hasOutAccess)
                 Expanded(
-                  child: _PunchButton(
+                  child: _ActionButton(
                     label: 'CHECK-OUT',
-                    badgeColor: AppTheme.eventxproDanger,
-                    arrowColor: Colors.white,
+                    isCheckIn: false,
                     onTap: widget.onCheckOut,
                   ),
                 ),
             ],
           ),
 
-          // Total Check-In & Check-Out counts row (Matching AgendaInOutCard.jsx)
+          // Total Check-In & Check-Out counts row
           if (widget.hasInAccess || widget.hasOutAccess) ...[
-            const SizedBox(height: 10),
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                manualReload();
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Total Check-in
-                    if (widget.hasInAccess)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.login_rounded, size: 12, color: Color(0xFF059669)),
-                          const SizedBox(width: 5),
-                          const Text(
-                            'Total In: ',
-                            style: TextStyle(
-                              color: Color(0xFF10B981),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          if (isLoading && _count.checkIn == 0)
-                            const SizedBox(
-                              width: 10,
-                              height: 10,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Color(0xFF059669),
-                                ),
-                              ),
-                            )
-                          else
-                            Text(
-                              '${_count.checkIn}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                        ],
-                      )
-                    else
-                      const SizedBox.shrink(),
-
-                    // Total Check-out
-                    if (widget.hasOutAccess)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.logout_rounded, size: 12, color: Color(0xFFBE123C)),
-                          const SizedBox(width: 5),
-                          const Text(
-                            'Total Out: ',
-                            style: TextStyle(
-                              color: Color(0xFFE11D48),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          if (isLoading && _count.checkOut == 0)
-                            const SizedBox(
-                              width: 10,
-                              height: 10,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Color(0xFFBE123C),
-                                ),
-                              ),
-                            )
-                          else
-                            Text(
-                              '${_count.checkOut}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                        ],
-                      )
-                    else
-                      const SizedBox.shrink(),
-
-                    Icon(
-                      Icons.sync_rounded,
-                      size: 13,
-                      color: isLoading ? AppTheme.eventxproAccent : Colors.white30,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            const SizedBox(height: 12),
+            _buildStatsRow(),
           ],
         ],
       ),
     );
   }
+
+  Widget _buildStatsRow() {
+    return Row(
+      children: [
+        // Total In
+        if (widget.hasInAccess) ...[
+          Container(
+            width: 3,
+            height: 12,
+            decoration: BoxDecoration(
+              color: const Color(0xFF00E676),
+              borderRadius: BorderRadius.circular(1.5),
+            ),
+          ),
+          const SizedBox(width: 6),
+          const Text(
+            'Total In',
+            style: TextStyle(
+              color: Color(0xFF8E9BAE),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: 6),
+          if (isLoading && _count.checkIn == 0)
+            const SizedBox(
+              width: 10,
+              height: 10,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Color(0xFF00E676),
+                ),
+              ),
+            )
+          else
+            Text(
+              '${_count.checkIn}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          const SizedBox(width: 20),
+        ],
+
+        // Total Out
+        if (widget.hasOutAccess) ...[
+          Container(
+            width: 3,
+            height: 12,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF5252),
+              borderRadius: BorderRadius.circular(1.5),
+            ),
+          ),
+          const SizedBox(width: 6),
+          const Text(
+            'Total Out',
+            style: TextStyle(
+              color: Color(0xFF8E9BAE),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: 6),
+          if (isLoading && _count.checkOut == 0)
+            const SizedBox(
+              width: 10,
+              height: 10,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Color(0xFFFF5252),
+                ),
+              ),
+            )
+          else
+            Text(
+              '${_count.checkOut}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+        ],
+
+        const Spacer(),
+
+        // Sync / Refresh button
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              manualReload();
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(
+                Icons.sync_rounded,
+                size: 16,
+                color: isLoading ? const Color(0xFF00E676) : const Color(0xFF64748B),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-/// Pill button with circular forward arrow badge
-/// (Matching React Native OfflineEventSection styles.btn & styles.arrowBtn)
-class _PunchButton extends StatelessWidget {
+/// Action button matching the dark themed CHECK-IN & CHECK-OUT buttons
+class _ActionButton extends StatelessWidget {
   final String label;
-  final Color? badgeColor;
-  final Color? arrowColor;
+  final bool isCheckIn;
   final VoidCallback onTap;
 
-  const _PunchButton({
+  const _ActionButton({
     required this.label,
-    this.badgeColor,
-    this.arrowColor,
+    required this.isCheckIn,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bool isCheckIn = label.toUpperCase().contains('IN');
-    // Darker rich tones for Check-In and Check-Out
-    final Color primaryColor = isCheckIn
-        ? const Color(0xFF047857) // Deep Dark Emerald Green
-        : const Color(0xFF9F1239); // Deep Dark Crimson / Ruby Red
-    final Color bgColor = isCheckIn
-        ? const Color(0xFF02261C) // Deep Dark Green background
-        : const Color(0xFF26050B); // Deep Dark Red background
-    final Color textColor = isCheckIn
-        ? const Color(0xFF10B981) // Darker rich Emerald Green
-        : const Color(0xFFE11D48); // Darker rich Crimson Red
+    final bgColor = isCheckIn ? const Color(0xFF08221B) : const Color(0xFF260D15);
+    final borderColor = isCheckIn ? const Color(0xFF0E543E) : const Color(0xFF5E1725);
+    final accentColor = isCheckIn ? const Color(0xFF00E676) : const Color(0xFFFF5252);
+    final icon = isCheckIn ? Icons.login_rounded : Icons.logout_rounded;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -913,42 +937,36 @@ class _PunchButton extends StatelessWidget {
           HapticFeedback.lightImpact();
           onTap();
         },
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding: const EdgeInsets.only(left: 14, right: 4, top: 4, bottom: 4),
+          height: 46,
           decoration: BoxDecoration(
             color: bgColor,
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: borderColor,
+              width: 1.2,
+            ),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              Icon(
+                icon,
+                size: 18,
+                color: accentColor,
+              ),
+              const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: textColor,
+                    color: accentColor,
                     fontWeight: FontWeight.w900,
-                    fontSize: 12,
+                    fontSize: 13,
                     letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: primaryColor,
-                  shape: BoxShape.circle,
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.arrow_forward_rounded,
-                    size: 15,
-                    color: Colors.white,
                   ),
                 ),
               ),

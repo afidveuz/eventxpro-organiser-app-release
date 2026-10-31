@@ -257,20 +257,31 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           splashColor: activeColor.withValues(alpha: 0.12),
           highlightColor: Colors.white.withValues(alpha: 0.04),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.only(top: 2, bottom: 6),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // Active indicator line matching reference design
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: isSelected ? 20 : 0,
+                  height: 2.5,
+                  margin: const EdgeInsets.only(bottom: 5),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFF6366F1) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
                 // Micro-scale icon transition
                 AnimatedScale(
-                  scale: isSelected ? 1.15 : 1.0,
+                  scale: isSelected ? 1.12 : 1.0,
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOutBack,
                   child: Icon(
                     isSelected ? activeIcon : icon,
                     size: 22,
-                    color: isSelected ? activeColor : inactiveColor,
+                    color: isSelected ? Colors.white : inactiveColor,
                   ),
                 ),
                 const SizedBox(height: 4),
