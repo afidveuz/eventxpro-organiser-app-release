@@ -1,6 +1,9 @@
 import '../datasources/attendee_remote_datasource.dart';
 import '../models/attendee_details_model.dart';
 import '../models/attendee_list_item_model.dart';
+import '../models/country_model.dart';
+import '../models/spot_registration_model.dart';
+import '../models/ticket_type_model.dart';
 
 class AttendeeRepository {
   final AttendeeRemoteDatasource _remoteDatasource;
@@ -66,5 +69,20 @@ class AttendeeRepository {
       endpoint: endpoint,
       payload: payload,
     );
+  }
+
+  /// Fetches available ticket tiers for an event
+  Future<List<TicketTypeModel>> getTicketList(int eventId) {
+    return _remoteDatasource.getTicketList(eventId: eventId);
+  }
+
+  /// Registers a walk-in attendee on-site
+  Future<SpotRegistrationResult> createSpotAttendee(SpotRegistrationRequest request) {
+    return _remoteDatasource.createSpotAttendee(request: request);
+  }
+
+  /// Fetches standardized countries list with dial codes
+  Future<List<CountryModel>> getCountries() {
+    return _remoteDatasource.getCountries();
   }
 }

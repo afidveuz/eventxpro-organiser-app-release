@@ -11,10 +11,7 @@ const int _maxNotesLength = 500;
 class LeadInfoScreen extends StatefulWidget {
   final LeadModel lead;
 
-  const LeadInfoScreen({
-    super.key,
-    required this.lead,
-  });
+  const LeadInfoScreen({super.key, required this.lead});
 
   @override
   State<LeadInfoScreen> createState() => _LeadInfoScreenState();
@@ -117,7 +114,10 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
       builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppTheme.surfaceElevated,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Unsaved Changes', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Unsaved Changes',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         content: const Text(
           'You have unsaved changes in notes or rating. Are you sure you want to discard them?',
           style: TextStyle(color: Colors.white70),
@@ -125,7 +125,10 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogCtx).pop(false),
-            child: const Text('Keep Editing', style: TextStyle(color: Colors.white60)),
+            child: const Text(
+              'Keep Editing',
+              style: TextStyle(color: Colors.white60),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -162,7 +165,11 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
           backgroundColor: AppTheme.surface,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
             onPressed: () async {
               if (_hasChanges) {
                 final shouldPop = await _onWillPop();
@@ -179,12 +186,20 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
             children: [
               const Text(
                 'Lead Info',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               if (widget.lead.eventName != null)
                 Text(
                   widget.lead.eventName!,
-                  style: const TextStyle(color: AppTheme.brandGradientStart, fontSize: 11, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    color: AppTheme.brandGradientStart,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
             ],
           ),
@@ -196,7 +211,10 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.brandGradientStart),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppTheme.brandGradientStart,
+                        ),
                       )
                     : const Text(
                         'Save',
@@ -245,7 +263,8 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
                                 fit: BoxFit.cover,
                                 width: 80,
                                 height: 80,
-                                errorBuilder: (context, error, stackTrace) => _buildInitials(),
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _buildInitials(),
                               )
                             : _buildInitials(),
                       ),
@@ -260,7 +279,8 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    if (widget.lead.designation != null && widget.lead.designation!.isNotEmpty) ...[
+                    if (widget.lead.designation != null &&
+                        widget.lead.designation!.isNotEmpty) ...[
                       const SizedBox(height: 3),
                       Text(
                         widget.lead.designation!.toUpperCase(),
@@ -273,7 +293,8 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
                         textAlign: TextAlign.center,
                       ),
                     ],
-                    if (widget.lead.companyName != null && widget.lead.companyName!.isNotEmpty) ...[
+                    if (widget.lead.companyName != null &&
+                        widget.lead.companyName!.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
                         widget.lead.companyName!,
@@ -290,23 +311,30 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (widget.lead.mobile != null && widget.lead.mobile!.isNotEmpty)
+                        if (widget.lead.mobile != null &&
+                            widget.lead.mobile!.isNotEmpty)
                           _buildContactShortcut(
                             icon: Icons.phone_rounded,
                             label: 'Call',
                             onTap: () {
-                              final phone = '${widget.lead.countryCode ?? ''}${widget.lead.mobile}'.replaceAll(' ', '');
+                              final phone =
+                                  '${widget.lead.countryCode ?? ''}${widget.lead.mobile}'
+                                      .replaceAll(' ', '');
                               launchUrl(Uri.parse('tel:$phone'));
                             },
                           ),
-                        if (widget.lead.mobile != null && widget.lead.email != null)
+                        if (widget.lead.mobile != null &&
+                            widget.lead.email != null)
                           const SizedBox(width: 16),
-                        if (widget.lead.email != null && widget.lead.email!.isNotEmpty)
+                        if (widget.lead.email != null &&
+                            widget.lead.email!.isNotEmpty)
                           _buildContactShortcut(
                             icon: Icons.email_rounded,
                             label: 'Email',
                             onTap: () {
-                              launchUrl(Uri.parse('mailto:${widget.lead.email}'));
+                              launchUrl(
+                                Uri.parse('mailto:${widget.lead.email}'),
+                              );
                             },
                           ),
                       ],
@@ -397,7 +425,9 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
                         Text(
                           '$remainingChars left',
                           style: TextStyle(
-                            color: remainingChars < 50 ? AppTheme.eventxproDanger : AppTheme.textMuted,
+                            color: remainingChars < 50
+                                ? AppTheme.eventxproDanger
+                                : AppTheme.textMuted,
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                           ),
@@ -409,20 +439,32 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
                       controller: _notesController,
                       maxLength: _maxNotesLength,
                       maxLines: 6,
-                      style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
                       decoration: InputDecoration(
                         counterText: '',
-                        hintText: 'Enter notes about attendee requirements, deal potential, conversation summary...',
-                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 13),
+                        hintText:
+                            'Enter notes about attendee requirements, deal potential, conversation summary...',
+                        hintStyle: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          fontSize: 13,
+                        ),
                         filled: true,
                         fillColor: Colors.black.withValues(alpha: 0.25),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                          borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.1),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.brandGradientStart),
+                          borderSide: const BorderSide(
+                            color: AppTheme.brandGradientStart,
+                          ),
                         ),
                       ),
                     ),
@@ -434,9 +476,11 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
                       height: 48,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.brandGradientStart,
+                          backgroundColor: AppTheme.accentIndigo,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           elevation: 0,
                         ),
                         onPressed: _isSaving ? null : () => _saveLeadInfo(),
@@ -444,12 +488,18 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
                             : const Icon(Icons.check_rounded, size: 20),
                         label: Text(
                           _isSaving ? 'Updating...' : 'Save Lead Notes',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
                     ),
@@ -483,7 +533,9 @@ class _LeadInfoScreenState extends State<LeadInfoScreen> {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+          color: isSelected
+              ? color.withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? color : Colors.white.withValues(alpha: 0.1),

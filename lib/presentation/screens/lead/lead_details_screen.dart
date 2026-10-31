@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,10 +7,11 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/models/lead_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/lead_repository.dart';
+import '../../widgets/fade_in_background_image.dart';
 import 'lead_info_screen.dart';
 
 /// Screen displaying comprehensive profile, contact info, ratings, notes,
-/// and check-in/out history of a captured lead.
+/// and check-in/out history of a captured lead, styled to match the HomeScreen theme.
 class LeadDetailsScreen extends StatefulWidget {
   final int leadId;
   final LeadModel? initialLead;
@@ -27,6 +29,7 @@ class LeadDetailsScreen extends StatefulWidget {
 class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
   LeadModel? _lead;
   bool _isLoading = false;
+  bool _isRefreshing = false;
   String? _errorMessage;
 
   @override
@@ -36,12 +39,14 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     _fetchDetails();
   }
 
-  Future<void> _fetchDetails() async {
-    if (_lead == null) {
+  Future<void> _fetchDetails({bool silent = false}) async {
+    if (_lead == null && !silent) {
       setState(() {
         _isLoading = true;
         _errorMessage = null;
       });
+    } else if (silent) {
+      setState(() => _isRefreshing = true);
     }
 
     try {
@@ -54,13 +59,17 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
             _lead = freshLead;
           }
           _isLoading = false;
+          _isRefreshing = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          if (_lead == null) {
+            _errorMessage = e.toString();
+          }
           _isLoading = false;
+          _isRefreshing = false;
         });
       }
     }
@@ -82,6 +91,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
 
   Future<void> _makePhoneCall(String? mobile) async {
     if (mobile == null || mobile.trim().isEmpty) return;
+    HapticFeedback.lightImpact();
     final clean = mobile.replaceAll(RegExp(r'\s+'), '');
     final uri = Uri.parse('tel:$clean');
     if (await canLaunchUrl(uri)) {
@@ -91,7 +101,8 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Could not open phone dialer for $mobile'),
-            backgroundColor: AppTheme.statusRejected,
+            backgroundColor: const Color(0xFFFF5252),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -100,6 +111,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
 
   Future<void> _sendEmail(String? email) async {
     if (email == null || email.trim().isEmpty) return;
+    HapticFeedback.lightImpact();
     final uri = Uri.parse('mailto:${email.trim()}');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
@@ -108,15 +120,30 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Could not open email client for $email'),
-            backgroundColor: AppTheme.statusRejected,
+            backgroundColor: const Color(0xFFFF5252),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
     }
   }
 
+  void _copyToClipboard(String text, String label) {
+    HapticFeedback.lightImpact();
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label copied to clipboard'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: const Color(0xFF1E293B),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _navigateToEdit() async {
     if (_lead == null) return;
+    HapticFeedback.lightImpact();
     final updatedLead = await Navigator.push<LeadModel>(
       context,
       MaterialPageRoute(
@@ -128,140 +155,363 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
       setState(() {
         _lead = updatedLead;
       });
-      _fetchDetails();
+      _fetchDetails(silent: true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final lead = _lead;
+    final eventSubtitle = lead?.eventName != null && lead!.eventName!.isNotEmpty
+        ? lead.eventName!
+        : 'Lead Profile';
 
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        backgroundColor: AppTheme.surface,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary, size: 20),
-          onPressed: () => Navigator.of(context).pop(_lead),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.of(context).pop(_lead);
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0B0F19),
+        body: Stack(
+          fit: StackFit.expand,
           children: [
-            Text(
-              lead?.fullName ?? 'Lead Details',
-              style: const TextStyle(
-                color: AppTheme.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
+            // 1. Base background image with hardware-accelerated fade-in entrance
+            Positioned.fill(
+              child: const FadeInBackgroundImage(
+                imagePath: 'assets/images/bg.png',
+                duration: Duration(milliseconds: 800),
+                curve: Curves.easeOutCubic,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
-            if (lead?.eventName != null && lead!.eventName!.isNotEmpty)
-              Text(
-                lead.eventName!,
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
+
+            // 2. Multi-point Aurora Glow Orbs for ambient depth (matching HomeScreen)
+            Positioned(
+              top: -60,
+              right: -50,
+              child: IgnorePointer(
+                child: Container(
+                  width: 280,
+                  height: 280,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        const Color(0xFFC10067).withValues(alpha: 0.20),
+                        const Color(0xFFF43F5E).withValues(alpha: 0.08),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.45, 1.0],
+                    ),
+                  ),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
+            ),
+            Positioned(
+              top: 120,
+              left: -80,
+              child: IgnorePointer(
+                child: Container(
+                  width: 290,
+                  height: 290,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        const Color(0xFF4F46E5).withValues(alpha: 0.18),
+                        const Color(0xFF7C3AED).withValues(alpha: 0.08),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.45, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // 3. Subtle contrast & depth overlay
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0xFF0B0F19).withValues(alpha: 0.65),
+                        const Color(0xFF0B0F19).withValues(alpha: 0.50),
+                        const Color(0xFF0B0F19).withValues(alpha: 0.85),
+                      ],
+                      stops: const [0.0, 0.45, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // 4. Foreground content
+            SafeArea(
+              child: Column(
+                children: [
+                  _buildTopBar(lead?.fullName ?? 'Lead Details', eventSubtitle),
+                  Expanded(
+                    child: _isLoading && lead == null
+                        ? _buildLoadingState()
+                        : _errorMessage != null && lead == null
+                            ? _buildErrorState()
+                            : RefreshIndicator(
+                                onRefresh: () => _fetchDetails(silent: true),
+                                color: const Color(0xFF6366F1),
+                                backgroundColor: const Color(0xFF131926),
+                                child: SingleChildScrollView(
+                                  physics: const AlwaysScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      // 1. Hero Profile Card
+                                      _buildHeroCard(lead!),
+                                      const SizedBox(height: 12),
+
+                                      // 2. High-contrast Quick Action Buttons
+                                      _buildContactActions(lead),
+                                      const SizedBox(height: 12),
+
+                                      // 3. Lead Notes & Rating Card
+                                      _buildNotesCard(lead),
+                                      const SizedBox(height: 12),
+
+                                      // 4. Attendee Details Information Card
+                                      _buildInformationCard(lead),
+                                      const SizedBox(height: 12),
+
+                                      // 5. Check-In & Punch History Logs
+                                      if (lead.checkinHistory != null &&
+                                          lead.checkinHistory!.isNotEmpty)
+                                        _buildHistorySection(lead),
+
+                                      const SizedBox(height: 36),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
-        actions: [
-          if (lead != null)
-            IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppTheme.accentIndigo.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.edit_rounded, color: AppTheme.accentCyan, size: 18),
-              ),
-              tooltip: 'Edit Rating & Notes',
-              onPressed: _navigateToEdit,
-            ),
-        ],
       ),
-      body: _isLoading && lead == null
-          ? const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentIndigo),
-              ),
-            )
-          : _errorMessage != null && lead == null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.error_outline_rounded,
-                            size: 48, color: AppTheme.statusRejected),
-                        const SizedBox(height: 16),
-                        Text(
-                          _errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: AppTheme.textSecondary),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: _fetchDetails,
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Try Again'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.accentIndigo,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _fetchDetails,
-                  color: AppTheme.accentIndigo,
-                  backgroundColor: AppTheme.surface,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildHeroCard(lead!),
-                        const SizedBox(height: 16),
-                        _buildContactActions(lead),
-                        const SizedBox(height: 16),
-                        _buildNotesCard(lead),
-                        const SizedBox(height: 16),
-                        _buildInformationCard(lead),
-                        const SizedBox(height: 16),
-                        if (lead.checkinHistory != null && lead.checkinHistory!.isNotEmpty)
-                          _buildHistorySection(lead),
-                        const SizedBox(height: 40),
-                      ],
-                    ),
-                  ),
-                ),
     );
   }
 
+  // ── Top Bar (Matching HomeScreen / AttendeeDetailsScreen) ──────────
+  Widget _buildTopBar(String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          // Circular White Back Button
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).pop(_lead);
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 14,
+                    color: Color(0xFF131722),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Title & Event Subtitle
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.event_note_rounded,
+                      size: 11,
+                      color: AppTheme.brandGradientStart,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.65),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Top Right Action Buttons
+          if (_lead != null) ...[
+            // Edit Note / Rating Button
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _navigateToEdit,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  height: 36,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF131926),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: const Color(0xFF1F293D),
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: AppTheme.brandGradient,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.edit_note_rounded,
+                        color: Color(0xFF818CF8),
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      const Text(
+                        'Edit',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Refresh Button
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _isRefreshing
+                    ? null
+                    : () {
+                        HapticFeedback.lightImpact();
+                        _fetchDetails(silent: true);
+                      },
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF131926),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: const Color(0xFF1F293D),
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Center(
+                    child: _isRefreshing
+                        ? const SizedBox(
+                            width: 15,
+                            height: 15,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Color(0xFF8E9BAE),
+                              ),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.sync_rounded,
+                            color: Color(0xFF8E9BAE),
+                            size: 18,
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── Hero Profile Card (Matching HomeScreen Event Info Card) ────────
   Widget _buildHeroCard(LeadModel lead) {
     final photoUrl = _resolveAvatarUrl(context, lead.photo);
-    final (typeColor, typeIcon, typeLabel) = _getLeadTypeProps(lead.leadType);
+    final (typeColor, typeBg, typeBorder, typeIcon, typeLabel) =
+        _getLeadTypeProps(lead.leadType);
 
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.surfaceBorder),
+        color: const Color(0xFF131926),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF1F293D),
+          width: 1.0,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -269,69 +519,93 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
       ),
       child: Column(
         children: [
-          // Banner Top Accent
+          // Top accent gradient bar
           Container(
-            height: 6,
+            height: 4,
             decoration: const BoxDecoration(
               gradient: AppTheme.brandGradient,
               borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
               ),
             ),
           ),
+
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: Column(
               children: [
-                // Avatar with Badge
-                Stack(
-                  alignment: Alignment.bottomRight,
+                // Top Row: Lead ID pill (left) + Lead Quality Badge (right)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      width: 96,
-                      height: 96,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppTheme.accentCyan, width: 2.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.accentCyan.withValues(alpha: 0.25),
-                            blurRadius: 14,
-                            spreadRadius: 2,
-                          ),
-                        ],
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3.5,
                       ),
-                      child: ClipOval(
-                        child: photoUrl != null
-                            ? Image.network(
-                                photoUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => _buildInitialsAvatar(lead),
-                              )
-                            : _buildInitialsAvatar(lead),
-                      ),
-                    ),
-                    // Rating Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: typeColor,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white, width: 1.5),
+                        color: const Color(0xFF1B2436),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: const Color(0xFF28364F),
+                          width: 0.8,
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(typeIcon, color: Colors.white, size: 12),
-                          const SizedBox(width: 3),
+                          Container(
+                            width: 5,
+                            height: 5,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF00E676),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
                           Text(
-                            typeLabel,
+                            'LEAD #${lead.id}',
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: Color(0xFF94A3B8),
                               fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Lead Quality Badge (HOT / WARM / COLD)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 3.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: typeBg,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: typeBorder, width: 1.0),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(typeIcon, color: typeColor, size: 11),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$typeLabel LEAD',
+                            style: TextStyle(
+                              color: typeColor,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.4,
                             ),
                           ),
                         ],
@@ -339,45 +613,91 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
+
+                // Clean Circular Avatar with Glowing Ring
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: typeColor.withValues(alpha: 0.5),
+                      width: 2.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: typeColor.withValues(alpha: 0.2),
+                        blurRadius: 14,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: photoUrl != null
+                        ? Image.network(
+                            photoUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                _buildInitialsAvatar(lead),
+                          )
+                        : _buildInitialsAvatar(lead),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
                 // Full Name
                 Text(
                   lead.fullName.toUpperCase(),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 18,
+                    color: Colors.white,
+                    fontSize: 18.5,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
+                    letterSpacing: 0.3,
+                    height: 1.2,
                   ),
                 ),
-                if (lead.designation != null && lead.designation!.isNotEmpty) ...[
+
+                // Designation
+                if (lead.designation != null &&
+                    lead.designation!.trim().isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
-                    lead.designation!.toUpperCase(),
+                    lead.designation!.trim().toUpperCase(),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: AppTheme.accentCyan,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
+                      color: Color(0xFF818CF8),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.6,
                     ),
                   ),
                 ],
-                if (lead.companyName != null && lead.companyName!.isNotEmpty) ...[
+
+                // Company Name
+                if (lead.companyName != null &&
+                    lead.companyName!.trim().isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.business_rounded, color: AppTheme.textSecondary, size: 14),
+                      const Icon(
+                        Icons.business_rounded,
+                        color: Color(0xFF8E9BAE),
+                        size: 14,
+                      ),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          lead.companyName!,
+                          lead.companyName!.trim(),
                           textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: AppTheme.textSecondary,
-                            fontSize: 14,
+                            color: Color(0xFF8E9BAE),
+                            fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -385,25 +705,108 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                     ],
                   ),
                 ],
-                if (lead.ticketType != null && lead.ticketType!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceElevated,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppTheme.surfaceBorder),
-                    ),
-                    child: Text(
-                      lead.ticketType!,
-                      style: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+
+                const SizedBox(height: 12),
+
+                // Metadata Pills Row (Ticket Category & Badge ID)
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    // Ticket Type Pill
+                    if (lead.ticketType != null &&
+                        lead.ticketType!.trim().isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1B2436),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(0xFF28364F),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 5,
+                              height: 5,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF00E676),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              lead.ticketType!.trim().toUpperCase(),
+                              style: const TextStyle(
+                                color: Color(0xFF94A3B8),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                ],
+
+                    // Badge ID Pill (with copy tap)
+                    if (lead.uniqueId.isNotEmpty)
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () =>
+                              _copyToClipboard(lead.uniqueId, 'Badge ID'),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1B2436),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFF28364F),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.qr_code_rounded,
+                                  color: Color(0xFF00E5FF),
+                                  size: 13,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  lead.uniqueId,
+                                  style: const TextStyle(
+                                    color: Color(0xFF00E5FF),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.copy_rounded,
+                                  color: Color(0xFF8E9BAE),
+                                  size: 11,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -414,50 +817,64 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
 
   Widget _buildInitialsAvatar(LeadModel lead) {
     return Container(
-      color: AppTheme.surfaceElevated,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF2E0854),
+            Color(0xFF1E1B4B),
+          ],
+        ),
+      ),
       alignment: Alignment.center,
       child: Text(
         lead.initials,
         style: const TextStyle(
-          color: AppTheme.accentCyan,
-          fontSize: 32,
+          color: Colors.white,
+          fontSize: 30,
           fontWeight: FontWeight.w900,
         ),
       ),
     );
   }
 
+  // ── Unified Tactile Quick Action Buttons (Matching HomeScreen) ─────
   Widget _buildContactActions(LeadModel lead) {
     final hasMobile = lead.mobile != null && lead.mobile!.trim().isNotEmpty;
     final hasEmail = lead.email != null && lead.email!.trim().isNotEmpty;
 
     return Row(
       children: [
+        // CALL BUTTON
         if (hasMobile)
           Expanded(
-            child: _buildActionTile(
+            child: _buildActionButton(
+              label: 'CALL',
               icon: Icons.phone_rounded,
-              label: 'Call',
-              color: AppTheme.statusSuccess,
               onTap: () => _makePhoneCall(lead.mobile),
             ),
           ),
-        if (hasMobile && hasEmail) const SizedBox(width: 12),
+
+        if (hasMobile && (hasEmail || true)) const SizedBox(width: 8),
+
+        // EMAIL BUTTON
         if (hasEmail)
           Expanded(
-            child: _buildActionTile(
+            child: _buildActionButton(
+              label: 'EMAIL',
               icon: Icons.email_rounded,
-              label: 'Email',
-              color: AppTheme.accentCyan,
               onTap: () => _sendEmail(lead.email),
             ),
           ),
-        const SizedBox(width: 12),
+
+        if (hasEmail) const SizedBox(width: 8),
+
+        // RATE & NOTE BUTTON
         Expanded(
-          child: _buildActionTile(
+          child: _buildActionButton(
+            label: 'RATE / NOTE',
             icon: Icons.rate_review_rounded,
-            label: 'Rate / Note',
-            color: AppTheme.brandGradientStart,
             onTap: _navigateToEdit,
           ),
         ),
@@ -465,35 +882,52 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     );
   }
 
-  Widget _buildActionTile({
-    required IconData icon,
+  Widget _buildActionButton({
     required String label,
-    required Color color,
+    required IconData icon,
     required VoidCallback onTap,
   }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          height: 46,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: color.withValues(alpha: 0.3)),
+            color: const Color(0xFF131926),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0xFF1F293D),
+              width: 1.0,
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: color, size: 22),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+              Icon(
+                icon,
+                size: 16,
+                color: const Color(0xFF818CF8),
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11.5,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -503,47 +937,84 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     );
   }
 
+  // ── Lead Notes & Rating Assessment Card ───────────────────────────
   Widget _buildNotesCard(LeadModel lead) {
     final hasNotes = lead.notes != null && lead.notes!.trim().isNotEmpty;
+    final (typeColor, typeBg, typeBorder, typeIcon, typeLabel) =
+        _getLeadTypeProps(lead.leadType);
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.surfaceBorder),
+        color: const Color(0xFF131926),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFF1F293D),
+          width: 1.0,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Section Header
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.notes_rounded, color: AppTheme.accentIndigo, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    'Lead Notes',
-                    style: TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+              Container(
+                width: 3.5,
+                height: 14,
+                decoration: BoxDecoration(
+                  gradient: AppTheme.brandGradient,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-              InkWell(
-                onTap: _navigateToEdit,
-                borderRadius: BorderRadius.circular(6),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  child: Text(
-                    'EDIT',
-                    style: TextStyle(
-                      color: AppTheme.accentCyan,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+              const SizedBox(width: 8),
+              const Text(
+                'LEAD ASSESSMENT & NOTES',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.7,
+                ),
+              ),
+              const Spacer(),
+              // Edit button
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _navigateToEdit,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E273A),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: const Color(0xFF2D3B55),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'EDIT',
+                          style: TextStyle(
+                            color: Color(0xFF818CF8),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        SizedBox(width: 3),
+                        Icon(
+                          Icons.edit_rounded,
+                          size: 11,
+                          color: Color(0xFF818CF8),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -551,51 +1022,154 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
             ],
           ),
           const SizedBox(height: 12),
+
+          // Rating Status Indicator Bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1B2436),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: const Color(0xFF28364F),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Lead Quality',
+                    style: TextStyle(
+                      color: Color(0xFF8E9BAE),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: typeBg,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: typeBorder, width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(typeIcon, color: typeColor, size: 12),
+                      const SizedBox(width: 5),
+                      Text(
+                        '$typeLabel LEAD',
+                        style: TextStyle(
+                          color: typeColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Notes Content Box
           if (hasNotes)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppTheme.surfaceElevated,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.surfaceBorder),
-              ),
-              child: Text(
-                lead.notes!,
-                style: const TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 14,
-                  height: 1.4,
+                color: const Color(0xFF1B2436),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0xFF28364F),
+                  width: 0.8,
                 ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.format_quote_rounded,
+                        size: 16,
+                        color: Color(0xFF818CF8),
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'Captured Note:',
+                        style: TextStyle(
+                          color: Color(0xFF8E9BAE),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    lead.notes!.trim(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13.5,
+                      height: 1.45,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             )
           else
-            InkWell(
-              onTap: _navigateToEdit,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceElevated.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppTheme.surfaceBorder, style: BorderStyle.solid),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_circle_outline_rounded,
-                        color: AppTheme.textSecondary, size: 18),
-                    SizedBox(width: 8),
-                    Text(
-                      'No notes captured yet. Tap to add.',
-                      style: TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _navigateToEdit,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 18,
+                    horizontal: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1B2436).withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: const Color(0xFF28364F),
+                      style: BorderStyle.solid,
                     ),
-                  ],
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add_comment_rounded,
+                        color: Color(0xFF818CF8),
+                        size: 17,
+                      ),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'No notes added yet. Tap to add notes.',
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Color(0xFF8E9BAE),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -604,20 +1178,40 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     );
   }
 
+  // ── Attendee Information Card ──────────────────────────────────────
   Widget _buildInformationCard(LeadModel lead) {
     final infoItems = <(IconData, String, String?, VoidCallback?)>[
-      if (lead.email != null && lead.email!.isNotEmpty)
-        (Icons.email_outlined, 'Email', lead.email, () => _sendEmail(lead.email)),
-      if (lead.mobile != null && lead.mobile!.isNotEmpty)
-        (Icons.phone_outlined, 'Mobile', lead.mobile, () => _makePhoneCall(lead.mobile)),
-      if (lead.department != null && lead.department!.isNotEmpty)
-        (Icons.domain_outlined, 'Department', lead.department, null),
-      if (lead.city != null && lead.city!.isNotEmpty && lead.city!.toLowerCase() != 'n/a')
-        (Icons.location_city_outlined, 'City', lead.city, null),
-      if (lead.country != null && lead.country!.isNotEmpty)
-        (Icons.public_outlined, 'Country', lead.country, null),
+      if (lead.email != null && lead.email!.trim().isNotEmpty)
+        (
+          Icons.email_outlined,
+          'Email',
+          lead.email!.trim(),
+          () => _sendEmail(lead.email),
+        ),
+      if (lead.mobile != null && lead.mobile!.trim().isNotEmpty)
+        (
+          Icons.phone_outlined,
+          'Mobile',
+          lead.mobile!.trim(),
+          () => _makePhoneCall(lead.mobile),
+        ),
+      if (lead.department != null && lead.department!.trim().isNotEmpty)
+        (Icons.domain_rounded, 'Department', lead.department!.trim(), null),
+      if (lead.city != null &&
+          lead.city!.trim().isNotEmpty &&
+          lead.city!.toLowerCase() != 'n/a')
+        (Icons.location_city_rounded, 'City', lead.city!.trim(), null),
+      if (lead.country != null && lead.country!.trim().isNotEmpty)
+        (Icons.public_rounded, 'Country', lead.country!.trim(), null),
       if (lead.uniqueId.isNotEmpty)
-        (Icons.qr_code_rounded, 'Badge ID', lead.uniqueId, null),
+        (
+          Icons.qr_code_2_rounded,
+          'Badge ID / URN',
+          lead.uniqueId,
+          () => _copyToClipboard(lead.uniqueId, 'Badge ID'),
+        ),
+      if (lead.eventName != null && lead.eventName!.trim().isNotEmpty)
+        (Icons.event_available_rounded, 'Event', lead.eventName!.trim(), null),
     ];
 
     if (infoItems.isEmpty) return const SizedBox.shrink();
@@ -625,23 +1219,34 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.surfaceBorder),
+        color: const Color(0xFF131926),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFF1F293D),
+          width: 1.0,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.badge_outlined, color: AppTheme.accentCyan, size: 20),
-              SizedBox(width: 8),
-              Text(
-                'Attendee Information',
+              Container(
+                width: 3.5,
+                height: 14,
+                decoration: BoxDecoration(
+                  gradient: AppTheme.brandGradient,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'ATTENDEE INFORMATION',
                 style: TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.7,
                 ),
               ),
             ],
@@ -649,7 +1254,11 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
           const SizedBox(height: 12),
           for (int i = 0; i < infoItems.length; i++) ...[
             if (i > 0)
-              const Divider(color: AppTheme.surfaceBorder, height: 16),
+              const Divider(
+                color: Color(0xFF1E273A),
+                height: 16,
+                thickness: 0.8,
+              ),
             _buildInfoRow(
               icon: infoItems[i].$1,
               label: infoItems[i].$2,
@@ -668,84 +1277,119 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     required String value,
     VoidCallback? onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            Icon(icon, color: AppTheme.textSecondary, size: 18),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 90,
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
+    final rowContent = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF8E9BAE), size: 17),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF8E9BAE),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
               ),
             ),
-            Expanded(
-              child: Text(
-                value,
-                style: TextStyle(
-                  color: onTap != null ? AppTheme.accentCyan : AppTheme.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  decoration: onTap != null ? TextDecoration.underline : null,
-                ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: onTap != null ? const Color(0xFF38BDF8) : Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            if (onTap != null)
-              const Icon(Icons.open_in_new_rounded, color: AppTheme.accentCyan, size: 14),
+          ),
+          if (onTap != null) ...[
+            const SizedBox(width: 6),
+            const Icon(
+              Icons.open_in_new_rounded,
+              color: Color(0xFF38BDF8),
+              size: 13,
+            ),
           ],
-        ),
+        ],
       ),
     );
+
+    if (onTap != null) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: rowContent,
+        ),
+      );
+    }
+    return rowContent;
   }
 
+  // ── Check-In History Section (Matching SessionPunchCard Style) ──────
   Widget _buildHistorySection(LeadModel lead) {
     final historyList = lead.checkinHistory!;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.surfaceBorder),
+        color: const Color(0xFF131926),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFF1F293D),
+          width: 1.0,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.history_rounded, color: AppTheme.accentOrange, size: 20),
+              Container(
+                width: 3.5,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00E676),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               const SizedBox(width: 8),
               const Text(
-                'Check-in History',
+                'CHECK-IN & OUT HISTORY',
                 style: TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.7,
                 ),
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 2.5,
+                ),
                 decoration: BoxDecoration(
-                  color: AppTheme.surfaceElevated,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppTheme.surfaceBorder),
+                  color: const Color(0xFF1B2436),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF28364F),
+                    width: 0.8,
+                  ),
                 ),
                 child: Text(
-                  '${historyList.length}',
+                  '${historyList.length} ${historyList.length == 1 ? 'RECORD' : 'RECORDS'}',
                   style: const TextStyle(
-                    color: AppTheme.accentOrange,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF00E676),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
                   ),
                 ),
               ),
@@ -753,15 +1397,15 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
           ),
           const SizedBox(height: 12),
           for (int i = 0; i < historyList.length; i++) ...[
-            if (i > 0) const SizedBox(height: 12),
-            _buildHistoryItem(historyList[i]),
+            if (i > 0) const SizedBox(height: 10),
+            _buildHistoryItem(historyList[i], index: historyList.length - i),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildHistoryItem(dynamic item) {
+  Widget _buildHistoryItem(dynamic item, {required int index}) {
     if (item is! Map) return const SizedBox.shrink();
 
     final checkInDt = item['main_check_in_dt']?.toString();
@@ -769,97 +1413,332 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     final checkOutDt = item['main_check_out_dt']?.toString();
     final checkOutTm = item['main_check_out_tm']?.toString();
 
-    String formattedIn = _formatDateTime(checkInDt, checkInTm);
-    String? formattedOut = (checkOutTm != null && checkOutTm.isNotEmpty)
-        ? _formatDateTime(checkOutDt, checkOutTm)
-        : null;
+    final formattedIn = _formatDateTime(checkInDt, checkInTm);
+    final hasCheckOut = checkOutTm != null && checkOutTm.trim().isNotEmpty;
+    final formattedOut =
+        hasCheckOut ? _formatDateTime(checkOutDt, checkOutTm) : null;
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceElevated,
+        color: const Color(0xFF1B2436),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.surfaceBorder),
+        border: Border.all(
+          color: const Color(0xFF28364F),
+          width: 0.8,
+        ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Check-in
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
+          // Visit Header Bar
+          Row(
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: hasCheckOut
+                      ? const Color(0xFF8E9BAE)
+                      : const Color(0xFF00E676),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'VISIT #$index',
+                style: const TextStyle(
+                  color: Color(0xFF8E9BAE),
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              if (!hasCheckOut)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00E676).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: const Color(0xFF00E676).withValues(alpha: 0.3),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: const Text(
+                    'IN VENUE',
+                    style: TextStyle(
+                      color: Color(0xFF00E676),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // In & Out Columns (Matching SessionPunchCard metrics)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // CHECK-IN
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.login_rounded, color: AppTheme.statusSuccess, size: 14),
-                    SizedBox(width: 4),
-                    Text(
-                      'CHECK-IN',
-                      style: TextStyle(
-                        color: AppTheme.statusSuccess,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+                    Container(
+                      width: 3,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00E676),
+                        borderRadius: BorderRadius.circular(1.5),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.login_rounded,
+                                color: Color(0xFF00E676),
+                                size: 13,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'CHECK-IN',
+                                style: TextStyle(
+                                  color: Color(0xFF00E676),
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            formattedIn,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  formattedIn,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (formattedOut != null) ...[
-            Container(
-              height: 36,
-              width: 1,
-              color: AppTheme.surfaceBorder,
-              margin: const EdgeInsets.symmetric(horizontal: 10),
-            ),
-            // Check-out
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.logout_rounded, color: AppTheme.statusRejected, size: 14),
-                      SizedBox(width: 4),
-                      Text(
-                        'CHECK-OUT',
-                        style: TextStyle(
-                          color: AppTheme.statusRejected,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    formattedOut,
-                    style: const TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
               ),
-            ),
-          ],
+
+              // Divider
+              Container(
+                height: 36,
+                width: 1,
+                color: const Color(0xFF28364F),
+                margin: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+
+              // CHECK-OUT
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 3,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: hasCheckOut
+                            ? const Color(0xFFFF5252)
+                            : const Color(0xFF64748B),
+                        borderRadius: BorderRadius.circular(1.5),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.logout_rounded,
+                                color: hasCheckOut
+                                    ? const Color(0xFFFF5252)
+                                    : const Color(0xFF64748B),
+                                size: 13,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'CHECK-OUT',
+                                style: TextStyle(
+                                  color: hasCheckOut
+                                      ? const Color(0xFFFF5252)
+                                      : const Color(0xFF64748B),
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            formattedOut ?? 'Active',
+                            style: TextStyle(
+                              color: hasCheckOut
+                                  ? Colors.white
+                                  : const Color(0xFF8E9BAE),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
+  // ── Loading & Error States ─────────────────────────────────────────
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF131926),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF1F293D)),
+            ),
+            child: const CircularProgressIndicator(
+              strokeWidth: 2.5,
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Loading lead details...',
+            style: TextStyle(
+              color: Color(0xFF8E9BAE),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF131926),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF1F293D)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF5252).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.error_outline_rounded,
+                  size: 28,
+                  color: Color(0xFFFF5252),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Unable to load lead details',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage ?? 'Something went wrong.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF8E9BAE),
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _fetchDetails(),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: AppTheme.brandGradient,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.refresh_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Try Again',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Helper Utilities ───────────────────────────────────────────────
   String _formatDateTime(String? dateStr, String? timeStr) {
     if (dateStr == null && timeStr == null) return 'TBA';
     try {
@@ -867,17 +1746,19 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
       if (dateStr != null && dateStr.isNotEmpty) {
         dt = DateTime.tryParse(dateStr);
       }
-      final dateFormatted = dt != null ? DateFormat('MMM dd, yyyy').format(dt) : (dateStr ?? '');
+      final dateFormatted = dt != null
+          ? DateFormat('MMM dd, yyyy').format(dt)
+          : (dateStr ?? '');
 
       if (timeStr != null && timeStr.isNotEmpty) {
-        // time might be "14:30:00" or "14:30"
         final parts = timeStr.split(':');
         if (parts.length >= 2) {
           final hour = int.tryParse(parts[0]) ?? 0;
           final min = int.tryParse(parts[1]) ?? 0;
           final tod = TimeOfDay(hour: hour, minute: min);
           final now = DateTime.now();
-          final timeDt = DateTime(now.year, now.month, now.day, tod.hour, tod.minute);
+          final timeDt =
+              DateTime(now.year, now.month, now.day, tod.hour, tod.minute);
           final timeFormatted = DateFormat('hh:mm a').format(timeDt);
           return '$dateFormatted • $timeFormatted';
         }
@@ -888,15 +1769,33 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     }
   }
 
-  (Color, IconData, String) _getLeadTypeProps(String type) {
+  (Color, Color, Color, IconData, String) _getLeadTypeProps(String type) {
     switch (type.toUpperCase()) {
       case 'HOT':
-        return (const Color(0xFFEF4444), Icons.whatshot_rounded, 'HOT');
+        return (
+          const Color(0xFFFF5252),
+          const Color(0xFFFF3B30).withValues(alpha: 0.16),
+          const Color(0xFFEF4444).withValues(alpha: 0.35),
+          Icons.local_fire_department_rounded,
+          'HOT',
+        );
       case 'WARM':
-        return (const Color(0xFFF59E0B), Icons.wb_sunny_rounded, 'WARM');
+        return (
+          const Color(0xFFFFA726),
+          const Color(0xFFFF9500).withValues(alpha: 0.16),
+          const Color(0xFFF59E0B).withValues(alpha: 0.35),
+          Icons.wb_sunny_rounded,
+          'WARM',
+        );
       case 'COLD':
       default:
-        return (const Color(0xFF3B82F6), Icons.ac_unit_rounded, 'COLD');
+        return (
+          const Color(0xFF38BDF8),
+          const Color(0xFF007AFF).withValues(alpha: 0.16),
+          const Color(0xFF3B82F6).withValues(alpha: 0.35),
+          Icons.ac_unit_rounded,
+          'COLD',
+        );
     }
   }
 }

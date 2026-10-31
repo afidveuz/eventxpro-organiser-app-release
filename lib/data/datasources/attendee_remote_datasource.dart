@@ -1,8 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import '../../core/config/app_constants.dart';
 import '../../core/network/api_client.dart';
 import '../models/attendee_details_model.dart';
 import '../models/attendee_list_item_model.dart';
+import '../models/country_model.dart';
+import '../models/spot_registration_model.dart';
+import '../models/ticket_type_model.dart';
 
 class AttendeePunchResult {
   final bool isSuccess;
@@ -214,5 +218,139 @@ class AttendeeRemoteDatasource {
         message: e.toString(),
       );
     }
+  }
+
+  /// Fetches available ticket tiers for an event from `organizer/ticket-list/{eventId}`
+  Future<List<TicketTypeModel>> getTicketList({required int eventId}) async {
+    try {
+      final response = await _apiClient.dio.get('organizer/ticket-list/$eventId');
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data is Map<String, dynamic>
+            ? response.data as Map<String, dynamic>
+            : jsonDecode(response.data.toString()) as Map<String, dynamic>;
+
+        final rawList = data['Ticket_list'] ??
+            data['ticket_list'] ??
+            data['tickets'] ??
+            data['data'];
+
+        if (rawList is List) {
+          return rawList
+              .whereType<Map>()
+              .map((item) =>
+                  TicketTypeModel.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
+        }
+      }
+      return [];
+    } catch (e) {
+      debugPrint('[AttendeeRemoteDatasource] getTicketList error: $e');
+      rethrow;
+    }
+  }
+
+  /// Creates a walk-in attendee on-site (Spot Registration)
+  /// Endpoint: `organizer/api/v1/create-user/{eventId}?lang=eng`
+  /// Fallback: `organizer/create-attendee`
+  Future<SpotRegistrationResult> createSpotAttendee({
+    required SpotRegistrationRequest request,
+  }) async {
+    try {
+      final payload = request.toJson();
+      dynamic response;
+      try {
+        response = await _apiClient.dio.post(
+          'organizer/api/v1/create-user/${request.eventId}?lang=eng',
+          data: payload,
+        );
+      } catch (postErr) {
+        // Fallback to legacy endpoint if v1 route is not mapped
+        debugPrint('[AttendeeRemoteDatasource] v1 create-user failed: $postErr, attempting fallback');
+        response = await _apiClient.dio.post(
+          'organizer/create-attendee',
+          data: payload,
+        );
+      }
+
+      if (response != null && response.data != null) {
+        final data = response.data is Map<String, dynamic>
+            ? response.data as Map<String, dynamic>
+            : jsonDecode(response.data.toString()) as Map<String, dynamic>;
+
+        final bool isSuccess = data['status'] == true ||
+            data['success'] == true ||
+            response.statusCode == 200 ||
+            response.statusCode == 201;
+
+        if (isSuccess) {
+          final attendeeData = data['data'] is Map ? data['data'] as Map : data;
+          final int? id = (attendeeData['id'] ??
+                  attendeeData['pk'] ??
+                  attendeeData['user_id'] as num?)
+              ?.toInt();
+          final String? uid = attendeeData['unique_id']?.toString() ??
+              attendeeData['urn']?.toString() ??
+              attendeeData['ticket_id']?.toString();
+          final String name = attendeeData['name']?.toString() ??
+              '${request.firstName} ${request.lastName}'.trim();
+
+          return SpotRegistrationResult.success(
+            message: data['message']?.toString() ?? 'Registration completed successfully',
+            attendeeId: id,
+            uniqueId: uid,
+            fullName: name,
+            email: request.email,
+            rawData: data,
+          );
+        } else {
+          final errorMsg = data['message']?.toString() ??
+              data['detail']?.toString() ??
+              'Registration failed. Please check inputs and try again.';
+          return SpotRegistrationResult.failure(
+            message: errorMsg,
+            rawData: data,
+          );
+        }
+      }
+      return SpotRegistrationResult.failure(
+        message: 'No response received from registration server.',
+      );
+    } catch (e) {
+      debugPrint('[AttendeeRemoteDatasource] createSpotAttendee error: $e');
+      return SpotRegistrationResult.failure(
+        message: e.toString(),
+      );
+    }
+  }
+
+  /// Fetches global countries with dial codes, falling back to bundled list
+  Future<List<CountryModel>> getCountries() async {
+    try {
+      final response = await _apiClient.dio.get(AppConstants.countriesEndpoint);
+      if (response.statusCode == 200 && response.data != null) {
+        dynamic parsed = response.data;
+        if (parsed is String) {
+          parsed = jsonDecode(parsed);
+        }
+        if (parsed is List) {
+          final list = parsed
+              .whereType<Map>()
+              .map((c) => CountryModel.fromJson(Map<String, dynamic>.from(c)))
+              .where((c) => c.label.isNotEmpty && c.code.isNotEmpty)
+              .toList();
+          if (list.isNotEmpty) return list;
+        } else if (parsed is Map && parsed['data'] is List) {
+          final list = (parsed['data'] as List)
+              .whereType<Map>()
+              .map((c) => CountryModel.fromJson(Map<String, dynamic>.from(c)))
+              .where((c) => c.label.isNotEmpty && c.code.isNotEmpty)
+              .toList();
+          if (list.isNotEmpty) return list;
+        }
+      }
+    } catch (e) {
+      debugPrint('[AttendeeRemoteDatasource] getCountries error: $e. Using default list.');
+    }
+    return CountryModel.defaultCountries;
   }
 }

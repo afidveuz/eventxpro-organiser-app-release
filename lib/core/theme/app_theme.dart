@@ -9,13 +9,19 @@ class AppTheme {
   static const Color surfaceBorder = Color(0xFF30363D);
 
   // Status Feedback Colors
-  static const Color statusSuccess = Color(0xFF00E676);     // Large Green: Accepted
+  static const Color statusSuccess = Color(0xFF00E676); // Large Green: Accepted
   static const Color statusSuccessBg = Color(0xFF052E16);
-  static const Color statusWarning = Color(0xFFFFB300);     // Amber: Already Checked In
+  static const Color statusWarning = Color(
+    0xFFFFB300,
+  ); // Amber: Already Checked In
   static const Color statusWarningBg = Color(0xFF3E2800);
-  static const Color statusRejected = Color(0xFFFF1744);    // Red: Denied / Expired / Invalid
+  static const Color statusRejected = Color(
+    0xFFFF1744,
+  ); // Red: Denied / Expired / Invalid
   static const Color statusRejectedBg = Color(0xFF3B0D11);
-  static const Color statusPending = Color(0xFF00E5FF);     // Blue: Queued / Network In Flight
+  static const Color statusPending = Color(
+    0xFF00E5FF,
+  ); // Blue: Queued / Network In Flight
   static const Color statusPendingBg = Color(0xFF00223A);
 
   // Accent & Neutral
@@ -29,17 +35,32 @@ class AppTheme {
   // EventXPro Signature Brand Theme Colors
   static const Color eventxproBg = Color(0xFF171C26);
   static const Color eventxproNavy = Color(0xFF0C1A52);
-  static const Color eventxproAccent = Color(0xFFC10067); // Signature Magenta Pink
+  static const Color eventxproAccent = Color(
+    0xFFC10067,
+  ); // Signature Magenta Pink
   static const Color eventxproCardBg = Color(0xFFFFFFFF);
-  static const Color eventxproSuccess = Color(0xFF10B981); // Darker rich Check-in Green
-  static const Color eventxproSuccessDark = Color(0xFF047857); // Deep dark Check-in Green
-  static const Color eventxproDanger = Color(0xFFE11D48); // Darker rich Check-out Red
-  static const Color eventxproBorder = Color(0x66FFFFFF); // rgba(255, 255, 255, 0.40)
+  static const Color eventxproSuccess = Color(
+    0xFF10B981,
+  ); // Darker rich Check-in Green
+  static const Color eventxproSuccessDark = Color(
+    0xFF047857,
+  ); // Deep dark Check-in Green
+  static const Color eventxproDanger = Color(
+    0xFFE11D48,
+  ); // Darker rich Check-out Red
+  static const Color eventxproBorder = Color(
+    0x66FFFFFF,
+  ); // rgba(255, 255, 255, 0.40)
   static const Color eventxproDarkText = Color(0xFF1E1638);
 
   // Brand Linear Gradient: 135deg (#f43f5e -> #7c3aed)
-  static const Color brandGradientStart = Color(0xFFF43F5E); // #f43f5e
-  static const Color brandGradientEnd = Color(0xFF7C3AED);   // #7c3aed
+  static const Color brandGradientStart = Color.fromARGB(
+    255,
+    219,
+    63,
+    89,
+  ); // #f43f5e
+  static const Color brandGradientEnd = Color(0xFF7C3AED); // #7c3aed
   static const LinearGradient brandGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -48,10 +69,9 @@ class AppTheme {
 
   static ThemeData get darkTheme {
     final baseTextTheme = ThemeData.dark().textTheme;
-    final interTextTheme = GoogleFonts.interTextTheme(baseTextTheme).apply(
-      bodyColor: textPrimary,
-      displayColor: textPrimary,
-    );
+    final interTextTheme = GoogleFonts.interTextTheme(
+      baseTextTheme,
+    ).apply(bodyColor: textPrimary, displayColor: textPrimary);
 
     return ThemeData(
       useMaterial3: true,
