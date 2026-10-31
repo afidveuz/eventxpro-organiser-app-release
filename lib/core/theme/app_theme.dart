@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // Vibrant Kiosk Colors
@@ -46,6 +47,12 @@ class AppTheme {
   );
 
   static ThemeData get darkTheme {
+    final baseTextTheme = ThemeData.dark().textTheme;
+    final interTextTheme = GoogleFonts.interTextTheme(baseTextTheme).apply(
+      bodyColor: textPrimary,
+      displayColor: textPrimary,
+    );
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
@@ -57,7 +64,8 @@ class AppTheme {
         onPrimary: Colors.white,
         onSurface: textPrimary,
       ),
-      fontFamily: 'Segoe UI',
+      fontFamily: GoogleFonts.inter().fontFamily,
+      textTheme: interTextTheme,
       cardTheme: CardThemeData(
         color: surfaceElevated,
         elevation: 0,
@@ -66,12 +74,12 @@ class AppTheme {
           side: const BorderSide(color: surfaceBorder, width: 1),
         ),
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: surface,
         elevation: 0,
         centerTitle: false,
-        iconTheme: IconThemeData(color: textPrimary),
-        titleTextStyle: TextStyle(
+        iconTheme: const IconThemeData(color: textPrimary),
+        titleTextStyle: GoogleFonts.inter(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: textPrimary,

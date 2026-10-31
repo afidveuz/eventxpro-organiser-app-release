@@ -13,12 +13,14 @@ import 'core/services/remote_config_service.dart';
 import 'core/theme/app_theme.dart';
 import 'data/adapters/simulated_hardware_adapter.dart';
 import 'data/adapters/zebra_datawedge_adapter.dart';
+import 'data/datasources/attendee_remote_datasource.dart';
 import 'data/datasources/auth_local_storage.dart';
 import 'data/datasources/auth_remote_datasource.dart';
 import 'data/datasources/django_scan_api_datasource.dart';
 import 'data/datasources/lead_remote_datasource.dart';
 import 'data/datasources/offline_database_helper.dart';
 import 'data/datasources/scanner_local_storage.dart';
+import 'data/repositories/attendee_repository.dart';
 import 'data/repositories/auth_repository.dart';
 import 'data/repositories/lead_repository.dart';
 import 'data/repositories/scanner_repository_impl.dart';
@@ -87,6 +89,10 @@ void main() async {
   final leadRemoteDatasource = LeadRemoteDatasource(apiClient: apiClient);
   final leadRepository = LeadRepository(remoteDatasource: leadRemoteDatasource);
 
+  // Initialize Attendee repository
+  final attendeeRemoteDatasource = AttendeeRemoteDatasource(apiClient: apiClient);
+  final attendeeRepository = AttendeeRepository(remoteDatasource: attendeeRemoteDatasource);
+
   // Initialize remote Django DRF API client with timeout
   final remoteDatasource = DjangoScanApiDatasource(
     authLocalStorage: authLocalStorage,
@@ -129,6 +135,7 @@ void main() async {
     scannerLocalStorage: scannerLocalStorage,
     authRepository: authRepository,
     leadRepository: leadRepository,
+    attendeeRepository: attendeeRepository,
     offlineDbHelper: offlineDbHelper,
     apiClient: apiClient,
     gateCountService: gateCountService,
@@ -143,6 +150,7 @@ class EventXProApp extends StatelessWidget {
   final ScannerLocalStorage scannerLocalStorage;
   final AuthRepository authRepository;
   final LeadRepository leadRepository;
+  final AttendeeRepository attendeeRepository;
   final OfflineDatabaseHelper offlineDbHelper;
   final ApiClient apiClient;
   final GateCountService gateCountService;
@@ -156,6 +164,7 @@ class EventXProApp extends StatelessWidget {
     required this.scannerLocalStorage,
     required this.authRepository,
     required this.leadRepository,
+    required this.attendeeRepository,
     required this.offlineDbHelper,
     required this.apiClient,
     required this.gateCountService,
@@ -170,6 +179,7 @@ class EventXProApp extends StatelessWidget {
       providers: [
         RepositoryProvider<AuthRepository>.value(value: authRepository),
         RepositoryProvider<LeadRepository>.value(value: leadRepository),
+        RepositoryProvider<AttendeeRepository>.value(value: attendeeRepository),
         RepositoryProvider<ScannerLocalStorage>.value(value: scannerLocalStorage),
         RepositoryProvider<OfflineDatabaseHelper>.value(value: offlineDbHelper),
         RepositoryProvider<ApiClient>.value(value: apiClient),

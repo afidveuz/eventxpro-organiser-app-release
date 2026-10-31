@@ -17,6 +17,7 @@ import '../../domain/entities/scan_decision_code.dart';
 import '../bloc/scanner_bloc.dart';
 import '../bloc/scanner_event.dart';
 import '../bloc/scanner_state.dart';
+import '../screens/attendees/event_attendees_screen.dart';
 import '../screens/settings_screen.dart';
 
 /// Clean, high-performance scanning UI for EventXPro gate staff.
@@ -426,7 +427,6 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                   overflow: TextOverflow.ellipsis,
                   text: TextSpan(
                     style: const TextStyle(
-                      fontFamily: 'Segoe UI',
                       color: Colors.white,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
@@ -2196,7 +2196,49 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             ),
           ),
 
+          const SizedBox(width: 14),
 
+          // Attendees / History Listing Button matching React Native SwitchBtn VUsers
+          Tooltip(
+            message: 'Attendee History & Listing',
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => EventAttendeesScreen(
+                      eventId: widget.state.eventId,
+                      eventName: _resolveEventName(),
+                      title: '${_resolveGateName()} Attendees',
+                      isSessionMode: true,
+                      pageType: widget.section ?? 'entrance',
+                      actionType: widget.state.scanType,
+                      gateId: widget.state.gateId,
+                      sectionLocation: widget.sectionLocation,
+                    ),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(50),
+              child: Container(
+                height: 50,
+                width: 50,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF222838),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    width: 1.5,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.people_alt_rounded,
+                  size: 22,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

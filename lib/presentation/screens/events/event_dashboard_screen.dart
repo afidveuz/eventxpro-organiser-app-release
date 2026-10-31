@@ -8,6 +8,7 @@ import '../../../data/adapters/simulated_hardware_adapter.dart';
 import '../../../data/adapters/zebra_datawedge_adapter.dart';
 import '../../../data/datasources/scanner_local_storage.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../attendees/event_attendees_screen.dart';
 import '../lead/leads_list_screen.dart';
 import 'event_sessions_screen.dart';
 
@@ -182,6 +183,20 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
           initialPermissions: _cachedPermissions,
           zebraAdapter: widget.zebraAdapter,
           simulatorAdapter: widget.simulatorAdapter,
+        ),
+      ),
+    );
+  }
+
+  void _openAttendees(String title, String endPoint) {
+    HapticFeedback.lightImpact();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EventAttendeesScreen(
+          eventId: widget.eventId,
+          eventName: _getEventName(),
+          title: title,
+          endPoint: endPoint,
         ),
       ),
     );
@@ -667,6 +682,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                 title: 'Total Registration',
                 count: totalReg,
                 countColor: const Color(0xFFFACC15), // Gold #D2C442
+                onTap: () => _openAttendees('Total Registration', 'event-register-users'),
               ),
             ),
             const SizedBox(width: 8),
@@ -675,6 +691,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                 title: 'Total Venue Visits',
                 count: totalVisits,
                 countColor: const Color(0xFF6EE7B7), // Mint Green #8DFFBB
+                onTap: () => _openAttendees('Total Unique Visitors', 'totalattendees-list'),
               ),
             ),
             const SizedBox(width: 8),
@@ -683,6 +700,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                 title: 'No Shows',
                 count: noShows,
                 countColor: const Color(0xFFF87171), // Coral Red #FF9292
+                onTap: () => _openAttendees('No Shows', 'noshow-list'),
               ),
             ),
           ],
@@ -697,6 +715,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                 title: 'Today Visits',
                 count: todayVisits,
                 countColor: const Color(0xFF6EE7B7),
+                onTap: () => _openAttendees('Today Visitors', 'today-visits'),
               ),
             ),
             const SizedBox(width: 8),
@@ -705,6 +724,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                 title: 'Checkin Count',
                 count: checkinCount,
                 countColor: const Color(0xFF6EE7B7),
+                onTap: () => _openAttendees('Check-in', 'checkin-list'),
               ),
             ),
             if (hasLeadPermission) ...[
@@ -875,14 +895,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
               title: 'Registration',
               icon: Icons.group_rounded,
               color: AppTheme.brandGradientStart,
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Registration overview available on web dashboard'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
+              onTap: () => _openAttendees('Total Registration', 'event-register-users'),
             ),
 
             // Leads Tile (if lead permission is active)

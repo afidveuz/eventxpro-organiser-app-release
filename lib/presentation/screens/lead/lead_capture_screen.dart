@@ -595,7 +595,6 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
                 Text.rich(
                   const TextSpan(
                     style: TextStyle(
-                      fontFamily: 'Segoe UI',
                       color: Colors.white,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
