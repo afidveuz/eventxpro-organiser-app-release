@@ -158,25 +158,31 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
   @override
   void didUpdateWidget(covariant SimpleScannerView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.state is ScannerDecisionState && widget.state != oldWidget.state) {
+    if (widget.state is ScannerDecisionState &&
+        widget.state != oldWidget.state) {
       final decisionState = widget.state as ScannerDecisionState;
-      if (decisionState.isSuccess || decisionState.response.status == 'ACCEPTED') {
-        final isCheckIn = widget.state.scanType.toLowerCase().contains('in') ||
+      if (decisionState.isSuccess ||
+          decisionState.response.status == 'ACCEPTED') {
+        final isCheckIn =
+            widget.state.scanType.toLowerCase().contains('in') ||
             widget.state.scanType.toLowerCase().contains('entry');
         setState(() {
           _gateCount = _gateCount.copyWith(
             checkIn: isCheckIn ? _gateCount.checkIn + 1 : _gateCount.checkIn,
-            checkOut: !isCheckIn ? _gateCount.checkOut + 1 : _gateCount.checkOut,
+            checkOut: !isCheckIn
+                ? _gateCount.checkOut + 1
+                : _gateCount.checkOut,
           );
         });
         try {
           context.read<GateCountService>().incrementCount(
-                eventId: widget.state.eventId,
-                section: widget.section ?? decisionState.request.section,
-                actionId: widget.state.gateId,
-                punchType: widget.state.scanType,
-                location: widget.sectionLocation ?? decisionState.request.sectionLocation,
-              );
+            eventId: widget.state.eventId,
+            section: widget.section ?? decisionState.request.section,
+            actionId: widget.state.gateId,
+            punchType: widget.state.scanType,
+            location:
+                widget.sectionLocation ?? decisionState.request.sectionLocation,
+          );
         } catch (_) {}
       }
 
@@ -191,7 +197,8 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
           }
         });
       }
-    } else if (widget.state is ScannerReadyState && oldWidget.state is ScannerDecisionState) {
+    } else if (widget.state is ScannerReadyState &&
+        oldWidget.state is ScannerDecisionState) {
       if (!_isShortToast) {
         _currentToastDecision = null;
       }
@@ -276,7 +283,9 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     try {
       final authStorage = context.read<AuthLocalStorage?>();
       final baseUrl = authStorage?.getBaseUrl() ?? AppConstants.defaultBaseUrl;
-      final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final cleanBase = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
       final cleanPath = trimmed.startsWith('/') ? trimmed : '/$trimmed';
       return '$cleanBase$cleanPath';
     } catch (_) {
@@ -304,8 +313,6 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     return punchTime.trim();
   }
 
-
-
   @override
   void dispose() {
     _toastDismissTimer?.cancel();
@@ -319,7 +326,8 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
   @override
   Widget build(BuildContext context) {
     final isCheckOut = widget.state.scanType == 'check_out';
-    final topBannerOffset = MediaQuery.of(context).padding.top +
+    final topBannerOffset =
+        MediaQuery.of(context).padding.top +
         (widget.state.isOfflineMode ? 96.0 : 70.0);
 
     return Stack(
@@ -338,7 +346,10 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
               Expanded(
                 child: Center(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 8,
+                    ),
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 480),
                       child: _buildBody(isCheckOut),
@@ -372,8 +383,9 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
   Widget _buildEventTopBar(bool isCheckOut) {
     final gateName = _resolveGateName();
     final eventName = _resolveEventName();
-    final typeColor =
-        isCheckOut ? AppTheme.eventxproDanger : AppTheme.eventxproSuccess;
+    final typeColor = isCheckOut
+        ? AppTheme.eventxproDanger
+        : AppTheme.eventxproSuccess;
     final typeText = isCheckOut ? 'Check-out' : 'Check-in';
 
     return Container(
@@ -482,9 +494,9 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             onTap: () async {
               HapticFeedback.lightImpact();
               context.read<ScannerBloc>().add(const ScannerScanningPaused());
-              await Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
+              await Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
               if (mounted) {
                 context.read<ScannerBloc>().add(const ScannerScanningResumed());
                 final storage = context.read<ScannerLocalStorage>();
@@ -504,10 +516,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
               decoration: BoxDecoration(
                 color: const Color(0xFF212836),
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppTheme.eventxproBorder,
-                  width: 1.2,
-                ),
+                border: Border.all(color: AppTheme.eventxproBorder, width: 1.2),
               ),
               child: const Icon(
                 Icons.settings_outlined,
@@ -608,143 +617,148 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
         // Viewfinder Frame (Isolated RepaintBoundary to prevent repaint cascade)
         RepaintBoundary(
           child: Container(
-              width: 270,
-              height: 270,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F141E),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.eventxproAccent.withValues(alpha: 0.2),
-                    blurRadius: 28,
-                    spreadRadius: 2,
-                  ),
-                ],
+            width: 270,
+            height: 270,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F141E),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.12),
+                width: 1.2,
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(22),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Mode A: Live Smartphone Camera Feed
-                    if (_isCameraActive && _cameraController != null)
-                      MobileScanner(
-                        controller: _cameraController!,
-                        onDetect: (BarcodeCapture capture) {
-                          if (widget.state is ScannerProcessingState) return;
-                          if (!_isShortToast && widget.state is! ScannerReadyState) return;
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.eventxproAccent.withValues(alpha: 0.2),
+                  blurRadius: 28,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Mode A: Live Smartphone Camera Feed
+                  if (_isCameraActive && _cameraController != null)
+                    MobileScanner(
+                      controller: _cameraController!,
+                      onDetect: (BarcodeCapture capture) {
+                        if (widget.state is ScannerProcessingState) return;
+                        if (!_isShortToast &&
+                            widget.state is! ScannerReadyState)
+                          return;
 
-                          for (final barcode in capture.barcodes) {
-                            final rawVal = barcode.rawValue?.trim();
-                            if (rawVal != null && rawVal.isNotEmpty) {
-                              if (_lastCameraScannedToken == rawVal) {
-                                return; // Suppress repetitive scanning of same badge until another badge is scanned
-                              }
-                              _lastCameraScannedToken = rawVal;
-                              debugPrint('[CAMERA SCAN DETECTED] 📷 Scanned barcode: "$rawVal"');
-                              HapticFeedback.lightImpact();
-                              context
-                                  .read<ScannerBloc>()
-                                  .add(ScannerRawBarcodeReceived(rawVal));
-                              break;
+                        for (final barcode in capture.barcodes) {
+                          final rawVal = barcode.rawValue?.trim();
+                          if (rawVal != null && rawVal.isNotEmpty) {
+                            if (_lastCameraScannedToken == rawVal) {
+                              return; // Suppress repetitive scanning of same badge until another badge is scanned
                             }
+                            _lastCameraScannedToken = rawVal;
+                            debugPrint(
+                              '[CAMERA SCAN DETECTED] 📷 Scanned barcode: "$rawVal"',
+                            );
+                            HapticFeedback.lightImpact();
+                            context.read<ScannerBloc>().add(
+                              ScannerRawBarcodeReceived(rawVal),
+                            );
+                            break;
                           }
-                        },
-                        errorBuilder: (context, error) {
-                          return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.videocam_off_rounded,
-                                    size: 38,
-                                    color: AppTheme.eventxproDanger,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Camera Access: ${error.errorCode.name}',
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.white70,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      )
-                    else
-                      // Mode B: Hardware Scanner Listening Illustration
-                      _buildHardwareScannerArtwork(),
-
-                    // 4 Signature Corner Brackets (Magenta Accent) - Static paint layer
-                    const Positioned.fill(
-                      child: RepaintBoundary(
-                        child: CustomPaint(
-                          painter: _CornerBracketPainter(
-                            color: AppTheme.eventxproAccent,
-                            bracketLength: 32,
-                            strokeWidth: 3.5,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Animated Sweeping Laser Beam (Isolated animation & repaint layer)
-                    Positioned.fill(
-                      child: RepaintBoundary(
-                        child: AnimatedBuilder(
-                          animation: _laserAnimation,
-                          builder: (context, _) {
-                            return Stack(
+                        }
+                      },
+                      errorBuilder: (context, error) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Positioned(
-                                  top: 270 * _laserAnimation.value,
-                                  left: 14,
-                                  right: 14,
-                                  child: Container(
-                                    height: 2.8,
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          Colors.transparent,
-                                          AppTheme.eventxproAccent,
-                                          Color(0xFFFF3E96),
-                                          Colors.white,
-                                          Color(0xFFFF3E96),
-                                          AppTheme.eventxproAccent,
-                                          Colors.transparent,
-                                        ],
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: AppTheme.eventxproAccent.withValues(alpha: 0.9),
-                                          blurRadius: 12,
-                                          spreadRadius: 2,
-                                        ),
-                                      ],
-                                    ),
+                                const Icon(
+                                  Icons.videocam_off_rounded,
+                                  size: 38,
+                                  color: AppTheme.eventxproDanger,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Camera Access: ${error.errorCode.name}',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white70,
                                   ),
                                 ),
                               ],
-                            );
-                          },
+                            ),
+                          ),
+                        );
+                      },
+                    )
+                  else
+                    // Mode B: Hardware Scanner Listening Illustration
+                    _buildHardwareScannerArtwork(),
+
+                  // 4 Signature Corner Brackets (Magenta Accent) - Static paint layer
+                  const Positioned.fill(
+                    child: RepaintBoundary(
+                      child: CustomPaint(
+                        painter: _CornerBracketPainter(
+                          color: AppTheme.eventxproAccent,
+                          bracketLength: 32,
+                          strokeWidth: 3.5,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+
+                  // Animated Sweeping Laser Beam (Isolated animation & repaint layer)
+                  Positioned.fill(
+                    child: RepaintBoundary(
+                      child: AnimatedBuilder(
+                        animation: _laserAnimation,
+                        builder: (context, _) {
+                          return Stack(
+                            children: [
+                              Positioned(
+                                top: 270 * _laserAnimation.value,
+                                left: 14,
+                                right: 14,
+                                child: Container(
+                                  height: 2.8,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Colors.transparent,
+                                        AppTheme.eventxproAccent,
+                                        Color(0xFFFF3E96),
+                                        Colors.white,
+                                        Color(0xFFFF3E96),
+                                        AppTheme.eventxproAccent,
+                                        Colors.transparent,
+                                      ],
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppTheme.eventxproAccent
+                                            .withValues(alpha: 0.9),
+                                        blurRadius: 12,
+                                        spreadRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
+        ),
 
         const SizedBox(height: 20),
 
@@ -901,7 +915,9 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             height: 52,
             child: CircularProgressIndicator(
               strokeWidth: 3.8,
-              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.eventxproAccent),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                AppTheme.eventxproAccent,
+              ),
             ),
           ),
           const SizedBox(height: 22),
@@ -930,7 +946,10 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
 
   // ── 2C. Authoritative Decision Card (Success / Warning / Rejected) ─
   // ── 2C. Authoritative Decision Card (Matching React Native AttendeeSheet.jsx) ─
-  Widget _buildDecisionCard(ScannerDecisionState decState, {bool isModal = false}) {
+  Widget _buildDecisionCard(
+    ScannerDecisionState decState, {
+    bool isModal = false,
+  }) {
     Color headerColor;
     IconData iconData;
     final alertType = decState.response.alertType;
@@ -938,7 +957,8 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     final isSuccess = decState.response.isAlertSuccess;
     final isWarning = decState.response.isAlertWarning;
 
-    final isNetworkErr = decState.isNetworkError ||
+    final isNetworkErr =
+        decState.isNetworkError ||
         decState.response.code == ScanDecisionCode.networkError ||
         alertType == 'network_error' ||
         msg.toLowerCase().contains('no internet') ||
@@ -950,7 +970,9 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
       headerColor = const Color(0xFFFF8450); // Warning Amber
       iconData = Icons.wifi_off_rounded;
     } else if (alertType == 'success' || (alertType == null && isSuccess)) {
-      headerColor = const Color(0xFF23A618); // #23A618 Vibrant Green from AttendeeSheet.jsx
+      headerColor = const Color(
+        0xFF23A618,
+      ); // #23A618 Vibrant Green from AttendeeSheet.jsx
       iconData = decState.request.scanType.toLowerCase() == 'check_out'
           ? Icons.logout_rounded
           : Icons.check_circle_rounded;
@@ -1014,7 +1036,11 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                     children: [
                       _buildHeaderTitle(msg, isNetworkErr: isNetworkErr),
                       const SizedBox(height: 2),
-                      _buildHeaderSubtitle(msg, formattedPunchTime, isNetworkErr: isNetworkErr),
+                      _buildHeaderSubtitle(
+                        msg,
+                        formattedPunchTime,
+                        isNetworkErr: isNetworkErr,
+                      ),
                     ],
                   ),
                 ),
@@ -1102,7 +1128,8 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                             // Ticket ID (styles.nameSub)
                             if (attendee.ticketId != null &&
                                 attendee.ticketId!.trim().isNotEmpty &&
-                                attendee.ticketId != decState.request.qrToken) ...[
+                                attendee.ticketId !=
+                                    decState.request.qrToken) ...[
                               const SizedBox(height: 2),
                               Text(
                                 'Ticket ID: ${attendee.ticketId}',
@@ -1128,7 +1155,10 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                       attendee.lastCheckinSession!.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF9FAFB),
                         borderRadius: BorderRadius.circular(8),
@@ -1136,7 +1166,11 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.history_rounded, size: 14, color: Color(0xFF6B7280)),
+                          const Icon(
+                            Icons.history_rounded,
+                            size: 14,
+                            color: Color(0xFF6B7280),
+                          ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
@@ -1170,10 +1204,18 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                       spacing: 8,
                       runSpacing: 6,
                       children: attendee.sessionAccess!.map((itm) {
-                        final timeStr = itm.startTm != null ? _formatPunchTime(itm.startTm) : '';
-                        final hallStr = itm.hallName != null && itm.hallName!.isNotEmpty ? '- ${itm.hallName}' : '';
+                        final timeStr = itm.startTm != null
+                            ? _formatPunchTime(itm.startTm)
+                            : '';
+                        final hallStr =
+                            itm.hallName != null && itm.hallName!.isNotEmpty
+                            ? '- ${itm.hallName}'
+                            : '';
                         return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF3E8FF),
                             borderRadius: BorderRadius.circular(6),
@@ -1241,11 +1283,15 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                         }
                       },
                       icon: Icon(
-                        isModal ? Icons.check_rounded : Icons.arrow_forward_rounded,
+                        isModal
+                            ? Icons.check_rounded
+                            : Icons.arrow_forward_rounded,
                         size: 18,
                       ),
                       label: Text(
-                        isModal ? 'Done & Return To Scanner' : 'Ready For Next Attendee',
+                        isModal
+                            ? 'Done & Return To Scanner'
+                            : 'Ready For Next Attendee',
                         style: const TextStyle(
                           fontSize: 14.5,
                           fontWeight: FontWeight.bold,
@@ -1271,7 +1317,10 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     ).animate().fadeIn(duration: 180.ms).scale(begin: const Offset(0.92, 0.92));
   }
 
-  Widget _buildNetworkOfflineBody(ScannerDecisionState decState, {bool isModal = false}) {
+  Widget _buildNetworkOfflineBody(
+    ScannerDecisionState decState, {
+    bool isModal = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
@@ -1344,7 +1393,11 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
           ),
           child: Row(
             children: [
-              const Icon(Icons.qr_code_2_rounded, size: 20, color: Color(0xFF4B5563)),
+              const Icon(
+                Icons.qr_code_2_rounded,
+                size: 20,
+                color: Color(0xFF4B5563),
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1434,7 +1487,11 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                 widget.onResetToReady();
               }
             },
-            icon: const Icon(Icons.offline_bolt_rounded, size: 18, color: Color(0xFFEA580C)),
+            icon: const Icon(
+              Icons.offline_bolt_rounded,
+              size: 18,
+              color: Color(0xFFEA580C),
+            ),
             label: const Text(
               'Switch to Offline Mode',
               style: TextStyle(
@@ -1473,7 +1530,10 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
       return const Text.rich(
         TextSpan(
           children: [
-            TextSpan(text: 'Checked Out ', style: TextStyle(fontWeight: FontWeight.w900)),
+            TextSpan(
+              text: 'Checked Out ',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
             TextSpan(text: 'Successfully!'),
           ],
         ),
@@ -1484,7 +1544,10 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
       return const Text.rich(
         TextSpan(
           children: [
-            TextSpan(text: 'Checked In ', style: TextStyle(fontWeight: FontWeight.w900)),
+            TextSpan(
+              text: 'Checked In ',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
             TextSpan(text: 'Successfully!'),
           ],
         ),
@@ -1496,7 +1559,10 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
         TextSpan(
           children: [
             TextSpan(text: 'Already '),
-            TextSpan(text: 'Checked In', style: TextStyle(fontWeight: FontWeight.w900)),
+            TextSpan(
+              text: 'Checked In',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
           ],
         ),
         style: TextStyle(color: Colors.white, fontSize: 16),
@@ -1507,16 +1573,24 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
         TextSpan(
           children: [
             TextSpan(text: 'Already '),
-            TextSpan(text: 'Checked Out', style: TextStyle(fontWeight: FontWeight.w900)),
+            TextSpan(
+              text: 'Checked Out',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
           ],
         ),
         style: TextStyle(color: Colors.white, fontSize: 16),
       );
     }
-    if (msg.toLowerCase().contains('invalid') || msg.toLowerCase().contains('unreadable')) {
+    if (msg.toLowerCase().contains('invalid') ||
+        msg.toLowerCase().contains('unreadable')) {
       return const Text(
         'Invalid Badge',
-        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+        ),
       );
     }
     if (msg.toLowerCase().contains('revoked') ||
@@ -1524,19 +1598,31 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
         msg.toLowerCase().contains('blocked')) {
       return const Text(
         'Access Denied',
-        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+        ),
       );
     }
     if (msg.toLowerCase().contains('expired')) {
       return const Text(
         'Badge Expired',
-        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+        ),
       );
     }
     if (msg.toLowerCase().contains('wrong')) {
       return const Text(
         'Wrong Event',
-        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800),
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+        ),
       );
     }
     return Text(
@@ -1549,7 +1635,11 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     );
   }
 
-  Widget _buildHeaderSubtitle(String msg, String punchTime, {bool isNetworkErr = false}) {
+  Widget _buildHeaderSubtitle(
+    String msg,
+    String punchTime, {
+    bool isNetworkErr = false,
+  }) {
     if (isNetworkErr || msg.toLowerCase().contains('saved offline')) {
       return const Row(
         mainAxisSize: MainAxisSize.min,
@@ -1611,7 +1701,8 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
           width: 80,
           height: 80,
           fit: BoxFit.cover,
-          errorBuilder: (ctx, err, stack) => _buildInitialsAvatar(attendee.initials),
+          errorBuilder: (ctx, err, stack) =>
+              _buildInitialsAvatar(attendee.initials),
           loadingBuilder: (ctx, child, progress) {
             if (progress == null) return child;
             return Container(
@@ -1688,8 +1779,6 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     );
   }
 
-
-
   void _showAttendeeDetailsSheet(ScannerDecisionState decState) {
     HapticFeedback.mediumImpact();
     showModalBottomSheet<void>(
@@ -1761,7 +1850,9 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: nextState ? const Color(0xFFD97706) : const Color(0xFF334155),
+            color: nextState
+                ? const Color(0xFFD97706)
+                : const Color(0xFF334155),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: nextState ? const Color(0xFFFDE68A) : Colors.white24,
@@ -1778,7 +1869,9 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
           child: Row(
             children: [
               Icon(
-                nextState ? Icons.bolt_rounded : Icons.pause_circle_outline_rounded,
+                nextState
+                    ? Icons.bolt_rounded
+                    : Icons.pause_circle_outline_rounded,
                 color: Colors.white,
                 size: 22,
               ),
@@ -1808,10 +1901,8 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
       await storage.setOfflineMode(true);
       if (mounted) {
         context.read<ScannerBloc>().add(
-              const ScannerConfigChanged(
-                offlineModeEnabled: true,
-              ),
-            );
+          const ScannerConfigChanged(offlineModeEnabled: true),
+        );
         AppToast.dismissAll();
         AppToast.showCustom(
           duration: const Duration(milliseconds: 2500),
@@ -1820,10 +1911,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             decoration: BoxDecoration(
               color: const Color(0xFFE65100),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.white24,
-                width: 1.2,
-              ),
+              border: Border.all(color: Colors.white24, width: 1.2),
               boxShadow: const [
                 BoxShadow(
                   color: Colors.black38,
@@ -1861,13 +1949,18 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     final isSuccess = decState.response.isAlertSuccess;
     final isWarning = decState.response.isAlertWarning;
 
-    final isNetworkErr = decState.isNetworkError ||
+    final isNetworkErr =
+        decState.isNetworkError ||
         decState.response.code == ScanDecisionCode.networkError ||
         alertType == 'network_error' ||
         decState.response.message.toLowerCase().contains('no internet') ||
         decState.response.message.toLowerCase().contains('saved offline') ||
-        decState.response.message.toLowerCase().contains('network unreachable') ||
-        decState.response.message.toLowerCase().contains('unable to reach server');
+        decState.response.message.toLowerCase().contains(
+          'network unreachable',
+        ) ||
+        decState.response.message.toLowerCase().contains(
+          'unable to reach server',
+        );
 
     if (isNetworkErr) {
       alertColor = const Color(0xFFFF8450); // Warning Orange
@@ -1905,164 +1998,183 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     }
 
     return Material(
-      color: Colors.transparent,
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          _showAttendeeDetailsSheet(decState);
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            color: alertColor,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: alertColor.withValues(alpha: 0.45),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.35),
-                blurRadius: 12,
-                offset: const Offset(0, 3),
-              ),
-            ],
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.28),
-              width: 1.2,
-            ),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Circular White Icon
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  width: 38,
-                  height: 38,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
+          color: Colors.transparent,
+          child: GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              _showAttendeeDetailsSheet(decState);
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                color: alertColor,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: alertColor.withValues(alpha: 0.45),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
                   ),
-                  child: Center(
-                    child: Icon(alertIcon, size: 22, color: alertColor),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
                   ),
+                ],
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.28),
+                  width: 1.2,
                 ),
-
-                // Name & Status Subtitle
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.95),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (attendee?.category != null && attendee!.category!.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.22),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              attendee.category!,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-
-                // Details Button
-                Container(
-                  margin: const EdgeInsets.only(right: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Details',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Circular White Icon
+                    Container(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
                       ),
-                      Icon(Icons.chevron_right_rounded, color: Colors.white, size: 16),
-                    ],
-                  ),
-                ),
-
-                // Close Button
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      setState(() {
-                        _currentToastDecision = null;
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(50),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 10),
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                      width: 38,
+                      height: 38,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
-                        Icons.close_rounded,
-                        color: Colors.white,
-                        size: 16,
+                      child: Center(
+                        child: Icon(alertIcon, size: 22, color: alertColor),
                       ),
                     ),
-                  ),
+
+                    // Name & Status Subtitle
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.95),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (attendee?.category != null &&
+                                attendee!.category!.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.22),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  attendee.category!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Details Button
+                    Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Details',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Close Button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          setState(() {
+                            _currentToastDecision = null;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(50),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 10),
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
-    )
+        )
         .animate()
         .fadeIn(duration: 180.ms)
-        .slideY(begin: -0.25, end: 0, duration: 200.ms, curve: Curves.easeOutQuad);
+        .slideY(
+          begin: -0.25,
+          end: 0,
+          duration: 200.ms,
+          curve: Curves.easeOutQuad,
+        );
   }
 
   // ── 3. Floating Control Dock (SwitchBtn.jsx & InfraredBtn.jsx style) ─
@@ -2086,10 +2198,11 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: (_isCameraActive
-                            ? AppTheme.eventxproAccent
-                            : Colors.white)
-                        .withValues(alpha: 0.3),
+                    color:
+                        (_isCameraActive
+                                ? AppTheme.eventxproAccent
+                                : Colors.white)
+                            .withValues(alpha: 0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),
@@ -2319,9 +2432,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             decoration: BoxDecoration(
               color: const Color(0xFF202636),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.12),
-              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -2372,9 +2483,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
               decoration: BoxDecoration(
                 color: const Color(0xFF202636),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.12),
-                ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
               ),
               child: Text(
                 _resolveGateName(),

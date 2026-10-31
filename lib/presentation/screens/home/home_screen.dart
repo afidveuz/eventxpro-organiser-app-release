@@ -45,6 +45,7 @@ class HomeScreen extends StatefulWidget {
   final ZebraDataWedgeAdapter? zebraAdapter;
   final SimulatedHardwareAdapter? simulatorAdapter;
   final VoidCallback? onOpenSettings;
+  final VoidCallback? onOpenProfile;
   final VoidCallback? onOpenLeads;
 
   const HomeScreen({
@@ -52,6 +53,7 @@ class HomeScreen extends StatefulWidget {
     this.zebraAdapter,
     this.simulatorAdapter,
     this.onOpenSettings,
+    this.onOpenProfile,
     this.onOpenLeads,
   });
 
