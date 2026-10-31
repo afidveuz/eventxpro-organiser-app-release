@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../../core/services/offline_export_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../data/datasources/offline_database_helper.dart';
 import '../../../data/models/checkin_record.dart';
 import '../../bloc/scanner_bloc.dart';
@@ -125,20 +126,8 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
       await _loadRecords();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('Synchronization completed for ${widget.sessionTitle}.'),
-                ),
-              ],
-            ),
-            backgroundColor: AppTheme.statusSuccess,
-            behavior: SnackBarBehavior.floating,
-          ),
+        AppToast.showSuccess(
+          message: 'Synchronization completed for ${widget.sessionTitle}.',
         );
       }
     } finally {
@@ -724,52 +713,20 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
     return null;
   }
 
-  /// Displays a SnackBar with success or error feedback after an export.
+  /// Displays a toast notification with success or error feedback after an export.
   void _showExportFeedback(ExportResult result) {
     if (!mounted) return;
     if (result.success) {
       final savedAt = result.filePath?.replaceAll('/storage/emulated/0/', '') ?? '';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded,
-                  color: Colors.white, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  savedAt.isNotEmpty
-                      ? 'File downloaded!\nSaved at: $savedAt'
-                      : 'File downloaded successfully!',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: AppTheme.eventxproSuccessDark,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
+      AppToast.showSuccess(
+        title: 'File downloaded successfully!',
+        message: savedAt.isNotEmpty ? 'Saved at: $savedAt' : 'File ready for use.',
+        duration: const Duration(seconds: 3),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error_rounded, color: Colors.white, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  result.errorMessage ?? 'Failed to download file.',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: AppTheme.statusRejected,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
+      AppToast.showError(
+        message: result.errorMessage ?? 'Failed to download file.',
+        duration: const Duration(seconds: 3),
       );
     }
   }

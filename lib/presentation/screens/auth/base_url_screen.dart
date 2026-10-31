@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/config/app_constants.dart';
 import '../../../core/services/remote_config_service.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
 import '../../../data/repositories/auth_repository.dart';
@@ -72,11 +73,9 @@ class _BaseUrlScreenState extends State<BaseUrlScreen> {
   void _saveBaseUrl() {
     final inputUrl = _baseUrlController.text.trim();
     if (inputUrl.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid Base URL'),
-          backgroundColor: AppConstants.brandError,
-        ),
+      AppToast.showError(
+        message: 'Please enter a valid Base URL',
+        primaryColor: AppConstants.brandError,
       );
       return;
     }
@@ -85,19 +84,14 @@ class _BaseUrlScreenState extends State<BaseUrlScreen> {
       final cleanUrl = inputUrl.endsWith('/') ? inputUrl : '$inputUrl/';
       context.read<AuthBloc>().add(UpdateBaseUrlRequested(cleanUrl));
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Base URL updated successfully'),
-          backgroundColor: Colors.green,
-        ),
+      AppToast.showSuccess(
+        message: 'Base URL updated successfully',
       );
       Navigator.of(context).pop();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid URL (starting with https:// or http://)'),
-          backgroundColor: AppConstants.brandError,
-        ),
+      AppToast.showError(
+        message: 'Please enter a valid URL (starting with https:// or http://)',
+        primaryColor: AppConstants.brandError,
       );
     }
   }
@@ -108,11 +102,9 @@ class _BaseUrlScreenState extends State<BaseUrlScreen> {
     setState(() {
       _baseUrlController.text = defaultUrl;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Base URL reset to default'),
-        backgroundColor: Colors.blueAccent,
-      ),
+    AppToast.showInfo(
+      message: 'Base URL reset to default',
+      primaryColor: Colors.blueAccent,
     );
   }
 

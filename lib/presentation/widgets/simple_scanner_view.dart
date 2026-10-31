@@ -10,6 +10,7 @@ import '../../core/config/app_constants.dart';
 import '../../core/services/gate_count_service.dart';
 import '../../core/services/remote_config_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/app_toast.dart';
 import '../../data/datasources/auth_local_storage.dart';
 import '../../data/datasources/scanner_local_storage.dart';
 import '../../domain/entities/attendee.dart';
@@ -67,7 +68,6 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
   ScannerDecisionState? _currentToastDecision;
   Timer? _toastDismissTimer;
   String? _lastCameraScannedToken;
-  DateTime? _lastCameraScanTime;
 
   GateCheckInOutCount _gateCount = const GateCheckInOutCount();
   bool _hasLoadedGateCount = false;
@@ -641,15 +641,10 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                           for (final barcode in capture.barcodes) {
                             final rawVal = barcode.rawValue?.trim();
                             if (rawVal != null && rawVal.isNotEmpty) {
-                              final now = DateTime.now();
-                              if (_lastCameraScannedToken == rawVal && _lastCameraScanTime != null) {
-                                final elapsed = now.difference(_lastCameraScanTime!).inMilliseconds;
-                                if (elapsed < 1500) {
-                                  return; // suppress rapid duplicate frame of identical token
-                                }
+                              if (_lastCameraScannedToken == rawVal) {
+                                return; // Suppress repetitive scanning of same badge until another badge is scanned
                               }
                               _lastCameraScannedToken = rawVal;
-                              _lastCameraScanTime = now;
                               debugPrint('[CAMERA SCAN DETECTED] 📷 Scanned barcode: "$rawVal"');
                               HapticFeedback.lightImpact();
                               context
@@ -1700,6 +1695,7 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) {
         return Container(
@@ -1711,27 +1707,33 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Sheet handle
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 10, bottom: 6),
-                  width: 44,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    borderRadius: BorderRadius.circular(2),
+          child: SafeArea(
+            top: false,
+            left: false,
+            right: false,
+            bottom: true,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Sheet handle
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 6),
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: _buildDecisionCard(decState, isModal: true),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: _buildDecisionCard(decState, isModal: true),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -1753,10 +1755,27 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
     });
 
     if (mounted) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
+      AppToast.dismissAll();
+      AppToast.showCustom(
+        duration: const Duration(milliseconds: 2200),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: nextState ? const Color(0xFFD97706) : const Color(0xFF334155),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: nextState ? const Color(0xFFFDE68A) : Colors.white24,
+              width: 1.2,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black38,
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
             children: [
               Icon(
                 nextState ? Icons.bolt_rounded : Icons.pause_circle_outline_rounded,
@@ -1778,16 +1797,6 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
               ),
             ],
           ),
-          backgroundColor: nextState ? const Color(0xFFD97706) : const Color(0xFF334155),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(milliseconds: 2200),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: nextState ? const Color(0xFFFDE68A) : Colors.white24,
-              width: 1.2,
-            ),
-          ),
         ),
       );
     }
@@ -1803,10 +1812,27 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                 offlineModeEnabled: true,
               ),
             );
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
+        AppToast.dismissAll();
+        AppToast.showCustom(
+          duration: const Duration(milliseconds: 2500),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE65100),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white24,
+                width: 1.2,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black38,
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Row(
               children: [
                 Icon(Icons.wifi_off_rounded, color: Colors.white, size: 20),
                 SizedBox(width: 10),
@@ -1821,13 +1847,6 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                   ),
                 ),
               ],
-            ),
-            backgroundColor: const Color(0xFFE65100),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(milliseconds: 2500),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: Colors.white24, width: 1.2),
             ),
           ),
         );

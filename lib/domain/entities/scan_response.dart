@@ -100,14 +100,20 @@ class ScanResponse extends Equatable {
       final ln = (userMap['lastname'] as String? ?? userMap['last_name'] as String? ?? '').trim();
       final fullName = '$fn $ln'.trim();
 
+      String? cleanStr(dynamic val) {
+        if (val == null) return null;
+        final s = val.toString().trim();
+        return s.isEmpty ? null : s;
+      }
+
       parsedAttendee = Attendee(
         name: fullName.isNotEmpty
             ? fullName
             : (userMap['name'] as String? ?? 'Authorized Attendee'),
-        badgeType: userMap['ticket_type_cat'] as String? ??
-            userMap['display_ticket_name'] as String? ??
-            userMap['badge_type'] as String? ??
-            userMap['reg_cat'] as String? ??
+        badgeType: cleanStr(userMap['display_ticket_name']) ??
+            cleanStr(userMap['ticket_type_cat']) ??
+            cleanStr(userMap['badge_type']) ??
+            cleanStr(userMap['reg_cat']) ??
             'General Admission',
         company: userMap['company_name'] as String? ?? userMap['company'] as String?,
         category: userMap['reg_cat'] as String? ?? userMap['category'] as String?,

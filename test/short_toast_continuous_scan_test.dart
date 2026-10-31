@@ -101,6 +101,35 @@ void main() {
       expect(secondDecision.request.qrToken, equals('TICKET-USER-B'));
     });
 
+    test('ScannerBloc allows scanning the same token multiple times consecutively after suppression threshold', () async {
+      scannerBloc.add(const ScannerInitialized());
+      await expectLater(
+        scannerBloc.stream,
+        emitsThrough(isA<ScannerReadyState>()),
+      );
+
+      // Scan 1
+      scannerBloc.add(ScannerRawBarcodeReceived('TICKET-SAME-TOKEN'));
+      await expectLater(
+        scannerBloc.stream,
+        emitsThrough(isA<ScannerDecisionState>()),
+      );
+      final firstDecision = scannerBloc.state as ScannerDecisionState;
+      expect(firstDecision.request.qrToken, equals('TICKET-SAME-TOKEN'));
+
+      // Wait past suppression window
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+
+      // Scan 2 with the EXACT same token
+      scannerBloc.add(ScannerRawBarcodeReceived('TICKET-SAME-TOKEN'));
+      await expectLater(
+        scannerBloc.stream,
+        emitsThrough(isA<ScannerDecisionState>()),
+      );
+      final secondDecision = scannerBloc.state as ScannerDecisionState;
+      expect(secondDecision.request.qrToken, equals('TICKET-SAME-TOKEN'));
+    });
+
     testWidgets('SimpleScannerView renders floating short toast banner when short toast is enabled', (tester) async {
       await localStorage.setShortToast(true);
 

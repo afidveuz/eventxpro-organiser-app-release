@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:toastification/toastification.dart';
 import 'core/cache/scan_memory_cache.dart';
 import 'core/network/api_client.dart';
 import 'core/services/crashlytics_service.dart';
@@ -133,6 +134,7 @@ void main() async {
   runApp(EventXProApp(
     scannerRepository: scannerRepository,
     scannerLocalStorage: scannerLocalStorage,
+    authLocalStorage: authLocalStorage,
     authRepository: authRepository,
     leadRepository: leadRepository,
     attendeeRepository: attendeeRepository,
@@ -148,6 +150,7 @@ void main() async {
 class EventXProApp extends StatelessWidget {
   final ScannerRepositoryImpl scannerRepository;
   final ScannerLocalStorage scannerLocalStorage;
+  final AuthLocalStorage authLocalStorage;
   final AuthRepository authRepository;
   final LeadRepository leadRepository;
   final AttendeeRepository attendeeRepository;
@@ -162,6 +165,7 @@ class EventXProApp extends StatelessWidget {
     super.key,
     required this.scannerRepository,
     required this.scannerLocalStorage,
+    required this.authLocalStorage,
     required this.authRepository,
     required this.leadRepository,
     required this.attendeeRepository,
@@ -177,6 +181,7 @@ class EventXProApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
       providers: [
+        RepositoryProvider<AuthLocalStorage>.value(value: authLocalStorage),
         RepositoryProvider<AuthRepository>.value(value: authRepository),
         RepositoryProvider<LeadRepository>.value(value: leadRepository),
         RepositoryProvider<AttendeeRepository>.value(value: attendeeRepository),
@@ -184,6 +189,7 @@ class EventXProApp extends StatelessWidget {
         RepositoryProvider<OfflineDatabaseHelper>.value(value: offlineDbHelper),
         RepositoryProvider<ApiClient>.value(value: apiClient),
         RepositoryProvider<GateCountService>.value(value: gateCountService),
+        RepositoryProvider<HardwareScannerAdapter>.value(value: defaultAdapter),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -201,16 +207,18 @@ class EventXProApp extends StatelessWidget {
             )..add(const ScannerInitialized()),
           ),
         ],
-        child: MaterialApp(
-          navigatorKey: appNavigatorKey,
-          navigatorObservers: [appRouteObserver],
-          title: 'EventXPro Organiser',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.darkTheme,
-          home: SplashScreen(
-            authenticatedHome: MainNavigationScreen(
-              zebraAdapter: zebraAdapter,
-              simulatorAdapter: simulatorAdapter,
+        child: ToastificationWrapper(
+          child: MaterialApp(
+            navigatorKey: appNavigatorKey,
+            navigatorObservers: [appRouteObserver],
+            title: 'EventXPro Organiser',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.darkTheme,
+            home: SplashScreen(
+              authenticatedHome: MainNavigationScreen(
+                zebraAdapter: zebraAdapter,
+                simulatorAdapter: simulatorAdapter,
+              ),
             ),
           ),
         ),

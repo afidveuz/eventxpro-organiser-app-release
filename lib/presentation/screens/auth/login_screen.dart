@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/config/app_constants.dart';
 import '../../../core/services/device_detection_service.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../data/datasources/scanner_local_storage.dart';
 import '../../bloc/auth/auth_bloc.dart';
 import '../../bloc/auth/auth_event.dart';
@@ -62,18 +63,15 @@ class _LoginScreenState extends State<LoginScreen> {
           final storage = context.read<ScannerLocalStorage>();
           DeviceDetectionService().detectDevice(storage: storage);
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Welcome, ${state.user.name.isNotEmpty ? state.user.name : state.user.username}!'),
-              backgroundColor: const Color(0xFF2E7D32),
-              duration: const Duration(seconds: 2),
-            ),
+          AppToast.showSuccess(
+            message: 'Welcome, ${state.user.name.isNotEmpty ? state.user.name : state.user.username}!',
+            duration: const Duration(seconds: 2),
           );
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
           );
         } else if (state is AuthUnauthenticated) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          AppToast.dismissAll();
         }
       },
       child: AppBackground(

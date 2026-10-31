@@ -239,6 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
               int.tryParse(firstEvt['pk']?.toString() ?? '') ??
               int.tryParse(firstEvt['id']?.toString() ?? '');
           if (evtPk != null) {
+            await scannerLocalStorage.setEventId(evtPk);
             try {
               final permRes = await apiClient.dio.get(
                 'organizer/event-permission/$evtPk',
@@ -1369,6 +1370,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             setState(() {
                               _selectedEventPk = pk;
                             });
+                            context.read<ScannerLocalStorage>().setEventId(pk);
                             if (!_eventPermissions.containsKey(pk)) {
                               _fetchPermissionsForEvent(pk);
                             }

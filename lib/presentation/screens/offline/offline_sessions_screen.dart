@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/services/offline_export_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/app_toast.dart';
 import '../../../data/datasources/offline_database_helper.dart';
 import '../../bloc/scanner_bloc.dart';
 import '../../bloc/scanner_event.dart';
@@ -111,12 +112,8 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
 
     if (mounted) {
       setState(() => _isSyncing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Offline synchronization completed.'),
-          backgroundColor: AppTheme.statusSuccess,
-          behavior: SnackBarBehavior.floating,
-        ),
+      AppToast.showSuccess(
+        message: 'Offline synchronization completed.',
       );
     }
   }
@@ -161,12 +158,8 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
       await _loadSummary();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Cleared $deleted synced records from local database.'),
-            backgroundColor: AppTheme.statusSuccess,
-            behavior: SnackBarBehavior.floating,
-          ),
+        AppToast.showSuccess(
+          message: 'Cleared $deleted synced records from local database.',
         );
       }
     }
@@ -183,12 +176,8 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
 
       if (records.isEmpty) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No offline data available to export.'),
-            backgroundColor: AppTheme.statusWarning,
-            behavior: SnackBarBehavior.floating,
-          ),
+        AppToast.showWarning(
+          message: 'No offline data available to export.',
         );
         return;
       }
@@ -206,64 +195,20 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
       if (!mounted) return;
       if (result.success) {
         final savedAt = result.filePath?.replaceAll('/storage/emulated/0/', '') ?? '';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Exported ${result.recordCount} records successfully!\nSaved at: $savedAt',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: AppTheme.eventxproSuccessDark,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
-          ),
+        AppToast.showSuccess(
+          title: 'Exported ${result.recordCount} records successfully!',
+          message: savedAt.isNotEmpty ? 'Saved at: $savedAt' : 'File ready for use.',
+          duration: const Duration(seconds: 4),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    result.errorMessage ?? 'Export failed.',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: AppTheme.statusRejected,
-            behavior: SnackBarBehavior.floating,
-          ),
+        AppToast.showError(
+          message: result.errorMessage ?? 'Export failed.',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    isExcel ? 'Failed to export Excel file.' : 'Failed to export CSV file.',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: AppTheme.statusRejected,
-            behavior: SnackBarBehavior.floating,
-          ),
+        AppToast.showError(
+          message: isExcel ? 'Failed to export Excel file.' : 'Failed to export CSV file.',
         );
       }
     } finally {
