@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/models/attendee_list_item_model.dart';
 import '../../../data/repositories/attendee_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../widgets/fade_in_background_image.dart';
 import 'attendee_details_screen.dart';
 
 /// Screen listing attendees matching `EventAttendees.jsx` and `Attendees.jsx`.
@@ -494,9 +495,13 @@ class _EventAttendeesScreenState extends State<EventAttendeesScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background pattern
+          // Background pattern with fade-in entrance
           Positioned.fill(
-            child: Image.asset('assets/images/bg.png', fit: BoxFit.cover),
+            child: const FadeInBackgroundImage(
+              imagePath: 'assets/images/bg.png',
+              duration: Duration(milliseconds: 800),
+              curve: Curves.easeOutCubic,
+            ),
           ),
           Positioned.fill(
             child: Container(

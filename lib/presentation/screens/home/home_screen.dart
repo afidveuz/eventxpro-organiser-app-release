@@ -18,6 +18,7 @@ import '../auth/login_screen.dart';
 import '../events/event_dashboard_screen.dart';
 import '../kiosk_scanner_screen.dart';
 import '../offline/offline_sessions_screen.dart';
+import '../../widgets/fade_in_background_image.dart';
 import '../../widgets/session_punch_card.dart';
 
 /// Cached parsed sections for high-performance zero-delay rendering
@@ -587,13 +588,12 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. Base background image
+          // 1. Base background image with hardware-accelerated fade-in entrance
           Positioned.fill(
-            child: Image.asset(
-              'assets/images/bg.png',
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  const SizedBox.shrink(),
+            child: const FadeInBackgroundImage(
+              imagePath: 'assets/images/bg.png',
+              duration: Duration(milliseconds: 800),
+              curve: Curves.easeOutCubic,
             ),
           ),
 

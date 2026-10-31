@@ -30,6 +30,14 @@ class _SplashScreenState extends State<SplashScreen> {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Warm up the image caches so background and logo render smoothly
+    precacheImage(const AssetImage('assets/images/bg.png'), context);
+    precacheImage(const AssetImage('assets/images/logo.png'), context);
+  }
+
   Future<void> _checkUpdateAndProceed() async {
     // 1. Check for app updates via Firebase Remote Config
     final updateInfo = await AppUpdateService().checkForUpdate();

@@ -11,6 +11,7 @@ import '../../../data/repositories/auth_repository.dart';
 import '../attendees/event_attendees_screen.dart';
 import '../lead/leads_list_screen.dart';
 import 'event_sessions_screen.dart';
+import '../../widgets/fade_in_background_image.dart';
 
 /// Event Dashboard Screen matching `EventDashboard.jsx` in the reference React Native app.
 /// Features:
@@ -216,9 +217,13 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background pattern
+          // Background pattern with fade-in entrance
           Positioned.fill(
-            child: Image.asset('assets/images/bg.png', fit: BoxFit.cover),
+            child: const FadeInBackgroundImage(
+              imagePath: 'assets/images/bg.png',
+              duration: Duration(milliseconds: 800),
+              curve: Curves.easeOutCubic,
+            ),
           ),
           Positioned.fill(
             child: Container(

@@ -11,6 +11,7 @@ import '../../../data/datasources/scanner_local_storage.dart';
 import '../../bloc/scanner_bloc.dart';
 import '../../bloc/scanner_event.dart';
 import '../kiosk_scanner_screen.dart';
+import '../../widgets/fade_in_background_image.dart';
 import '../../widgets/session_punch_card.dart';
 
 /// Parsed event sections for high-performance zero-delay rendering
@@ -252,9 +253,13 @@ class _EventSessionsScreenState extends State<EventSessionsScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background Image
+          // Background Image with fade-in entrance
           Positioned.fill(
-            child: Image.asset('assets/images/bg.png', fit: BoxFit.cover),
+            child: const FadeInBackgroundImage(
+              imagePath: 'assets/images/bg.png',
+              duration: Duration(milliseconds: 800),
+              curve: Curves.easeOutCubic,
+            ),
           ),
           Positioned.fill(
             child: Container(
