@@ -16,6 +16,7 @@ import '../../bloc/auth/auth_event.dart';
 import '../../bloc/scanner_bloc.dart';
 import '../../bloc/scanner_event.dart';
 import '../auth/login_screen.dart';
+import '../events/event_dashboard_screen.dart';
 import '../kiosk_scanner_screen.dart';
 import '../offline/offline_sessions_screen.dart';
 import '../../widgets/session_punch_card.dart';
@@ -1056,27 +1057,29 @@ class _HomeScreenState extends State<HomeScreen> {
     final String endDate = _formatDate(data['publish_end_dt']);
     final bool isExpanded = _expandedEventPk == eventPk;
 
-    // Cached gate count for quick summary chip
-    final cachedSections = _parsedSectionsCache[eventPk];
-    final int? totalGates = cachedSections != null
-        ? (cachedSections.entranceList.length +
-              cachedSections.hallList.length +
-              cachedSections.agendaList.length +
-              cachedSections.sessionList.length)
-        : null;
-
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF171D2B).withValues(alpha: 0.70),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF1B2232).withValues(alpha: 0.85),
+            const Color(0xFF131824).withValues(alpha: 0.90),
+          ],
+        ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
+          color: isExpanded
+              ? AppTheme.brandGradientStart.withValues(alpha: 0.45)
+              : Colors.white.withValues(alpha: 0.12),
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isExpanded ? 0.35 : 0.2),
+            color: isExpanded
+                ? AppTheme.brandGradientStart.withValues(alpha: 0.15)
+                : Colors.black.withValues(alpha: 0.25),
             blurRadius: isExpanded ? 16 : 8,
             offset: const Offset(0, 3),
           ),
@@ -1116,16 +1119,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
-                            vertical: 3,
+                            vertical: 3.5,
                           ),
                           decoration: BoxDecoration(
                             color: AppTheme.brandGradientStart.withValues(
-                              alpha: 0.14,
+                              alpha: 0.15,
                             ),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
                               color: AppTheme.brandGradientStart.withValues(
-                                alpha: 0.3,
+                                alpha: 0.35,
                               ),
                               width: 0.8,
                             ),
@@ -1159,21 +1162,25 @@ class _HomeScreenState extends State<HomeScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
-                              vertical: 3,
+                              vertical: 3.5,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
+                              color: Colors.white.withValues(alpha: 0.06),
                               borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.08),
+                                width: 0.8,
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(
                                   Icons.calendar_today_rounded,
-                                  size: 10,
-                                  color: Colors.white60,
+                                  size: 10.5,
+                                  color: Colors.white70,
                                 ),
-                                const SizedBox(width: 4.5),
+                                const SizedBox(width: 5),
                                 Text(
                                   startDate.isNotEmpty && endDate.isNotEmpty
                                       ? (startDate == endDate
@@ -1183,7 +1190,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                             ? startDate
                                             : endDate),
                                   style: const TextStyle(
-                                    color: Colors.white70,
+                                    color: Colors.white,
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -1200,8 +1207,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       eventName,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
                         letterSpacing: 0.2,
                         height: 1.25,
                       ),
@@ -1212,107 +1219,187 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 4),
                       Text(
                         cleanDesc,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.55),
+                          color: Colors.white.withValues(alpha: 0.60),
                           fontSize: 12,
-                          height: 1.3,
+                          height: 1.35,
                         ),
                       ),
                     ],
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
 
-                    // Bottom Action Row: Gate Count Pill + Expand Button
+                    // Side-by-Side Action Buttons (Dashboard & Open Gates)
                     Row(
                       children: [
-                        if (totalGates != null && totalGates > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.06),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.meeting_room_outlined,
-                                  size: 12,
-                                  color: AppTheme.accentCyan,
+                        // Dedicated Dashboard Button
+                        Expanded(
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => EventDashboardScreen(
+                                      eventId: eventPk,
+                                      eventName: eventName,
+                                      eventData: data,
+                                      zebraAdapter: widget.zebraAdapter,
+                                      simulatorAdapter: widget.simulatorAdapter,
+                                    ),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                height: 38,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
                                 ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  '$totalGates ${totalGates == 1 ? 'Gate' : 'Gates / Sessions'}',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.brandGradientStart.withValues(
+                                    alpha: 0.15,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: AppTheme.brandGradientStart
+                                        .withValues(alpha: 0.45),
+                                    width: 1,
                                   ),
                                 ),
-                              ],
-                            ),
-                          )
-                        else
-                          Text(
-                            isExpanded
-                                ? 'Showing active gates'
-                                : 'Tap to access gates',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.45),
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-
-                        const Spacer(),
-
-                        // Expand Pill Button
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: isExpanded
-                                ? null
-                                : AppTheme.brandGradient,
-                            color: isExpanded
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : null,
-                            borderRadius: BorderRadius.circular(20),
-                            border: isExpanded
-                                ? Border.all(
-                                    color: Colors.white.withValues(alpha: 0.15),
-                                  )
-                                : null,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                isExpanded ? 'Hide Gates' : 'Open Gates',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 11.5,
-                                  letterSpacing: 0.3,
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.analytics_rounded,
+                                      size: 15,
+                                      color: AppTheme.brandGradientStart,
+                                    ),
+                                    SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        'Dashboard',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 12,
+                                          letterSpacing: 0.2,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(width: 4),
+                                    Icon(
+                                      Icons.arrow_forward_ios_rounded,
+                                      size: 10,
+                                      color: Colors.white60,
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(width: 4),
-                              AnimatedRotation(
-                                turns: isExpanded ? 0.5 : 0.0,
-                                duration: const Duration(milliseconds: 200),
-                                child: const Icon(
-                                  Icons.keyboard_arrow_down_rounded,
-                                  color: Colors.white,
-                                  size: 16,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+
+                        // Expand / Collapse Gates Button
+                        Expanded(
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                setState(() {
+                                  if (isExpanded) {
+                                    _expandedEventPk = null;
+                                  } else {
+                                    _expandedEventPk = eventPk;
+                                    if (!_eventPermissions.containsKey(
+                                      eventPk,
+                                    )) {
+                                      _fetchPermissionsForEvent(eventPk);
+                                    }
+                                  }
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                height: 38,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  gradient: isExpanded
+                                      ? null
+                                      : AppTheme.brandGradient,
+                                  color: isExpanded
+                                      ? Colors.white.withValues(alpha: 0.08)
+                                      : null,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: isExpanded
+                                      ? Border.all(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.18,
+                                          ),
+                                          width: 1,
+                                        )
+                                      : null,
+                                  boxShadow: isExpanded
+                                      ? null
+                                      : [
+                                          BoxShadow(
+                                            color: AppTheme.brandGradientStart
+                                                .withValues(alpha: 0.35),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      isExpanded
+                                          ? Icons.visibility_off_rounded
+                                          : Icons.door_sliding_outlined,
+                                      size: 15,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        isExpanded
+                                            ? 'Hide Gates'
+                                            : 'Open Gates',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 12,
+                                          letterSpacing: 0.2,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    AnimatedRotation(
+                                      turns: isExpanded ? 0.5 : 0.0,
+                                      duration: const Duration(
+                                        milliseconds: 200,
+                                      ),
+                                      child: const Icon(
+                                        Icons.keyboard_arrow_down_rounded,
+                                        color: Colors.white,
+                                        size: 16,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ],

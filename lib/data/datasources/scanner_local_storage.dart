@@ -118,6 +118,10 @@ class ScannerLocalStorage {
     leadCapturePermissionNotifier.value = isLeadCapturePermissionEnabled();
   }
 
+  String? getCustomString(String key) => _prefs.getString(key);
+  Future<void> setCustomString(String key, String value) =>
+      _prefs.setString(key, value);
+
   /// Checks whether lead capture permission is enabled in the cached permissions.
   bool isLeadCapturePermissionEnabled() {
     final rawData = getOfflineData();
