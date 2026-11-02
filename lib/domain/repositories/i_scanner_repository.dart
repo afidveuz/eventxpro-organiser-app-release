@@ -13,7 +13,7 @@ abstract class IScannerRepository {
   Future<List<ScanRequest>> getPendingOfflineScans();
 
   /// Attempt to synchronize pending offline scans with backend.
-  Future<int> syncOfflineScans();
+  Future<int> syncOfflineScans({String? section});
 
   /// Clear pending offline scans.
   Future<void> clearOfflineQueue();

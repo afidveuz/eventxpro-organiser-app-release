@@ -93,8 +93,37 @@ void main() {
       expect(json['mobile'], '501234567');
       expect(json['company_name'], 'Acme Corp');
       expect(json['job_title'], 'VP Technology');
+      expect(json['designation'], 'VP Technology');
+      expect(json['ticket'], 42);
+      expect(json['ticket_id'], 42);
+      expect(json['payment_mode'], 'onsite_qr');
+      expect(json['payment_status'], 1);
       expect(json['country'], 'United Arab Emirates');
       expect(json['nationality'], 'United Arab Emirates');
+      expect(json['reference_number'], startsWith('SPOT-'));
+    });
+
+    test('toFormData converts all fields into FormData matching kiosk_v2', () {
+      const request = SpotRegistrationRequest(
+        eventId: 108,
+        ticketId: 42,
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john.doe@example.com',
+        countryCode: '+971',
+        mobile: '501234567',
+        companyName: 'Acme Corp',
+        jobTitle: 'VP Technology',
+        country: 'United Arab Emirates',
+        nationality: 'United Arab Emirates',
+        receivedAmount: 250.0,
+      );
+
+      final formData = request.toFormData();
+      expect(formData.fields.any((f) => f.key == 'ticket' && f.value == '42'), isTrue);
+      expect(formData.fields.any((f) => f.key == 'designation' && f.value == 'VP Technology'), isTrue);
+      expect(formData.fields.any((f) => f.key == 'firstname' && f.value == 'John'), isTrue);
+      expect(formData.fields.any((f) => f.key == 'payment_mode' && f.value == 'onsite_qr'), isTrue);
     });
 
     test('Success result factory assigns fields properly', () {

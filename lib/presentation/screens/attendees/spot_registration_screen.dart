@@ -200,6 +200,9 @@ class _SpotRegistrationScreenState extends State<SpotRegistrationScreen> {
 
     final repo = context.read<AttendeeRepository>();
     final cleanEmail = _normalizeEmail(_emailCtrl.text);
+    final ticketPrice = (_selectedTicket?.price != null)
+        ? _selectedTicket!.price!.toDouble()
+        : 0.0;
 
     final request = SpotRegistrationRequest(
       eventId: widget.eventId,
@@ -214,6 +217,10 @@ class _SpotRegistrationScreenState extends State<SpotRegistrationScreen> {
       country: _selectedCountry!.label,
       nationality: _selectedNationality!.label,
       countryInitial: _selectedCountry?.code,
+      receivedAmount: ticketPrice,
+      currency: _selectedTicket?.currency,
+      paymentMode: 'onsite_qr',
+      collectedBy: 'Spot Registration',
     );
 
     final result = await repo.createSpotAttendee(request);
@@ -232,7 +239,7 @@ class _SpotRegistrationScreenState extends State<SpotRegistrationScreen> {
       );
     } else {
       HapticFeedback.vibrate();
-      _showError(result.message ?? 'Registration failed. Please try again.');
+      _showError(result.message ?? 'Registration failed. Please check your inputs and try again.');
     }
   }
 
@@ -253,19 +260,53 @@ class _SpotRegistrationScreenState extends State<SpotRegistrationScreen> {
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 10),
-            Expanded(child: Text(msg)),
+    // For multiline or detailed field validation errors (kiosk_v2 style), show dialog
+    if (msg.contains('\n') || msg.length > 70) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1E2538),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: AppTheme.eventxproDanger, size: 24),
+              SizedBox(width: 10),
+              Text(
+                'Registration Failed',
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Text(
+            msg,
+            style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK', style: TextStyle(color: AppTheme.brandGradientStart)),
+            ),
           ],
         ),
-        backgroundColor: AppTheme.eventxproDanger,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(child: Text(msg)),
+            ],
+          ),
+          backgroundColor: AppTheme.eventxproDanger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   // Pick Dial Code

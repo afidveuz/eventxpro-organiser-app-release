@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+import 'package:dio/dio.dart';
+
 class SpotRegistrationRequest {
   final int eventId;
   final int ticketId;
@@ -10,7 +13,18 @@ class SpotRegistrationRequest {
   final String jobTitle;
   final String country;
   final String nationality;
-  final String? countryInitial; // ISO alpha-2 e.g. "AE", "IN" (from CreateAttendee.jsx)
+  final String? countryInitial; // ISO alpha-2 e.g. "AE", "IN"
+  final String? title;
+  final String? city;
+  final String? notes;
+  final String? companyType;
+  final String? industry;
+  final String? paymentMode;
+  final double? receivedAmount;
+  final String? currency;
+  final String? promoCode;
+  final String? referenceNumber;
+  final String? collectedBy;
 
   const SpotRegistrationRequest({
     required this.eventId,
@@ -25,29 +39,82 @@ class SpotRegistrationRequest {
     required this.country,
     required this.nationality,
     this.countryInitial,
+    this.title,
+    this.city,
+    this.notes,
+    this.companyType,
+    this.industry,
+    this.paymentMode = 'onsite_qr',
+    this.receivedAmount = 0.0,
+    this.currency,
+    this.promoCode,
+    this.referenceNumber,
+    this.collectedBy = 'Spot Registration',
   });
 
-  Map<String, dynamic> toJson() {
+  static String _generateRandomRef() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final random = math.Random();
+    final randomCode = List.generate(
+      6,
+      (index) => chars[random.nextInt(chars.length)],
+    ).join();
+    return 'SPOT-$randomCode';
+  }
+
+  Map<String, dynamic> toRequestBody() {
     final cleanDialCode = countryCode.trim().startsWith('+')
         ? countryCode.trim()
         : '+${countryCode.trim()}';
 
+    final refCode = referenceNumber ?? _generateRandomRef();
+
     return {
+      if (title != null && title!.trim().isNotEmpty) 'title': title!.trim(),
       'firstname': firstName.trim(),
       'lastname': lastName.trim(),
-      'email': email.trim().toLowerCase(),
+      if (email.trim().isNotEmpty) 'email': email.trim().toLowerCase(),
       'country_code': cleanDialCode,
       'mobile': mobile.trim(),
       'company_name': companyName.trim(),
+      // In kiosk_v2, the backend expects 'designation'
+      'designation': jobTitle.trim(),
       'job_title': jobTitle.trim(),
-      'country': country.trim(),
-      'nationality': nationality.trim(),
+      // In kiosk_v2, the backend expects 'ticket' (ID)
+      'ticket': ticketId,
       'ticket_id': ticketId,
       'event_id': eventId,
-      if (countryInitial != null && countryInitial!.trim().isNotEmpty)
+      'country': country.trim(),
+      'country_of_residence': country.trim(),
+      if (countryInitial != null && countryInitial!.trim().isNotEmpty) ...{
+        'country_of_residence_code': countryInitial!.trim(),
         'country_initial': countryInitial!.trim(),
+        'nationality_code': countryInitial!.trim(),
+      },
+      'nationality': nationality.trim(),
+      if (city != null && city!.trim().isNotEmpty) 'city': city!.trim(),
+      if (notes != null && notes!.trim().isNotEmpty) 'notes': notes!.trim(),
+      if (companyType != null && companyType!.trim().isNotEmpty)
+        'company_type': companyType!.trim(),
+      if (industry != null && industry!.trim().isNotEmpty)
+        'industry': industry!.trim(),
+      // Payment fields required by kiosk_v2 backend API
+      'payment_mode': paymentMode ?? 'onsite_qr',
+      'received_amount': receivedAmount ?? 0.0,
+      'reference_number': refCode,
+      'collected_by': collectedBy ?? 'Spot Registration',
+      'payment_datetime': DateTime.now().toIso8601String(),
+      'payment_status': 1,
+      if (currency != null && currency!.trim().isNotEmpty)
+        'currency': currency!.trim(),
+      if (promoCode != null && promoCode!.trim().isNotEmpty)
+        'promo_code': promoCode!.trim(),
     };
   }
+
+  FormData toFormData() => FormData.fromMap(toRequestBody());
+
+  Map<String, dynamic> toJson() => toRequestBody();
 }
 
 class SpotRegistrationResult {

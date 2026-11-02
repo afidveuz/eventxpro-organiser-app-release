@@ -9,8 +9,10 @@ import '../../../data/adapters/zebra_datawedge_adapter.dart';
 import '../../../data/datasources/scanner_local_storage.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../attendees/event_attendees_screen.dart';
-// import '../attendees/spot_registration_screen.dart'; // Hidden from dashboard
+import '../attendees/spot_registration_screen.dart';
 import '../lead/leads_list_screen.dart';
+import '../onsite_qr_verification_screen.dart';
+import '../qr_verification_screen.dart';
 import 'event_sessions_screen.dart';
 import '../../widgets/fade_in_background_image.dart';
 
@@ -204,20 +206,19 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
     );
   }
 
-  // Spot registration is currently hidden from dashboard per requirement
-  // void _openSpotRegistration() {
-  //   HapticFeedback.lightImpact();
-  //   Navigator.of(context).push(
-  //     MaterialPageRoute(
-  //       builder: (_) => SpotRegistrationScreen(
-  //         eventId: widget.eventId,
-  //         eventName: _getEventName(),
-  //       ),
-  //     ),
-  //   ).then((_) {
-  //     _loadDashboardData(silent: true);
-  //   });
-  // }
+  void _openSpotRegistration() {
+    HapticFeedback.lightImpact();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SpotRegistrationScreen(
+          eventId: widget.eventId,
+          eventName: _getEventName(),
+        ),
+      ),
+    ).then((_) {
+      _loadDashboardData(silent: true);
+    });
+  }
 
   String _getEventName() {
     final eventlist = _eventDetails['eventlist'] as Map<String, dynamic>?;
@@ -849,10 +850,9 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
   // ── 4. Quick Action Tiles (matching Tiles.jsx) ───────────────────
   Widget _buildQuickActionTiles() {
     final hasLeadPermission = _eventDetails['lead_permission'] == true;
-    // Spot Registration is currently hidden from dashboard per requirement:
-    // final hasSpotRegPermission =
-    //     _eventDetails['spot_registration_permission'] != false &&
-    //     _cachedPermissions?['spot_registration_permission'] != false;
+    final hasSpotRegPermission =
+        _eventDetails['spot_registration_permission'] != false &&
+        _cachedPermissions?['spot_registration_permission'] != false;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -893,14 +893,13 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
               onTap: () => _openAttendees('Total Registration', 'event-register-users'),
             ),
 
-            // Spot Registration tile currently hidden from dashboard per requirement
-            // if (hasSpotRegPermission)
-            //   _buildActionTile(
-            //     title: 'Spot Registration',
-            //     icon: Icons.person_add_alt_1_rounded,
-            //     color: const Color(0xFFF59E0B),
-            //     onTap: _openSpotRegistration,
-            //   ),
+            if (hasSpotRegPermission)
+              _buildActionTile(
+                title: 'Spot Registration',
+                icon: Icons.person_add_alt_1_rounded,
+                color: const Color(0xFFF59E0B),
+                onTap: _openSpotRegistration,
+              ),
 
             // Leads Tile (if lead permission is active)
             if (hasLeadPermission)
@@ -922,7 +921,37 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
               title: 'QR Verification',
               icon: Icons.qr_code_scanner_rounded,
               color: const Color(0xFFA855F7),
-              onTap: _openCheckInOutSessions,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => QrVerificationScreen(
+                      eventId: widget.eventId,
+                      eventName: _getEventName(),
+                      zebraAdapter: widget.zebraAdapter,
+                      simulatorAdapter: widget.simulatorAdapter,
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            // Onsite QR Verification
+            _buildActionTile(
+              title: 'Onsite QR Verification',
+              icon: Icons.confirmation_number_rounded,
+              color: const Color(0xFF06B6D4),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => OnsiteQrVerificationScreen(
+                      eventId: widget.eventId,
+                      eventName: _getEventName(),
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),

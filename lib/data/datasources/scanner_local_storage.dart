@@ -32,9 +32,11 @@ class ScannerLocalStorage {
 
   final SharedPreferences _prefs;
   late final ValueNotifier<bool> leadCapturePermissionNotifier;
+  late final ValueNotifier<bool> offlineModeNotifier;
 
   ScannerLocalStorage(this._prefs) {
     leadCapturePermissionNotifier = ValueNotifier<bool>(isLeadCapturePermissionEnabled());
+    offlineModeNotifier = ValueNotifier<bool>(isOfflineModeEnabled);
   }
 
   static Future<ScannerLocalStorage> create() async {
@@ -77,8 +79,10 @@ class ScannerLocalStorage {
       value != null ? _prefs.setString(_keySectionLocation, value) : _prefs.remove(_keySectionLocation);
 
   bool get isOfflineModeEnabled => _prefs.getBool(_keyOfflineMode) ?? false;
-  Future<void> setOfflineMode(bool enabled) =>
-      _prefs.setBool(_keyOfflineMode, enabled);
+  Future<void> setOfflineMode(bool enabled) async {
+    await _prefs.setBool(_keyOfflineMode, enabled);
+    offlineModeNotifier.value = enabled;
+  }
 
   bool get isSimpleUiMode => _prefs.getBool(_keySimpleUiMode) ?? true;
   Future<void> setSimpleUiMode(bool enabled) =>

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../core/config/app_constants.dart';
 import '../../core/network/api_client.dart';
@@ -224,14 +225,18 @@ class AttendeeRemoteDatasource {
   Future<List<TicketTypeModel>> getTicketList({required int eventId}) async {
     try {
       final response = await _apiClient.dio.get('organizer/ticket-list/$eventId');
-      if (response.statusCode == 200 && response.data != null) {
+
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          response.data != null) {
         final data = response.data is Map<String, dynamic>
             ? response.data as Map<String, dynamic>
             : jsonDecode(response.data.toString()) as Map<String, dynamic>;
 
-        final rawList = data['Ticket_list'] ??
+        final rawList = data['tickets'] ??
+            data['result'] ??
+            data['results'] ??
+            data['Ticket_list'] ??
             data['ticket_list'] ??
-            data['tickets'] ??
             data['data'];
 
         if (rawList is List) {
@@ -249,27 +254,35 @@ class AttendeeRemoteDatasource {
     }
   }
 
-  /// Creates a walk-in attendee on-site (Spot Registration)
-  /// Endpoint: `organizer/api/v1/create-user/{eventId}?lang=eng`
-  /// Fallback: `organizer/create-attendee`
+  /// Creates a walk-in attendee on-site (Spot Registration).
+  /// Uses the kiosk_v2 method: FormData payload with full field mapping (ticket, designation, payment info)
+  /// Target endpoints: `organizer/api/v1/create-user/{eventId}?lang=eng` with fallback to `organizer/create-attendee`
   Future<SpotRegistrationResult> createSpotAttendee({
     required SpotRegistrationRequest request,
   }) async {
     try {
-      final payload = request.toJson();
       dynamic response;
+      dynamic lastError;
+
+      // 1. Try organizer v1 create-user endpoint with FormData matching kiosk_v2
       try {
         response = await _apiClient.dio.post(
           'organizer/api/v1/create-user/${request.eventId}?lang=eng',
-          data: payload,
+          data: request.toFormData(),
         );
-      } catch (postErr) {
-        // Fallback to legacy endpoint if v1 route is not mapped
-        debugPrint('[AttendeeRemoteDatasource] v1 create-user failed: $postErr, attempting fallback');
-        response = await _apiClient.dio.post(
-          'organizer/create-attendee',
-          data: payload,
-        );
+      } catch (orgErr) {
+        debugPrint('[AttendeeRemoteDatasource] organizer v1 create-user failed: $orgErr, trying legacy fallback');
+        lastError = orgErr;
+
+        // 2. Try legacy organizer endpoint with JSON payload
+        try {
+          response = await _apiClient.dio.post(
+            'organizer/create-attendee',
+            data: request.toJson(),
+          );
+        } catch (legacyErr) {
+          lastError = legacyErr;
+        }
       }
 
       if (response != null && response.data != null) {
@@ -283,7 +296,8 @@ class AttendeeRemoteDatasource {
             response.statusCode == 201;
 
         if (isSuccess) {
-          final attendeeData = data['data'] is Map ? data['data'] as Map : data;
+          final attendeeData =
+              data['data'] is Map ? data['data'] as Map : (data['result'] is Map ? data['result'] as Map : data);
           final int? id = (attendeeData['id'] ??
                   attendeeData['pk'] ??
                   attendeeData['user_id'] as num?)
@@ -293,46 +307,122 @@ class AttendeeRemoteDatasource {
               attendeeData['ticket_id']?.toString();
           final String name = attendeeData['name']?.toString() ??
               '${request.firstName} ${request.lastName}'.trim();
+          final String? ticketName = attendeeData['ticket'] is Map
+              ? (attendeeData['ticket']['title'] ?? attendeeData['ticket']['name'])?.toString()
+              : null;
 
           return SpotRegistrationResult.success(
             message: data['message']?.toString() ?? 'Registration completed successfully',
             attendeeId: id,
             uniqueId: uid,
             fullName: name,
-            email: request.email,
+            email: attendeeData['email']?.toString() ?? request.email,
+            ticketName: ticketName,
             rawData: data,
           );
         } else {
-          final errorMsg = data['message']?.toString() ??
-              data['detail']?.toString() ??
-              'Registration failed. Please check inputs and try again.';
+          final errorMsg = _extractErrorMessage(data);
           return SpotRegistrationResult.failure(
             message: errorMsg,
             rawData: data,
           );
         }
       }
+
+      // If no response and last error was DioException, format detailed field errors like kiosk_v2
+      if (lastError != null) {
+        if (lastError is DioException) {
+          return SpotRegistrationResult.failure(
+            message: _extractDioErrorMessage(lastError),
+            rawData: lastError.response?.data is Map<String, dynamic>
+                ? lastError.response!.data as Map<String, dynamic>
+                : null,
+          );
+        }
+        return SpotRegistrationResult.failure(
+          message: lastError.toString(),
+        );
+      }
+
       return SpotRegistrationResult.failure(
         message: 'No response received from registration server.',
       );
     } catch (e) {
       debugPrint('[AttendeeRemoteDatasource] createSpotAttendee error: $e');
+      if (e is DioException) {
+        return SpotRegistrationResult.failure(
+          message: _extractDioErrorMessage(e),
+          rawData: e.response?.data is Map<String, dynamic>
+              ? e.response!.data as Map<String, dynamic>
+              : null,
+        );
+      }
       return SpotRegistrationResult.failure(
         message: e.toString(),
       );
     }
   }
 
-  /// Fetches global countries with dial codes, falling back to bundled list
+  /// Extracts readable error message from response data matching kiosk_v2
+  String _extractErrorMessage(Map<String, dynamic> data) {
+    if (data.containsKey('detail')) {
+      final detail = data['detail'];
+      if (detail is Map) {
+        final fieldErrors = <String>[];
+        detail.forEach((key, val) {
+          if (val is List) {
+            fieldErrors.add('${key.toString().toUpperCase()}: ${val.join(", ")}');
+          } else {
+            fieldErrors.add('${key.toString().toUpperCase()}: $val');
+          }
+        });
+        if (fieldErrors.isNotEmpty) {
+          return fieldErrors.join('\n');
+        }
+      } else if (detail is String && detail.trim().isNotEmpty) {
+        return detail.trim();
+      }
+    }
+    return data['message']?.toString() ??
+        data['error']?.toString() ??
+        'Registration failed. Please check inputs and try again.';
+  }
+
+  /// Extracts detailed field validation errors from DioException matching kiosk_v2
+  String _extractDioErrorMessage(DioException e) {
+    if (e.response?.data != null) {
+      dynamic resData = e.response!.data;
+      if (resData is String) {
+        try {
+          resData = jsonDecode(resData);
+        } catch (_) {}
+      }
+      if (resData is Map<String, dynamic>) {
+        return _extractErrorMessage(resData);
+      }
+    }
+    return e.message ?? 'Network error during registration. Please try again.';
+  }
+
+  /// Fetches global countries with dial codes from `microsite/v2/countries/`
   Future<List<CountryModel>> getCountries() async {
     try {
       final response = await _apiClient.dio.get(AppConstants.countriesEndpoint);
-      if (response.statusCode == 200 && response.data != null) {
+
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          response.data != null) {
         dynamic parsed = response.data;
         if (parsed is String) {
           parsed = jsonDecode(parsed);
         }
-        if (parsed is List) {
+        if (parsed is Map && parsed['country_list'] is List) {
+          final list = (parsed['country_list'] as List)
+              .whereType<Map>()
+              .map((c) => CountryModel.fromJson(Map<String, dynamic>.from(c)))
+              .where((c) => c.label.isNotEmpty && c.code.isNotEmpty)
+              .toList();
+          if (list.isNotEmpty) return list;
+        } else if (parsed is List) {
           final list = parsed
               .whereType<Map>()
               .map((c) => CountryModel.fromJson(Map<String, dynamic>.from(c)))

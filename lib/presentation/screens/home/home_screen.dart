@@ -18,6 +18,8 @@ import '../auth/login_screen.dart';
 import '../events/event_dashboard_screen.dart';
 import '../kiosk_scanner_screen.dart';
 import '../offline/offline_sessions_screen.dart';
+import '../settings_screen.dart';
+import '../../widgets/blinking_offline_button.dart';
 import '../../widgets/fade_in_background_image.dart';
 import '../../widgets/session_punch_card.dart';
 
@@ -85,12 +87,39 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadDashboardData();
 
+    // Listen for offline mode toggles across the app to dynamically show/hide blinking button
+    final scannerLocalStorage = context.read<ScannerLocalStorage>();
+    scannerLocalStorage.offlineModeNotifier.addListener(_onOfflineModeChanged);
+
     // Check for app updates on home screen load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         AppUpdateService().checkAndPromptUpdate(context);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    try {
+      context
+          .read<ScannerLocalStorage>()
+          .offlineModeNotifier
+          .removeListener(_onOfflineModeChanged);
+    } catch (_) {}
+    super.dispose();
+  }
+
+  void _onOfflineModeChanged() {
+    if (!mounted) return;
+    final storage = context.read<ScannerLocalStorage>();
+    final isOffline = storage.offlineModeNotifier.value;
+    if (_isOffline != isOffline) {
+      setState(() {
+        _isOffline = isOffline;
+      });
+      _loadDashboardData(forceRefresh: true);
+    }
   }
 
   Future<void> _loadDashboardData({
@@ -412,6 +441,23 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _handleOfflineButtonTap() async {
+    HapticFeedback.lightImpact();
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+    if (mounted) {
+      final storage = context.read<ScannerLocalStorage>();
+      final isOfflineNow = storage.isOfflineModeEnabled;
+      if (isOfflineNow != _isOffline) {
+        setState(() {
+          _isOffline = isOfflineNow;
+        });
+        _loadDashboardData(forceRefresh: true);
+      }
+    }
+  }
+
   Future<void> _handleManualRefresh({bool silent = true}) async {
     try {
       context.read<GateCountService>().clearCache();
@@ -693,41 +739,18 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          // Offline Status Chip
+          const Spacer(),
+
+          // Blinking Offline Mode Button (matching React Native eventxproorganiser)
           if (_isOffline) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 7,
-                vertical: 2.5,
-              ),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF3B30).withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.wifi_off_rounded,
-                    size: 10,
-                    color: Color(0xFFFF5252),
-                  ),
-                  SizedBox(width: 3),
-                  Text(
-                    'Offline',
-                    style: TextStyle(
-                      color: Color(0xFFFF5252),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 9.5,
-                    ),
-                  ),
-                ],
+            Tooltip(
+              message: 'Offline Mode Active - Tap to configure',
+              child: BlinkingOfflineButton(
+                onTap: _handleOfflineButtonTap,
               ),
             ),
+            const SizedBox(width: 10),
           ],
-
-          const Spacer(),
 
           // Refresh Button
           Material(
