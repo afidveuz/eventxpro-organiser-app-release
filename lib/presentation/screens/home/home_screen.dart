@@ -414,6 +414,16 @@ class _HomeScreenState extends State<HomeScreen> {
               _parsedSectionsCache[eventPk] = _parseSections(perm);
             });
           }
+          if (eventPk == _selectedEventPk || _eventList.length == 1) {
+            final ev = _eventList.firstWhere(
+              (e) => ((e['pk'] ?? e['id']) == eventPk),
+              orElse: () => {'pk': eventPk, 'id': eventPk},
+            );
+            await scannerLocalStorage.setOfflineData(jsonEncode({
+              'event': ev,
+              'permission': perm,
+            }));
+          }
         }
       } catch (e) {
         debugPrint(
@@ -1325,8 +1335,18 @@ class _HomeScreenState extends State<HomeScreen> {
                             setState(() {
                               _selectedEventPk = pk;
                             });
-                            context.read<ScannerLocalStorage>().setEventId(pk);
-                            if (!_eventPermissions.containsKey(pk)) {
+                            final storage = context.read<ScannerLocalStorage>();
+                            storage.setEventId(pk);
+                            if (_eventPermissions.containsKey(pk)) {
+                              final ev = _eventList.firstWhere(
+                                (e) => ((e['pk'] ?? e['id']) == pk),
+                                orElse: () => {'pk': pk, 'id': pk},
+                              );
+                              storage.setOfflineData(jsonEncode({
+                                'event': ev,
+                                'permission': _eventPermissions[pk],
+                              }));
+                            } else {
                               _fetchPermissionsForEvent(pk);
                             }
                           }
