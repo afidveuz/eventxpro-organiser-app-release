@@ -240,7 +240,7 @@ class ScannerRepositoryImpl implements IScannerRepository {
   }
 
   @override
-  Future<int> syncOfflineScans() async {
+  Future<int> syncOfflineScans({String? section}) async {
     int totalSynced = 0;
     bool hasMore = true;
 
@@ -253,7 +253,7 @@ class ScannerRepositoryImpl implements IScannerRepository {
       }
 
       final batchResult = await _remoteDatasource.syncOfflineBatch(
-        section: 'entrances',
+        section: section ?? 'entrances',
         eventId: _localStorage.getEventId(),
         chunk: chunk,
       );

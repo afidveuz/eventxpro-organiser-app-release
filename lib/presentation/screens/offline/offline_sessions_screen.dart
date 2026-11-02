@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/services/offline_export_service.dart';
@@ -42,7 +43,7 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
       title: 'Entrances',
       subtitle: 'Main event gate entry & exit check-ins',
       icon: Icons.meeting_room_outlined,
-      accentColor: AppTheme.accentCyan,
+      accentColor: AppTheme.accentIndigo,
     ),
     _SessionConfig(
       key: 'hall',
@@ -56,14 +57,14 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
       title: 'Agendas',
       subtitle: 'Keynote & workshop attendee admittance',
       icon: Icons.event_note_outlined,
-      accentColor: Color(0xFF9D65FF),
+      accentColor: AppTheme.accentIndigo,
     ),
     _SessionConfig(
       key: 'session',
       title: 'Sessions',
       subtitle: 'Track-specific and breakout session check-ins',
       icon: Icons.co_present_outlined,
-      accentColor: Color(0xFFFF8B3D),
+      accentColor: AppTheme.accentIndigo,
     ),
   ];
 
@@ -120,21 +121,37 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
   }
 
   Future<void> _clearSyncedRecords() async {
+    final hasSyncedToClean = _totalScans > _totalUnsynced;
+    if (!hasSyncedToClean) {
+      AppToast.showWarning(
+        message: 'No synced records to clean up.',
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surfaceElevated,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppTheme.surfaceBorder),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
         ),
         title: const Text(
           'Clean Up Synced Records',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 17,
+          ),
         ),
         content: const Text(
           'This will delete all records that have already been synchronized with the server to free up local storage. Unsynced records will remain intact.',
-          style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
+          style: TextStyle(
+            color: AppTheme.textSecondary,
+            height: 1.45,
+            fontSize: 13.5,
+          ),
         ),
         actions: [
           TextButton(
@@ -143,8 +160,12 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.eventxproAccent,
+              backgroundColor: AppTheme.accentIndigo,
               foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Clear Synced'),
@@ -217,19 +238,48 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
     }
   }
 
+  Widget _buildGlassCard({
+    required Widget child,
+    BorderRadius? borderRadius,
+    EdgeInsetsGeometry? padding,
+    Border? border,
+    Color? color,
+  }) {
+    final radius = borderRadius ?? BorderRadius.circular(16);
+    return ClipRRect(
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: color ?? Colors.white.withValues(alpha: 0.04),
+            borderRadius: radius,
+            border: border ??
+                Border.all(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  width: 1,
+                ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: AppTheme.surface,
+        backgroundColor: AppTheme.surface.withValues(alpha: 0.95),
         elevation: 0,
         centerTitle: false,
         automaticallyImplyLeading: false,
         leading: (widget.isRootTab == true || !Navigator.canPop(context))
             ? null
             : IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
                 onPressed: () => Navigator.of(context).pop(),
               ),
         title: Column(
@@ -239,72 +289,88 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
               'Offline Sessions',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 19,
-                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.1,
               ),
             ),
+            const SizedBox(height: 2),
             Text(
-              '$_totalScans records • $_totalUnsynced pending sync',
-              style: const TextStyle(
-                color: AppTheme.eventxproAccent,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+              _totalUnsynced > 0
+                  ? '$_totalScans records • $_totalUnsynced pending sync'
+                  : '$_totalScans records • All synced',
+              style: TextStyle(
+                color: _totalUnsynced > 0 ? AppTheme.accentOrange : AppTheme.textSecondary,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
         ),
         actions: [
-          if (_totalScans > 0)
-            PopupMenuButton<bool>(
-              tooltip: 'Export all offline data',
-              icon: _isDownloading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppTheme.eventxproAccent,
-                      ),
-                    )
-                  : const Icon(Icons.download_rounded, color: AppTheme.eventxproAccent),
-              color: AppTheme.surfaceElevated,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: AppTheme.surfaceBorder),
-              ),
-              onSelected: (isExcel) => _downloadAllData(isExcel: isExcel),
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: true,
-                  child: Row(
-                    children: const [
-                      Icon(Icons.table_chart_rounded, color: AppTheme.eventxproSuccess, size: 18),
-                      SizedBox(width: 10),
-                      Text('Export All to Excel (.xlsx)', style: TextStyle(color: Colors.white, fontSize: 13)),
-                    ],
+          PopupMenuButton<bool>(
+            tooltip: 'Export all offline data',
+            icon: _isDownloading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppTheme.accentIndigo,
+                    ),
+                  )
+                : const Icon(
+                    Icons.file_download_outlined,
+                    color: AppTheme.accentIndigo,
+                    size: 22,
                   ),
-                ),
-                PopupMenuItem(
-                  value: false,
-                  child: Row(
-                    children: const [
-                      Icon(Icons.description_rounded, color: AppTheme.accentCyan, size: 18),
-                      SizedBox(width: 10),
-                      Text('Export All to CSV (.csv)', style: TextStyle(color: Colors.white, fontSize: 13)),
-                    ],
-                  ),
-                ),
-              ],
+            color: AppTheme.surfaceElevated,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
             ),
+            onSelected: (isExcel) => _downloadAllData(isExcel: isExcel),
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: true,
+                child: Row(
+                  children: const [
+                    Icon(Icons.table_chart_rounded, color: AppTheme.eventxproSuccess, size: 18),
+                    SizedBox(width: 10),
+                    Text(
+                      'Export All to Excel (.xlsx)',
+                      style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: false,
+                child: Row(
+                  children: const [
+                    Icon(Icons.description_rounded, color: AppTheme.accentIndigo, size: 18),
+                    SizedBox(width: 10),
+                    Text(
+                      'Export All to CSV (.csv)',
+                      style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           IconButton(
             tooltip: 'Refresh summary',
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white70, size: 22),
             onPressed: _loadSummary,
           ),
         ],
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1),
-          child: Divider(color: AppTheme.surfaceBorder, height: 1),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(
+            color: Colors.white.withValues(alpha: 0.08),
+            height: 1,
+          ),
         ),
       ),
       body: Stack(
@@ -312,30 +378,43 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
         children: [
           const AppBackgroundLayer(),
           _isLoading
-              ? const Center(child: CircularProgressIndicator(color: AppTheme.eventxproAccent))
+              ? const Center(child: CircularProgressIndicator(color: AppTheme.accentIndigo))
               : RefreshIndicator(
                   onRefresh: _loadSummary,
-                  color: AppTheme.eventxproAccent,
+                  color: AppTheme.accentIndigo,
                   backgroundColor: AppTheme.surfaceElevated,
                   child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                     children: [
                       // ── Top Stats Banner ──────────────────────────────────
                       _buildHeaderStats(),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 22),
 
                       // ── SESSIONS Header ───────────────────────────────────
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                        child: Text(
-                          'SESSION CATEGORIES',
-                          style: TextStyle(
-                            color: AppTheme.textMuted,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.0,
-                          ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                        child: Row(
+                          children: [
+                            const Text(
+                              'SESSION CATEGORIES',
+                              style: TextStyle(
+                                color: AppTheme.textMuted,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '${_sessions.length} sections',
+                              style: TextStyle(
+                                color: AppTheme.textMuted.withValues(alpha: 0.7),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
 
@@ -354,24 +433,20 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
     );
   }
 
-  Widget? _buildBottomBar() {
+  Widget _buildBottomBar() {
     final hasPending = _totalUnsynced > 0 || _isSyncing;
-    final hasSyncedToClean = _totalScans > _totalUnsynced;
-    final hasOfflineData = _totalScans > 0;
-
-    if (!hasPending && !hasSyncedToClean && !hasOfflineData) return null;
 
     final syncButton = SizedBox(
       width: double.infinity,
       height: 48,
       child: ElevatedButton.icon(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppTheme.eventxproAccent,
+          backgroundColor: AppTheme.accentIndigo,
           foregroundColor: Colors.white,
-          disabledBackgroundColor: AppTheme.eventxproAccent.withValues(alpha: 0.6),
-          disabledForegroundColor: Colors.white70,
+          disabledBackgroundColor: AppTheme.accentIndigo.withValues(alpha: 0.5),
+          disabledForegroundColor: Colors.white60,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
           elevation: 0,
         ),
@@ -385,14 +460,15 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
                   color: Colors.white,
                 ),
               )
-            : const Icon(Icons.cloud_upload_rounded),
+            : const Icon(Icons.cloud_upload_rounded, size: 20),
         label: Text(
           _isSyncing
               ? 'Syncing records to server...'
               : 'Sync All ($_totalUnsynced Pending)',
           style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
+            fontSize: 14.5,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
           ),
         ),
       ),
@@ -400,34 +476,47 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
 
     final cleanButton = SizedBox(
       width: double.infinity,
-      height: 48,
+      height: 46,
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppTheme.textSecondary,
-          side: const BorderSide(color: AppTheme.surfaceBorder),
+          backgroundColor: Colors.white.withValues(alpha: 0.03),
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: 0.1),
+            width: 1,
+          ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
         onPressed: _clearSyncedRecords,
-        icon: const Icon(Icons.cleaning_services_outlined, size: 18),
+        icon: Icon(
+          Icons.cleaning_services_outlined,
+          size: 18,
+          color: AppTheme.textSecondary.withValues(alpha: 0.8),
+        ),
         label: const Text(
           'Clean Up Synced Records',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.1,
+          ),
         ),
       ),
     );
 
     final exportButton = SizedBox(
       width: double.infinity,
-      height: 48,
+      height: 46,
       child: PopupMenuButton<bool>(
         tooltip: 'Export All Offline Data',
         color: AppTheme.surfaceElevated,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppTheme.surfaceBorder),
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
         ),
+        offset: const Offset(0, -110),
         onSelected: (isExcel) => _downloadAllData(isExcel: isExcel),
         itemBuilder: (context) => [
           PopupMenuItem(
@@ -436,7 +525,10 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
               children: const [
                 Icon(Icons.table_chart_rounded, color: AppTheme.eventxproSuccess, size: 18),
                 SizedBox(width: 10),
-                Text('Export All (Excel .xlsx)', style: TextStyle(color: Colors.white, fontSize: 13)),
+                Text(
+                  'Export All to Excel (.xlsx)',
+                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                ),
               ],
             ),
           ),
@@ -444,18 +536,24 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
             value: false,
             child: Row(
               children: const [
-                Icon(Icons.description_rounded, color: AppTheme.accentCyan, size: 18),
+                Icon(Icons.description_rounded, color: AppTheme.accentIndigo, size: 18),
                 SizedBox(width: 10),
-                Text('Export All (CSV .csv)', style: TextStyle(color: Colors.white, fontSize: 13)),
+                Text(
+                  'Export All to CSV (.csv)',
+                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                ),
               ],
             ),
           ),
         ],
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF131722),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.surfaceBorder),
+            color: Colors.white.withValues(alpha: 0.03),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.1),
+              width: 1,
+            ),
           ),
           alignment: Alignment.center,
           child: Row(
@@ -465,17 +563,29 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
                 const SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.eventxproAccent),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppTheme.accentIndigo,
+                  ),
                 )
               else
-                const Icon(Icons.download_rounded, color: AppTheme.eventxproAccent, size: 20),
+                const Icon(
+                  Icons.file_download_outlined,
+                  color: AppTheme.accentIndigo,
+                  size: 20,
+                ),
               const SizedBox(width: 8),
               Text(
-                _isDownloading ? 'Exporting All Data...' : 'Export All ($_totalScans Records)',
+                _isDownloading
+                    ? 'Exporting All Data...'
+                    : (_totalScans > 0
+                        ? 'Export All ($_totalScans Records)'
+                        : 'Export All Records'),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.1,
                 ),
               ),
             ],
@@ -484,33 +594,43 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
       ),
     );
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        border: const Border(
-          top: BorderSide(color: AppTheme.surfaceBorder, width: 1),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 10,
-            offset: const Offset(0, -3),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (hasPending) syncButton,
-              if (hasPending && (hasSyncedToClean || hasOfflineData)) const SizedBox(height: 8),
-              if (hasSyncedToClean) cleanButton,
-              if (hasSyncedToClean && hasOfflineData) const SizedBox(height: 8),
-              if (hasOfflineData) exportButton,
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppTheme.background.withValues(alpha: 0.88),
+            border: Border(
+              top: BorderSide(
+                color: Colors.white.withValues(alpha: 0.08),
+                width: 1,
+              ),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 16,
+                offset: const Offset(0, -4),
+              ),
             ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (hasPending) ...[
+                    syncButton,
+                    const SizedBox(height: 10),
+                  ],
+                  cleanButton,
+                  const SizedBox(height: 10),
+                  exportButton,
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -518,54 +638,150 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
   }
 
   Widget _buildHeaderStats() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceElevated,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.surfaceBorder),
-      ),
+    return _buildGlassCard(
+      borderRadius: BorderRadius.circular(18),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
         children: [
+          // Total Offline Scans
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Total Offline Scans',
-                  style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: AppTheme.accentIndigo,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'TOTAL OFFLINE SCANS',
+                          style: TextStyle(
+                            color: AppTheme.textMuted,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 Text(
                   '$_totalScans',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 24,
+                    fontSize: 26,
                     fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5,
                   ),
                 ),
               ],
             ),
           ),
-          Container(height: 38, width: 1, color: AppTheme.surfaceBorder),
+          Container(
+            height: 42,
+            width: 1,
+            color: Colors.white.withValues(alpha: 0.08),
+          ),
+          // Pending Sync
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(left: 16),
+              padding: const EdgeInsets.only(left: 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Pending Sync',
-                    style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                  Row(
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: _totalUnsynced > 0
+                              ? AppTheme.accentOrange
+                              : AppTheme.eventxproSuccess,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'PENDING SYNC',
+                            style: TextStyle(
+                              color: AppTheme.textMuted,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$_totalUnsynced',
-                    style: TextStyle(
-                      color: _totalUnsynced > 0 ? AppTheme.accentOrange : AppTheme.eventxproSuccess,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        '$_totalUnsynced',
+                        style: TextStyle(
+                          color: _totalUnsynced > 0
+                              ? AppTheme.accentOrange
+                              : AppTheme.eventxproSuccess,
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: (_totalUnsynced > 0
+                                      ? AppTheme.accentOrange
+                                      : AppTheme.eventxproSuccess)
+                                  .withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: (_totalUnsynced > 0
+                                        ? AppTheme.accentOrange
+                                        : AppTheme.eventxproSuccess)
+                                    .withValues(alpha: 0.28),
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              _totalUnsynced > 0 ? 'Pending' : 'Synced',
+                              style: TextStyle(
+                                color: _totalUnsynced > 0
+                                    ? AppTheme.accentOrange
+                                    : AppTheme.eventxproSuccess,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -577,89 +793,197 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
   }
 
   Widget _buildSessionCard(_SessionConfig config) {
-    final stats = _sectionSummary[config.key] ?? {'total': 0, 'unsynced': 0};
+    final stats = _sectionSummary[config.key] ?? {
+      'total': 0,
+      'unsynced': 0,
+      'checkin': 0,
+      'checkout': 0,
+    };
     final total = stats['total'] ?? 0;
     final unsynced = stats['unsynced'] ?? 0;
+    final checkin = stats['checkin'] ?? 0;
+    final checkout = stats['checkout'] ?? 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.surfaceBorder),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: config.accentColor.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(config.icon, color: config.accentColor, size: 24),
-        ),
-        title: Text(
-          config.title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            'Total: $total (In: ${stats['checkin'] ?? 0} • Out: ${stats['checkout'] ?? 0}) • $unsynced unsynced',
-            style: const TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 12,
-            ),
-          ),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (unsynced > 0)
-              Container(
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppTheme.accentOrange.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppTheme.accentOrange),
-                ),
-                child: Text(
-                  '$unsynced pending',
-                  style: const TextStyle(
-                    color: AppTheme.accentOrange,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
+      child: _buildGlassCard(
+        borderRadius: BorderRadius.circular(16),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            splashColor: AppTheme.accentIndigo.withValues(alpha: 0.08),
+            highlightColor: AppTheme.accentIndigo.withValues(alpha: 0.04),
+            onTap: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => OfflineCheckInListScreen(
+                    sessionKey: config.key,
+                    sessionTitle: config.title,
                   ),
                 ),
+              );
+              _loadSummary();
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  // Uniform accentIndigo leading icon badge
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentIndigo.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppTheme.accentIndigo.withValues(alpha: 0.22),
+                        width: 1,
+                      ),
+                    ),
+                    child: Icon(
+                      config.icon,
+                      color: AppTheme.accentIndigo,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  // Title and clean structured metrics
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          config.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.15,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        if (total == 0)
+                          const Text(
+                            'No records yet',
+                            style: TextStyle(
+                              color: AppTheme.textMuted,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          )
+                        else
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Row(
+                              children: [
+                                Text(
+                                  '$total ${total == 1 ? 'record' : 'records'}',
+                                  style: const TextStyle(
+                                    color: AppTheme.textSecondary,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                                  child: Text(
+                                    '•',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.2),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  'In: $checkin',
+                                  style: const TextStyle(
+                                    color: AppTheme.textMuted,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                                  child: Text(
+                                    '·',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.2),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  'Out: $checkout',
+                                  style: const TextStyle(
+                                    color: AppTheme.textMuted,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // Trailing pending status chip + chevron
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (unsynced > 0)
+                        Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accentOrange.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: AppTheme.accentOrange.withValues(alpha: 0.28),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 5,
+                                height: 5,
+                                decoration: const BoxDecoration(
+                                  color: AppTheme.accentOrange,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                '$unsynced pending',
+                                style: const TextStyle(
+                                  color: AppTheme.accentOrange,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: Colors.white.withValues(alpha: 0.35),
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            const Icon(
-              Icons.arrow_forward_ios_rounded,
-              color: AppTheme.textMuted,
-              size: 16,
             ),
-          ],
+          ),
         ),
-        onTap: () async {
-          await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => OfflineCheckInListScreen(
-                sessionKey: config.key,
-                sessionTitle: config.title,
-              ),
-            ),
-          );
-          _loadSummary();
-        },
       ),
     );
   }
-
-
 }
 
 class _SessionConfig {
@@ -674,6 +998,6 @@ class _SessionConfig {
     required this.title,
     required this.subtitle,
     required this.icon,
-    required this.accentColor,
+    this.accentColor = AppTheme.accentIndigo,
   });
 }

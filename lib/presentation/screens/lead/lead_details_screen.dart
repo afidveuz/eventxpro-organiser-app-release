@@ -8,7 +8,6 @@ import '../../../data/models/lead_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/lead_repository.dart';
 import '../../widgets/fade_in_background_image.dart';
-import '../../widgets/fade_in_background_image.dart';
 import 'lead_info_screen.dart';
 
 /// Screen displaying comprehensive profile, contact info, ratings, notes,
