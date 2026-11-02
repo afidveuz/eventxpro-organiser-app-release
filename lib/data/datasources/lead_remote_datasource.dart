@@ -53,20 +53,28 @@ class LeadRemoteDatasource {
     final status = data['status'] == true;
     final message = data['message']?.toString();
 
-    if (status && data['attendee_details'] is List) {
+    Map<String, dynamic>? leadMap;
+    if (data['attendee_details'] is List) {
       final list = data['attendee_details'] as List;
       if (list.isNotEmpty && list.first is Map<String, dynamic>) {
-        final map = Map<String, dynamic>.from(list.first as Map<String, dynamic>);
-        if (map['lead_id'] == null && data['lead_id'] != null) {
-          map['lead_id'] = data['lead_id'];
-        }
-        final lead = LeadModel.fromJson(map);
-        return LeadCaptureResult(
-          isSuccess: true,
-          lead: lead,
-          message: message ?? 'Lead captured successfully',
-        );
+        leadMap = Map<String, dynamic>.from(list.first as Map<String, dynamic>);
       }
+    } else if (data['attendee_details'] is Map<String, dynamic>) {
+      leadMap = Map<String, dynamic>.from(data['attendee_details'] as Map<String, dynamic>);
+    } else if (data['user_data'] is Map<String, dynamic>) {
+      leadMap = Map<String, dynamic>.from(data['user_data'] as Map<String, dynamic>);
+    }
+
+    if (status && leadMap != null) {
+      if (leadMap['lead_id'] == null && data['lead_id'] != null) {
+        leadMap['lead_id'] = data['lead_id'];
+      }
+      final lead = LeadModel.fromJson(leadMap);
+      return LeadCaptureResult(
+        isSuccess: true,
+        lead: lead,
+        message: message ?? 'Lead captured successfully',
+      );
     }
 
     return LeadCaptureResult(

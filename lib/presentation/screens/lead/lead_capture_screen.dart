@@ -108,9 +108,9 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
 
     // Initialize dedicated enterprise hardware adapter (Honeywell + Zebra)
     _hardwareAdapter = EnterpriseHardwareAdapter();
-    _initHardwareScanner();
 
     if (widget.isActive) {
+      _initHardwareScanner();
       _laserController.repeat(reverse: true);
       _pulseController.repeat();
       // Pause global gate check-in scanner while in lead capture mode
@@ -153,6 +153,7 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
       context.read<ScannerBloc>().add(const ScannerScanningPaused());
     } catch (_) {}
 
+    _initHardwareScanner();
     _laserController.repeat(reverse: true);
     _pulseController.repeat();
 
@@ -170,6 +171,9 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
       context.read<ScannerBloc>().add(const ScannerScanningResumed());
     } catch (_) {}
 
+    _hardwareSubscription?.cancel();
+    _hardwareSubscription = null;
+
     _laserController.stop();
     _pulseController.stop();
 
@@ -178,7 +182,9 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
   }
 
   Future<void> _initHardwareScanner() async {
+    if (!widget.isActive) return;
     await _hardwareAdapter.initialize();
+    _hardwareSubscription?.cancel();
     _hardwareSubscription =
         _hardwareAdapter.scanStream.listen(_onBarcodeDecoded);
   }
@@ -197,7 +203,7 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
     _pulseController.dispose();
     _toastTimer?.cancel();
     _hardwareSubscription?.cancel();
-    _hardwareAdapter.dispose();
+    _hardwareSubscription = null;
     _cameraController?.dispose();
 
     // Resume global gate check-in scanner if was active
@@ -275,6 +281,9 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
   }
 
   Future<void> _onBarcodeDecoded(String rawCode) async {
+    // Ignore hardware scans when lead capture tab is not active
+    if (!widget.isActive) return;
+
     final code = rawCode.trim();
     if (code.isEmpty || _isProcessing) return;
 
