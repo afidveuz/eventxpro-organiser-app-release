@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/services/offline_export_service.dart';
@@ -73,15 +74,19 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
     _loadSummary();
   }
 
-  Future<void> _loadSummary() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadSummary({bool showSpinner = true}) async {
+    if (showSpinner) {
+      setState(() => _isLoading = true);
+    }
     final db = context.read<OfflineDatabaseHelper>();
     final summary = await db.getSectionSummary();
 
     if (mounted) {
       setState(() {
         _sectionSummary = summary;
-        _isLoading = false;
+        if (showSpinner) {
+          _isLoading = false;
+        }
       });
     }
   }
@@ -103,19 +108,50 @@ class _OfflineSessionsScreenState extends State<OfflineSessionsScreen> {
   }
 
   Future<void> _syncAll() async {
+    if (_isSyncing) return;
     setState(() => _isSyncing = true);
-    final bloc = context.read<ScannerBloc>();
-    bloc.add(const ScannerSyncOfflineRequested());
 
-    // Wait briefly for repository chunk sync loop
-    await Future.delayed(const Duration(milliseconds: 1500));
-    await _loadSummary();
+    try {
+      final completer = Completer<int>();
+      final bloc = context.read<ScannerBloc>();
+      bloc.add(ScannerSyncOfflineRequested(completer: completer));
 
-    if (mounted) {
-      setState(() => _isSyncing = false);
-      AppToast.showSuccess(
-        message: 'Offline synchronization completed.',
+      // Wait until repository batch sync loop actually completes
+      final synced = await completer.future.timeout(
+        const Duration(seconds: 45),
+        onTimeout: () => 0,
       );
+
+      // Await database query to reload fresh stats immediately
+      await _loadSummary(showSpinner: false);
+
+      if (mounted) {
+        setState(() => _isSyncing = false);
+        if (synced > 0) {
+          AppToast.showSuccess(
+            message: 'Successfully synchronized $synced offline records.',
+          );
+        } else {
+          final remaining = _totalUnsynced;
+          if (remaining == 0) {
+            AppToast.showSuccess(
+              message: 'All records are already synchronized.',
+            );
+          } else {
+            AppToast.showWarning(
+              message: 'Sync finished. $remaining records are still pending.',
+            );
+          }
+        }
+      }
+    } catch (e) {
+      await _loadSummary(showSpinner: false);
+      if (mounted) {
+        setState(() => _isSyncing = false);
+        AppToast.showError(
+          message: 'Offline synchronization failed: $e',
+        );
+      }
     }
   }
 

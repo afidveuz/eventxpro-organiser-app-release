@@ -26,6 +26,7 @@ import 'data/repositories/auth_repository.dart';
 import 'data/repositories/lead_repository.dart';
 import 'data/repositories/scanner_repository_impl.dart';
 import 'domain/adapters/i_hardware_scanner_adapter.dart';
+import 'domain/repositories/i_scanner_repository.dart';
 import 'presentation/bloc/auth/auth_bloc.dart';
 import 'presentation/bloc/scanner_bloc.dart';
 import 'presentation/bloc/scanner_event.dart';
@@ -190,6 +191,7 @@ class EventXProApp extends StatelessWidget {
         RepositoryProvider<ApiClient>.value(value: apiClient),
         RepositoryProvider<GateCountService>.value(value: gateCountService),
         RepositoryProvider<HardwareScannerAdapter>.value(value: defaultAdapter),
+        RepositoryProvider<IScannerRepository>.value(value: scannerRepository),
       ],
       child: MultiBlocProvider(
         providers: [

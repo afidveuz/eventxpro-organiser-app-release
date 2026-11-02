@@ -439,19 +439,28 @@ class ScannerBloc extends Bloc<ScannerEvent, ScannerState> {
 
   Future<void> _onSyncOfflineRequested(
       ScannerSyncOfflineRequested event, Emitter<ScannerState> emit) async {
-    final synced = await _repository.syncOfflineScans();
-    emit(ScannerReadyState(
-      eventId: _localStorage.getEventId(),
-      gateId: _localStorage.getGateId(),
-      scanType: _localStorage.getScanType(),
-      deviceId: _localStorage.getDeviceId(),
-      adapterName: _activeAdapter.name,
-      isOfflineMode: _localStorage.isOfflineModeEnabled,
-      queueDepth: _repository.telemetry.pendingQueueDepth,
-      telemetry: _repository.telemetry,
-      statusMessage: 'Synced $synced offline records',
-      recentScans: List.unmodifiable(_recentScans),
-    ));
+    try {
+      final synced = await _repository.syncOfflineScans(section: event.section);
+      if (event.completer != null && !event.completer!.isCompleted) {
+        event.completer!.complete(synced);
+      }
+      emit(ScannerReadyState(
+        eventId: _localStorage.getEventId(),
+        gateId: _localStorage.getGateId(),
+        scanType: _localStorage.getScanType(),
+        deviceId: _localStorage.getDeviceId(),
+        adapterName: _activeAdapter.name,
+        isOfflineMode: _localStorage.isOfflineModeEnabled,
+        queueDepth: _repository.telemetry.pendingQueueDepth,
+        telemetry: _repository.telemetry,
+        statusMessage: 'Synced $synced offline records',
+        recentScans: List.unmodifiable(_recentScans),
+      ));
+    } catch (e, st) {
+      if (event.completer != null && !event.completer!.isCompleted) {
+        event.completer!.completeError(e, st);
+      }
+    }
   }
 
   Future<void> _onClearOfflineQueueRequested(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -122,13 +123,41 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
     setState(() => _isSyncing = true);
 
     try {
-      context.read<ScannerBloc>().add(const ScannerSyncOfflineRequested());
-      await Future.delayed(const Duration(milliseconds: 1500));
+      final completer = Completer<int>();
+      context.read<ScannerBloc>().add(
+        ScannerSyncOfflineRequested(
+          section: widget.sessionKey,
+          completer: completer,
+        ),
+      );
+
+      final synced = await completer.future.timeout(
+        const Duration(seconds: 45),
+        onTimeout: () => 0,
+      );
+
       await _loadRecords();
 
       if (mounted) {
-        AppToast.showSuccess(
-          message: 'Synchronization completed for ${widget.sessionTitle}.',
+        if (synced > 0) {
+          AppToast.showSuccess(
+            message: 'Successfully synchronized $synced records for ${widget.sessionTitle}.',
+          );
+        } else if (_unsyncedCount == 0) {
+          AppToast.showSuccess(
+            message: 'All records for ${widget.sessionTitle} are synchronized.',
+          );
+        } else {
+          AppToast.showWarning(
+            message: 'Sync finished. $_unsyncedCount records still pending.',
+          );
+        }
+      }
+    } catch (e) {
+      await _loadRecords();
+      if (mounted) {
+        AppToast.showError(
+          message: 'Synchronization failed for ${widget.sessionTitle}: $e',
         );
       }
     } finally {

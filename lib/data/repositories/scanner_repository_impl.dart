@@ -240,47 +240,52 @@ class ScannerRepositoryImpl implements IScannerRepository {
   }
 
   @override
-  Future<int> syncOfflineScans() async {
+  Future<int> syncOfflineScans({String? section}) async {
     int totalSynced = 0;
-    bool hasMore = true;
+    final sectionsToSync = section != null
+        ? [section]
+        : const ['entrances', 'hall', 'agenda', 'session'];
 
-    // ⚡ CHUNKED BATCH SYNC: Uploads 100 items per HTTP request
-    while (hasMore) {
-      final chunk = await _dbHelper.getUnsyncedChunk(limit: 100);
-      if (chunk.isEmpty) {
-        hasMore = false;
-        break;
-      }
-
-      final batchResult = await _remoteDatasource.syncOfflineBatch(
-        section: 'entrances',
-        eventId: _localStorage.getEventId(),
-        chunk: chunk,
-      );
-
-      if (batchResult.isSuccess) {
-        // Atomic batch update in SQLite
-        await _dbHelper.markBatchSynced(
-          updatedIds: batchResult.updatedRecordsAppId,
-          notExistIds: batchResult.notExistsUsersAppId,
-        );
-
-        final processedCount = batchResult.updatedRecordsAppId.length +
-            batchResult.notExistsUsersAppId.length;
-
-        // If backend returned zero updated IDs, mark whole chunk to prevent infinite loop
-        final countToDeduct = processedCount > 0 ? processedCount : chunk.length;
-        if (processedCount == 0) {
-          final allChunkIds = chunk.map((e) => e.id!).whereType<int>().toList();
-          await _dbHelper.markBatchSynced(updatedIds: allChunkIds);
+    for (final sec in sectionsToSync) {
+      bool hasMore = true;
+      while (hasMore) {
+        final chunk = await _dbHelper.getUnsyncedChunk(limit: 100, section: sec);
+        if (chunk.isEmpty) {
+          hasMore = false;
+          break;
         }
 
-        totalSynced += countToDeduct;
-        _memoryCache.decrementPending(countToDeduct);
-      } else {
-        // Stop on network failure to preserve records
-        debugPrint('[ScannerRepositoryImpl] ⚠️ Batch sync paused: ${batchResult.errorMessage}');
-        break;
+        final batchResult = await _remoteDatasource.syncOfflineBatch(
+          section: sec,
+          eventId: _localStorage.getEventId(),
+          chunk: chunk,
+        );
+
+        if (batchResult.isSuccess) {
+          // Atomic batch update in SQLite
+          await _dbHelper.markBatchSynced(
+            updatedIds: batchResult.updatedRecordsAppId,
+            notExistIds: batchResult.notExistsUsersAppId,
+          );
+
+          final processedCount = batchResult.updatedRecordsAppId.length +
+              batchResult.notExistsUsersAppId.length;
+
+          // If backend returned zero updated IDs, mark whole chunk to prevent infinite loop
+          final countToDeduct = processedCount > 0 ? processedCount : chunk.length;
+          if (processedCount == 0) {
+            final allChunkIds = chunk.map((e) => e.id!).whereType<int>().toList();
+            await _dbHelper.markBatchSynced(updatedIds: allChunkIds);
+          }
+
+          totalSynced += countToDeduct;
+          _memoryCache.decrementPending(countToDeduct);
+        } else {
+          // Stop on network failure to preserve records
+          debugPrint('[ScannerRepositoryImpl] ⚠️ Batch sync paused for $sec: ${batchResult.errorMessage}');
+          hasMore = false;
+          break;
+        }
       }
     }
 
