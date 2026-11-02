@@ -8,6 +8,7 @@ import '../../../data/datasources/offline_database_helper.dart';
 import '../../../data/models/checkin_record.dart';
 import '../../bloc/scanner_bloc.dart';
 import '../../bloc/scanner_event.dart';
+import '../../widgets/fade_in_background_image.dart';
 
 /// Check-in list screen matching `OfflineCheckInList.jsx` in the React Native EventXPro app.
 /// Shows all offline records saved for a specific session (entrances, hall, agenda, or session).
@@ -386,80 +387,86 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
           child: Divider(color: AppTheme.surfaceBorder, height: 1),
         ),
       ),
-      body: Column(
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          // ── Search Bar ────────────────────────────────────────────────
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-            color: AppTheme.surface,
-            child: Container(
-              height: 42,
-              decoration: BoxDecoration(
-                color: const Color(0xFF131722),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.surfaceBorder),
-              ),
-              child: TextField(
-                controller: _searchController,
-                style: const TextStyle(color: Colors.white, fontSize: 13.5),
-                decoration: InputDecoration(
-                  hintText: 'Search code, gate, record #...',
-                  hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 12.5),
-                  prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.textMuted, size: 20),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear_rounded, color: Colors.white60, size: 18),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          const AppBackgroundLayer(),
+          Column(
+            children: [
+              // ── Search Bar ────────────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+                color: AppTheme.surface,
+                child: Container(
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF131722),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.surfaceBorder),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    style: const TextStyle(color: Colors.white, fontSize: 13.5),
+                    decoration: InputDecoration(
+                      hintText: 'Search code, gate, record #...',
+                      hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 12.5),
+                      prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.textMuted, size: 20),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded, color: Colors.white60, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    onChanged: (val) {
+                      setState(() => _searchQuery = val);
+                    },
+                  ),
                 ),
-                onChanged: (val) {
-                  setState(() => _searchQuery = val);
-                },
               ),
-            ),
-          ),
 
-          // ── Action Buttons Row (Sync & Export) ────────────────────────
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            color: AppTheme.surface,
-            child: Row(
-              children: [
-                Expanded(child: _buildSyncButton()),
-                const SizedBox(width: 10),
-                Expanded(child: _buildDownloadButton()),
-              ],
-            ),
-          ),
+              // ── Action Buttons Row (Sync & Export) ────────────────────────
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                color: AppTheme.surface,
+                child: Row(
+                  children: [
+                    Expanded(child: _buildSyncButton()),
+                    const SizedBox(width: 10),
+                    Expanded(child: _buildDownloadButton()),
+                  ],
+                ),
+              ),
 
-          // ── Filter Chips Bar ──────────────────────────────────────────
-          _buildFilterBar(),
+              // ── Filter Chips Bar ──────────────────────────────────────────
+              _buildFilterBar(),
 
-          // ── Check-in Records List ─────────────────────────────────────
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: AppTheme.eventxproAccent))
-                : filtered.isEmpty
-                    ? _buildEmptyState()
-                    : RefreshIndicator(
-                        onRefresh: _loadRecords,
-                        color: AppTheme.eventxproAccent,
-                        backgroundColor: AppTheme.surfaceElevated,
-                        child: ListView.separated(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          itemCount: filtered.length,
-                          separatorBuilder: (context, index) => const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            return _buildRecordCard(filtered[index]);
-                          },
-                        ),
-                      ),
+              // ── Check-in Records List ─────────────────────────────────────
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator(color: AppTheme.eventxproAccent))
+                    : filtered.isEmpty
+                        ? _buildEmptyState()
+                        : RefreshIndicator(
+                            onRefresh: _loadRecords,
+                            color: AppTheme.eventxproAccent,
+                            backgroundColor: AppTheme.surfaceElevated,
+                            child: ListView.separated(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              itemCount: filtered.length,
+                              separatorBuilder: (context, index) => const SizedBox(height: 10),
+                              itemBuilder: (context, index) {
+                                return _buildRecordCard(filtered[index]);
+                              },
+                            ),
+                          ),
+              ),
+            ],
           ),
         ],
       ),

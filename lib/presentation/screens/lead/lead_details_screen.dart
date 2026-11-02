@@ -8,6 +8,7 @@ import '../../../data/models/lead_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/lead_repository.dart';
 import '../../widgets/fade_in_background_image.dart';
+import '../../widgets/fade_in_background_image.dart';
 import 'lead_info_screen.dart';
 
 /// Screen displaying comprehensive profile, contact info, ratings, notes,
@@ -16,11 +17,7 @@ class LeadDetailsScreen extends StatefulWidget {
   final int leadId;
   final LeadModel? initialLead;
 
-  const LeadDetailsScreen({
-    super.key,
-    required this.leadId,
-    this.initialLead,
-  });
+  const LeadDetailsScreen({super.key, required this.leadId, this.initialLead});
 
   @override
   State<LeadDetailsScreen> createState() => _LeadDetailsScreenState();
@@ -146,9 +143,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     HapticFeedback.lightImpact();
     final updatedLead = await Navigator.push<LeadModel>(
       context,
-      MaterialPageRoute(
-        builder: (_) => LeadInfoScreen(lead: _lead!),
-      ),
+      MaterialPageRoute(builder: (_) => LeadInfoScreen(lead: _lead!)),
     );
 
     if (updatedLead != null && mounted) {
@@ -259,46 +254,46 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                     child: _isLoading && lead == null
                         ? _buildLoadingState()
                         : _errorMessage != null && lead == null
-                            ? _buildErrorState()
-                            : RefreshIndicator(
-                                onRefresh: () => _fetchDetails(silent: true),
-                                color: const Color(0xFF6366F1),
-                                backgroundColor: const Color(0xFF131926),
-                                child: SingleChildScrollView(
-                                  physics: const AlwaysScrollableScrollPhysics(),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      // 1. Hero Profile Card
-                                      _buildHeroCard(lead!),
-                                      const SizedBox(height: 12),
-
-                                      // 2. High-contrast Quick Action Buttons
-                                      _buildContactActions(lead),
-                                      const SizedBox(height: 12),
-
-                                      // 3. Lead Notes & Rating Card
-                                      _buildNotesCard(lead),
-                                      const SizedBox(height: 12),
-
-                                      // 4. Attendee Details Information Card
-                                      _buildInformationCard(lead),
-                                      const SizedBox(height: 12),
-
-                                      // 5. Check-In & Punch History Logs
-                                      if (lead.checkinHistory != null &&
-                                          lead.checkinHistory!.isNotEmpty)
-                                        _buildHistorySection(lead),
-
-                                      const SizedBox(height: 36),
-                                    ],
-                                  ),
-                                ),
+                        ? _buildErrorState()
+                        : RefreshIndicator(
+                            onRefresh: () => _fetchDetails(silent: true),
+                            color: const Color(0xFF6366F1),
+                            backgroundColor: const Color(0xFF131926),
+                            child: SingleChildScrollView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
                               ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // 1. Hero Profile Card
+                                  _buildHeroCard(lead!),
+                                  const SizedBox(height: 12),
+
+                                  // 2. High-contrast Quick Action Buttons
+                                  _buildContactActions(lead),
+                                  const SizedBox(height: 12),
+
+                                  // 3. Lead Notes & Rating Card
+                                  _buildNotesCard(lead),
+                                  const SizedBox(height: 12),
+
+                                  // 4. Attendee Details Information Card
+                                  _buildInformationCard(lead),
+                                  const SizedBox(height: 12),
+
+                                  // 5. Check-In & Punch History Logs
+                                  if (lead.checkinHistory != null &&
+                                      lead.checkinHistory!.isNotEmpty)
+                                    _buildHistorySection(lead),
+
+                                  const SizedBox(height: 36),
+                                ],
+                              ),
+                            ),
+                          ),
                   ),
                 ],
               ),
@@ -505,10 +500,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF131926),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFF1F293D),
-          width: 1.0,
-        ),
+        border: Border.all(color: const Color(0xFF1F293D), width: 1.0),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.35),
@@ -821,10 +813,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF2E0854),
-            Color(0xFF1E1B4B),
-          ],
+          colors: [Color(0xFF2E0854), Color(0xFF1E1B4B)],
         ),
       ),
       alignment: Alignment.center,
@@ -901,19 +890,12 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
           decoration: BoxDecoration(
             color: const Color(0xFF131926),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: const Color(0xFF1F293D),
-              width: 1.0,
-            ),
+            border: Border.all(color: const Color(0xFF1F293D), width: 1.0),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                size: 16,
-                color: const Color(0xFF818CF8),
-              ),
+              Icon(icon, size: 16, color: const Color(0xFF818CF8)),
               const SizedBox(width: 4),
               Flexible(
                 child: FittedBox(
@@ -948,10 +930,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF131926),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: const Color(0xFF1F293D),
-          width: 1.0,
-        ),
+        border: Border.all(color: const Color(0xFF1F293D), width: 1.0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1029,10 +1008,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFF1B2436),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: const Color(0xFF28364F),
-                width: 0.8,
-              ),
+              border: Border.all(color: const Color(0xFF28364F), width: 0.8),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1087,10 +1063,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
               decoration: BoxDecoration(
                 color: const Color(0xFF1B2436),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: const Color(0xFF28364F),
-                  width: 0.8,
-                ),
+                border: Border.all(color: const Color(0xFF28364F), width: 0.8),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1221,10 +1194,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF131926),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: const Color(0xFF1F293D),
-          width: 1.0,
-        ),
+        border: Border.all(color: const Color(0xFF1F293D), width: 1.0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1341,10 +1311,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF131926),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: const Color(0xFF1F293D),
-          width: 1.0,
-        ),
+        border: Border.all(color: const Color(0xFF1F293D), width: 1.0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1415,18 +1382,16 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
 
     final formattedIn = _formatDateTime(checkInDt, checkInTm);
     final hasCheckOut = checkOutTm != null && checkOutTm.trim().isNotEmpty;
-    final formattedOut =
-        hasCheckOut ? _formatDateTime(checkOutDt, checkOutTm) : null;
+    final formattedOut = hasCheckOut
+        ? _formatDateTime(checkOutDt, checkOutTm)
+        : null;
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFF1B2436),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF28364F),
-          width: 0.8,
-        ),
+        border: Border.all(color: const Color(0xFF28364F), width: 0.8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1689,10 +1654,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
               Text(
                 _errorMessage ?? 'Something went wrong.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF8E9BAE),
-                  fontSize: 13,
-                ),
+                style: const TextStyle(color: Color(0xFF8E9BAE), fontSize: 13),
               ),
               const SizedBox(height: 18),
               Material(
@@ -1757,8 +1719,13 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
           final min = int.tryParse(parts[1]) ?? 0;
           final tod = TimeOfDay(hour: hour, minute: min);
           final now = DateTime.now();
-          final timeDt =
-              DateTime(now.year, now.month, now.day, tod.hour, tod.minute);
+          final timeDt = DateTime(
+            now.year,
+            now.month,
+            now.day,
+            tod.hour,
+            tod.minute,
+          );
           final timeFormatted = DateFormat('hh:mm a').format(timeDt);
           return '$dateFormatted • $timeFormatted';
         }

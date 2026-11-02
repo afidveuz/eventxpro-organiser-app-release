@@ -5,6 +5,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/datasources/lead_remote_datasource.dart';
 import '../../../data/models/lead_model.dart';
 import '../../../data/repositories/lead_repository.dart';
+import '../../widgets/fade_in_background_image.dart';
 import 'lead_capture_screen.dart';
 import 'lead_details_screen.dart';
 import 'widgets/lead_card.dart';
@@ -330,13 +331,19 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
           ),
         ),
       ),
-      body: Column(
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          // Search & Metrics Header
-          _buildSearchAndFiltersHeader(),
-          // Lead Cards List
-          Expanded(
-            child: _buildBody(),
+          const AppBackgroundLayer(),
+          Column(
+            children: [
+              // Search & Metrics Header
+              _buildSearchAndFiltersHeader(),
+              // Lead Cards List
+              Expanded(
+                child: _buildBody(),
+              ),
+            ],
           ),
         ],
       ),

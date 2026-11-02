@@ -17,6 +17,7 @@ import '../../../data/repositories/auth_repository.dart';
 import '../../../data/repositories/lead_repository.dart';
 import '../../bloc/scanner_bloc.dart';
 import '../../bloc/scanner_event.dart';
+import '../../widgets/fade_in_background_image.dart';
 import 'lead_info_screen.dart';
 import 'leads_list_screen.dart';
 import 'widgets/lead_captured_modal_sheet.dart';
@@ -495,7 +496,9 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
     return Scaffold(
       backgroundColor: AppTheme.eventxproBg,
       body: Stack(
+        fit: StackFit.expand,
         children: [
+          const AppBackgroundLayer(),
           // ── Main Content Layout ────────────────────────────────────
           SafeArea(
             bottom: !widget.isRootTab,

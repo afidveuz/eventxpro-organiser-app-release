@@ -9,6 +9,7 @@ import '../bloc/scanner_event.dart';
 import '../bloc/scanner_state.dart';
 import '../bloc/auth/auth_bloc.dart';
 import '../bloc/auth/auth_event.dart';
+import '../widgets/fade_in_background_image.dart';
 import '../widgets/simple_scanner_view.dart';
 import 'auth/login_screen.dart';
 
@@ -179,23 +180,29 @@ class _KioskScannerScreenState extends State<KioskScannerScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.eventxproBg,
-      body: BlocConsumer<ScannerBloc, ScannerState>(
-        listener: (context, state) {},
-        builder: (context, state) {
-          return SimpleScannerView(
-            state: state,
-            gateName: widget.gateName,
-            eventName: widget.eventName,
-            section: widget.section,
-            sectionLocation: widget.sectionLocation,
-            onLogout: () => _handleLogout(context),
-            onResetToReady: () {
-              context
-                  .read<ScannerBloc>()
-                  .add(const ScannerFeedbackTimeout());
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const AppBackgroundLayer(),
+          BlocConsumer<ScannerBloc, ScannerState>(
+            listener: (context, state) {},
+            builder: (context, state) {
+              return SimpleScannerView(
+                state: state,
+                gateName: widget.gateName,
+                eventName: widget.eventName,
+                section: widget.section,
+                sectionLocation: widget.sectionLocation,
+                onLogout: () => _handleLogout(context),
+                onResetToReady: () {
+                  context
+                      .read<ScannerBloc>()
+                      .add(const ScannerFeedbackTimeout());
+                },
+              );
             },
-          );
-        },
+          ),
+        ],
       ),
     );
   }

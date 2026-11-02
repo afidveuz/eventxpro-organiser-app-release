@@ -8,13 +8,16 @@ import '../../data/datasources/scanner_local_storage.dart';
 import 'home/home_screen.dart';
 import 'lead/lead_capture_screen.dart';
 import 'lead/leads_list_screen.dart';
-import 'settings_screen.dart';
+import 'profile_screen.dart';
 
 enum NavigationTab {
   home,
   scanLead,
   leads,
-  settings,
+  profile;
+
+  /// Backwards compatibility alias for settings
+  static const NavigationTab settings = profile;
 }
 
 /// Main root screen hosting the persistent Bottom Navigation Bar.
@@ -62,7 +65,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       builder: (context, hasLeadPermission, _) {
         // Fallback: If user was on leads/scanLead tab but permission was revoked, switch to home
         if (!hasLeadPermission &&
-            (_currentTab == NavigationTab.leads || _currentTab == NavigationTab.scanLead)) {
+            (_currentTab == NavigationTab.leads ||
+                _currentTab == NavigationTab.scanLead)) {
           _currentTab = NavigationTab.home;
         }
 
@@ -71,8 +75,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           HomeScreen(
             zebraAdapter: widget.zebraAdapter,
             simulatorAdapter: widget.simulatorAdapter,
-            onOpenSettings: () => _selectTab(NavigationTab.settings),
-            onOpenLeads: hasLeadPermission ? () => _selectTab(NavigationTab.leads) : null,
+            onOpenProfile: () => _selectTab(NavigationTab.profile),
+            onOpenSettings: () => _selectTab(NavigationTab.profile),
+            onOpenLeads: hasLeadPermission
+                ? () => _selectTab(NavigationTab.leads)
+                : null,
           ),
           if (hasLeadPermission) ...[
             LeadCaptureScreen(
@@ -85,9 +92,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               onOpenScanLead: () => _selectTab(NavigationTab.scanLead),
             ),
           ],
-          SettingsScreen(
+          ProfileScreen(
             isRootTab: true,
-            onOpenScanLead: hasLeadPermission ? () => _selectTab(NavigationTab.scanLead) : null,
+            onOpenScanLead: hasLeadPermission
+                ? () => _selectTab(NavigationTab.scanLead)
+                : null,
           ),
         ];
 
@@ -104,7 +113,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             case NavigationTab.leads:
               activeStackIndex = 2;
               break;
-            case NavigationTab.settings:
+            case NavigationTab.profile:
               activeStackIndex = 3;
               break;
           }
@@ -115,7 +124,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             case NavigationTab.leads:
               activeStackIndex = 0;
               break;
-            case NavigationTab.settings:
+            case NavigationTab.profile:
               activeStackIndex = 1;
               break;
           }
@@ -172,7 +181,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
-  /// 4-item bar when Lead Capture is enabled (Home, Scan Lead, Leads, Settings)
+  /// 4-item bar when Lead Capture is enabled (Home, Scan Lead, Leads, Profile)
   Widget _buildLeadEnabledBar() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -199,17 +208,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           onTap: () => _selectTab(NavigationTab.leads),
         ),
         _buildNavItem(
-          icon: Icons.settings_outlined,
-          activeIcon: Icons.settings_rounded,
-          label: 'Settings',
-          isSelected: _currentTab == NavigationTab.settings,
-          onTap: () => _selectTab(NavigationTab.settings),
+          icon: Icons.person_outline_rounded,
+          activeIcon: Icons.person_rounded,
+          label: 'Profile',
+          isSelected: _currentTab == NavigationTab.profile,
+          onTap: () => _selectTab(NavigationTab.profile),
         ),
       ],
     );
   }
 
-  /// 2-item clean bar when Lead Capture is disabled (Home & Settings)
+  /// 2-item clean bar when Lead Capture is disabled (Home & Profile)
   /// Full-width layout with generous, symmetrically spaced touch areas
   Widget _buildTwoItemBar() {
     return Padding(
@@ -225,11 +234,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             onTap: () => _selectTab(NavigationTab.home),
           ),
           _buildNavItem(
-            icon: Icons.settings_outlined,
-            activeIcon: Icons.settings_rounded,
-            label: 'Settings',
-            isSelected: _currentTab == NavigationTab.settings,
-            onTap: () => _selectTab(NavigationTab.settings),
+            icon: Icons.person_outline_rounded,
+            activeIcon: Icons.person_rounded,
+            label: 'Profile',
+            isSelected: _currentTab == NavigationTab.profile,
+            onTap: () => _selectTab(NavigationTab.profile),
           ),
         ],
       ),
@@ -269,7 +278,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   height: 2.5,
                   margin: const EdgeInsets.only(bottom: 5),
                   decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFF6366F1) : Colors.transparent,
+                    color: isSelected
+                        ? const Color(0xFF6366F1)
+                        : Colors.transparent,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
