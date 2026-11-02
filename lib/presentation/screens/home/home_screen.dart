@@ -991,7 +991,7 @@ class _HomeScreenState extends State<HomeScreen> {
     VoidCallback? onTap,
   }) {
     final cardContent = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFF131926),
         borderRadius: BorderRadius.circular(12),
@@ -1000,38 +1000,37 @@ class _HomeScreenState extends State<HomeScreen> {
           width: 1.0,
         ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Icon(
-                icon,
-                size: 17,
-                color: iconColor,
+          // Top Row: [Icon] [Count] ... [Chevron >]
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: iconBgColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Icon(
+                    icon,
+                    size: 17,
+                    color: iconColor,
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FittedBox(
+              const SizedBox(width: 8),
+              Expanded(
+                child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(
                     count.toString(),
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: 19,
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
                       letterSpacing: -0.3,
@@ -1039,31 +1038,31 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  title,
-                  maxLines: 2,
-                  softWrap: true,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF8E9BAE),
-                    letterSpacing: 0.2,
-                    height: 1.15,
-                  ),
+              ),
+              if (isClickable)
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 16,
+                  color: iconColor.withValues(alpha: 0.7),
                 ),
-              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Bottom Independent Line: Full-width Label
+          Text(
+            title,
+            maxLines: 2,
+            softWrap: true,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF8E9BAE),
+              letterSpacing: 0.3,
+              height: 1.15,
             ),
           ),
-          if (isClickable) ...[
-            const SizedBox(width: 4),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 15,
-              color: iconColor.withValues(alpha: 0.7),
-            ),
-          ],
         ],
       ),
     );
