@@ -397,9 +397,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     _buildOfflineModeTile(),
 
-                    const SizedBox(height: 10),
+                    // const SizedBox(height: 10),
 
-                    _buildHardwareDiagnosticsCard(state),
+                    // _buildHardwareDiagnosticsCard(state),
 
                     _buildVersionFooter(),
                   ],
@@ -584,6 +584,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildHardwareDiagnosticsCard(ScannerState state) {
     final dev = _deviceInfo;
     return _buildGlassCard(

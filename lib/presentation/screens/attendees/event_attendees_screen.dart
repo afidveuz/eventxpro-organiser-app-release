@@ -8,7 +8,6 @@ import '../../../data/repositories/attendee_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../widgets/fade_in_background_image.dart';
 import 'attendee_details_screen.dart';
-import 'spot_registration_screen.dart';
 
 /// Screen listing attendees matching `EventAttendees.jsx` and `Attendees.jsx`.
 /// Supports both:
@@ -532,69 +531,7 @@ class _EventAttendeesScreenState extends State<EventAttendeesScreen> {
           ),
         ],
       ),
-      floatingActionButton: _buildFloatingActionButton(),
     );
-  }
-
-  Widget? _buildFloatingActionButton() {
-    // Only show for event attendee list modes (not gate-specific punch sessions)
-    if (widget.isSessionMode) return null;
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: AppTheme.brandGradient,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.brandGradientStart.withValues(alpha: 0.4),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _openSpotRegistration,
-          borderRadius: BorderRadius.circular(16),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.person_add_alt_1_rounded, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text(
-                  'Spot Register',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _openSpotRegistration() async {
-    HapticFeedback.lightImpact();
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SpotRegistrationScreen(
-          eventId: widget.eventId,
-          eventName: widget.eventName,
-        ),
-      ),
-    );
-    // Reload attendees list when returning
-    if (mounted) {
-      _loadAttendees(reset: true);
-    }
   }
 
   // ── Top Bar ───────────────────────────────────────────────────────
