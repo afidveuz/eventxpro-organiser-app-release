@@ -414,6 +414,16 @@ class _HomeScreenState extends State<HomeScreen> {
               _parsedSectionsCache[eventPk] = _parseSections(perm);
             });
           }
+          if (eventPk == _selectedEventPk || _eventList.length == 1) {
+            final ev = _eventList.firstWhere(
+              (e) => ((e['pk'] ?? e['id']) == eventPk),
+              orElse: () => {'pk': eventPk, 'id': eventPk},
+            );
+            await scannerLocalStorage.setOfflineData(jsonEncode({
+              'event': ev,
+              'permission': perm,
+            }));
+          }
         }
       } catch (e) {
         debugPrint(
@@ -927,43 +937,46 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Metrics Row: [TOTAL EVENTS] & [SCANNED USERS] ─────────────────
   Widget _buildMetricsRow() {
-    return Row(
-      children: [
-        // Total Events Card
-        Expanded(
-          child: _buildMetricCard(
-            title: 'TOTAL EVENTS',
-            count: _totalEvents,
-            icon: Icons.event_available_rounded,
-            iconColor: const Color(0xFF818CF8),
-            iconBgColor: const Color(0xFF6366F1).withValues(alpha: 0.16),
-            borderColor: const Color(0xFF283048),
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Total Events Card
+          Expanded(
+            child: _buildMetricCard(
+              title: 'TOTAL EVENTS',
+              count: _totalEvents,
+              icon: Icons.event_available_rounded,
+              iconColor: const Color(0xFF818CF8),
+              iconBgColor: const Color(0xFF6366F1).withValues(alpha: 0.16),
+              borderColor: const Color(0xFF283048),
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
+          const SizedBox(width: 10),
 
-        // Scanned Users Card
-        Expanded(
-          child: _buildMetricCard(
-            title: 'SCANNED USERS',
-            count: _totalScannedCount,
-            icon: Icons.qr_code_scanner_rounded,
-            iconColor: const Color(0xFFFB7185),
-            iconBgColor: const Color(0xFFF43F5E).withValues(alpha: 0.16),
-            borderColor: const Color(0xFF382230),
-            isClickable: true,
-            onTap: () async {
-              HapticFeedback.lightImpact();
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const OfflineSessionsScreen(),
-                ),
-              );
-              _loadDashboardData(forceRefresh: false, silent: true);
-            },
+          // Scanned Users Card
+          Expanded(
+            child: _buildMetricCard(
+              title: 'SCANNED USERS',
+              count: _totalScannedCount,
+              icon: Icons.qr_code_scanner_rounded,
+              iconColor: const Color(0xFFFB7185),
+              iconBgColor: const Color(0xFFF43F5E).withValues(alpha: 0.16),
+              borderColor: const Color(0xFF382230),
+              isClickable: true,
+              onTap: () async {
+                HapticFeedback.lightImpact();
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const OfflineSessionsScreen(),
+                  ),
+                );
+                _loadDashboardData(forceRefresh: false, silent: true);
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -978,7 +991,7 @@ class _HomeScreenState extends State<HomeScreen> {
     VoidCallback? onTap,
   }) {
     final cardContent = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFF131926),
         borderRadius: BorderRadius.circular(12),
@@ -988,59 +1001,69 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               color: iconBgColor,
-              borderRadius: BorderRadius.circular(9),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
               child: Icon(
                 icon,
-                size: 19,
+                size: 17,
                 color: iconColor,
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  count.toString(),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: -0.3,
-                    height: 1.15,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    count.toString(),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: -0.3,
+                      height: 1.15,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   title,
-                  maxLines: 1,
+                  maxLines: 2,
+                  softWrap: true,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 10,
+                    fontSize: 9.5,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF8E9BAE),
-                    letterSpacing: 0.4,
+                    letterSpacing: 0.2,
+                    height: 1.15,
                   ),
                 ),
               ],
             ),
           ),
-          if (isClickable)
+          if (isClickable) ...[
+            const SizedBox(width: 4),
             Icon(
               Icons.chevron_right_rounded,
-              size: 16,
+              size: 15,
               color: iconColor.withValues(alpha: 0.7),
             ),
+          ],
         ],
       ),
     );
@@ -1325,8 +1348,18 @@ class _HomeScreenState extends State<HomeScreen> {
                             setState(() {
                               _selectedEventPk = pk;
                             });
-                            context.read<ScannerLocalStorage>().setEventId(pk);
-                            if (!_eventPermissions.containsKey(pk)) {
+                            final storage = context.read<ScannerLocalStorage>();
+                            storage.setEventId(pk);
+                            if (_eventPermissions.containsKey(pk)) {
+                              final ev = _eventList.firstWhere(
+                                (e) => ((e['pk'] ?? e['id']) == pk),
+                                orElse: () => {'pk': pk, 'id': pk},
+                              );
+                              storage.setOfflineData(jsonEncode({
+                                'event': ev,
+                                'permission': _eventPermissions[pk],
+                              }));
+                            } else {
                               _fetchPermissionsForEvent(pk);
                             }
                           }

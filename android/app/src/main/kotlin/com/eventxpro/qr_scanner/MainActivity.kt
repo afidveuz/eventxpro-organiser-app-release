@@ -13,11 +13,13 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
+import java.util.Collections
+
 class MainActivity : FlutterActivity() {
     private val channelName = "eventxpro/scanner"
     private val controlChannelName = "eventxpro/scanner_control"
     private val scanAction = "com.eventxpro.SCAN"
-    private var scanSink: EventChannel.EventSink? = null
+    private val scanSinks = Collections.synchronizedSet(mutableSetOf<EventChannel.EventSink>())
     private var receiver: BroadcastReceiver? = null
 
     companion object {
@@ -46,15 +48,15 @@ class MainActivity : FlutterActivity() {
         EventChannel(engine.dartExecutor.binaryMessenger, channelName)
             .setStreamHandler(object : EventChannel.StreamHandler {
                 override fun onListen(args: Any?, events: EventChannel.EventSink?) {
-                    scanSink = events
+                    events?.let { scanSinks.add(it) }
                     registerScanner()
                     // Auto-configure hardware scanner profile for detected device
                     provisionHardwareScanner()
                 }
 
                 override fun onCancel(args: Any?) {
+                    scanSinks.clear()
                     unregisterScanner()
-                    scanSink = null
                 }
             })
 
@@ -213,7 +215,18 @@ class MainActivity : FlutterActivity() {
     private fun emitBarcode(barcode: String) {
         Log.d(TAG, "Barcode decoded and emitted to Flutter: $barcode")
         runOnUiThread {
-            scanSink?.success(barcode)
+            synchronized(scanSinks) {
+                val iterator = scanSinks.iterator()
+                while (iterator.hasNext()) {
+                    val sink = iterator.next()
+                    try {
+                        sink.success(barcode)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed emitting barcode to sink: ${e.message}")
+                        iterator.remove()
+                    }
+                }
+            }
         }
     }
 
@@ -371,7 +384,7 @@ class MainActivity : FlutterActivity() {
     override fun onDestroy() {
         releaseHoneywellScanner()
         unregisterScanner()
-        scanSink = null
+        scanSinks.clear()
         super.onDestroy()
     }
 }

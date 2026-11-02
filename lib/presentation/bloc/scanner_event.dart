@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:equatable/equatable.dart';
 import '../../domain/adapters/i_hardware_scanner_adapter.dart';
 
@@ -102,7 +103,16 @@ class ScannerConfigChanged extends ScannerEvent {
 
 /// Synchronize locally queued offline scans
 class ScannerSyncOfflineRequested extends ScannerEvent {
-  const ScannerSyncOfflineRequested();
+  final String? section;
+  final Completer<int>? completer;
+
+  const ScannerSyncOfflineRequested({
+    this.section,
+    this.completer,
+  });
+
+  @override
+  List<Object?> get props => [section, completer];
 }
 
 /// Clear offline queue

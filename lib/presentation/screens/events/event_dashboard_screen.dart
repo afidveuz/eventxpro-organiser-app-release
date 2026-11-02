@@ -51,6 +51,15 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    try {
+      final storage = context.read<ScannerLocalStorage>();
+      final raw = storage.getOfflineData();
+      if (raw != null && raw.isNotEmpty) {
+        final parsed = jsonDecode(raw) as Map<String, dynamic>;
+        final perm = (parsed['permission'] as Map<String, dynamic>?) ?? parsed;
+        _cachedPermissions = perm;
+      }
+    } catch (_) {}
     _loadDashboardData();
   }
 
@@ -147,6 +156,18 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
               _cachedPermissions = Map<String, dynamic>.from(parsed);
             }
           }
+          if (_cachedPermissions != null) {
+            try {
+              final eventObj = (_eventDetails['eventlist'] as Map<String, dynamic>?) ??
+                  {'pk': widget.eventId, 'id': widget.eventId};
+              await storage.setOfflineData(jsonEncode({
+                'event': eventObj,
+                'permission': _cachedPermissions,
+                'cached_at': DateTime.now().toIso8601String(),
+              }));
+            } catch (_) {}
+          }
+          if (mounted) setState(() {});
         }
       } catch (_) {}
     } catch (e) {
@@ -643,7 +664,9 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
     final int todayVisits = (_eventDetails['todayvisits'] as num?)?.toInt() ?? 0;
     final int checkinCount = (_eventDetails['checkincount'] as num?)?.toInt() ?? 0;
     final int leads = (_eventDetails['leadcaptured'] as num?)?.toInt() ?? 0;
-    final bool hasLeadPermission = _eventDetails['lead_permission'] == true;
+    final leadPerm = _cachedPermissions?['lead_capture_permission'];
+    final bool hasLeadPermission = _eventDetails['lead_permission'] != false &&
+        (leadPerm == true || leadPerm == 1 || leadPerm == 'true');
     final int badgeIssued = (_eventDetails['badge_issue_count'] as num?)?.toInt() ?? 0;
 
     return Column(
@@ -849,7 +872,9 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
 
   // ── 4. Quick Action Tiles (matching Tiles.jsx) ───────────────────
   Widget _buildQuickActionTiles() {
-    final hasLeadPermission = _eventDetails['lead_permission'] == true;
+    final leadPerm = _cachedPermissions?['lead_capture_permission'];
+    final hasLeadPermission = _eventDetails['lead_permission'] != false &&
+        (leadPerm == true || leadPerm == 1 || leadPerm == 'true');
     final hasSpotRegPermission =
         _eventDetails['spot_registration_permission'] != false &&
         _cachedPermissions?['spot_registration_permission'] != false;
@@ -977,12 +1002,18 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
         borderRadius: BorderRadius.circular(10),
         child: Container(
           width: width,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          constraints: const BoxConstraints(minHeight: 58),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.06),
+              width: 1.0,
+            ),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
                 width: 32,
@@ -993,16 +1024,18 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                 ),
                 child: Icon(icon, size: 16, color: color),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   title,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
+                  softWrap: true,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
-                    fontSize: 12.5,
+                    fontSize: 12,
+                    height: 1.2,
                   ),
                 ),
               ),

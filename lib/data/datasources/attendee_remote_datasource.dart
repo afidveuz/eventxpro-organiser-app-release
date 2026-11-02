@@ -264,24 +264,37 @@ class AttendeeRemoteDatasource {
       dynamic response;
       dynamic lastError;
 
-      // 1. Try organizer v1 create-user endpoint with FormData matching kiosk_v2
+      // 1. First try organizer/create-attendee with strict organizer payload
+      // (Matching CreateAttendee.jsx & CreateAttendeeOCR.jsx in eventxproorganiser)
+      final organizerPayload = request.toOrganizerPayload();
       try {
         response = await _apiClient.dio.post(
-          'organizer/api/v1/create-user/${request.eventId}?lang=eng',
-          data: request.toFormData(),
+          'organizer/create-attendee',
+          data: organizerPayload,
         );
-      } catch (orgErr) {
-        debugPrint('[AttendeeRemoteDatasource] organizer v1 create-user failed: $orgErr, trying legacy fallback');
-        lastError = orgErr;
+      } catch (createErr) {
+        debugPrint('[AttendeeRemoteDatasource] organizer/create-attendee failed: $createErr, trying v1 create-user');
+        lastError = createErr;
 
-        // 2. Try legacy organizer endpoint with JSON payload
+        // 2. Try organizer v1 create-user endpoint with JSON payload (matching AttendeesCreation.jsx)
         try {
           response = await _apiClient.dio.post(
-            'organizer/create-attendee',
-            data: request.toJson(),
+            'organizer/api/v1/create-user/${request.eventId}?lang=eng',
+            data: organizerPayload,
           );
-        } catch (legacyErr) {
-          lastError = legacyErr;
+        } catch (v1Err) {
+          debugPrint('[AttendeeRemoteDatasource] organizer v1 create-user failed: $v1Err, trying FormData fallback');
+          lastError = v1Err;
+
+          // 3. Last fallback: FormData format if supported by kiosk backend
+          try {
+            response = await _apiClient.dio.post(
+              'organizer/api/v1/create-user/${request.eventId}?lang=eng',
+              data: request.toFormData(),
+            );
+          } catch (formErr) {
+            lastError = formErr;
+          }
         }
       }
 

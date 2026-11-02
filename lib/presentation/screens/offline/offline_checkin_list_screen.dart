@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../../core/services/offline_export_service.dart';
@@ -122,13 +124,41 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
     setState(() => _isSyncing = true);
 
     try {
-      context.read<ScannerBloc>().add(const ScannerSyncOfflineRequested());
-      await Future.delayed(const Duration(milliseconds: 1500));
+      final completer = Completer<int>();
+      context.read<ScannerBloc>().add(
+        ScannerSyncOfflineRequested(
+          section: widget.sessionKey,
+          completer: completer,
+        ),
+      );
+
+      final synced = await completer.future.timeout(
+        const Duration(seconds: 45),
+        onTimeout: () => 0,
+      );
+
       await _loadRecords();
 
       if (mounted) {
-        AppToast.showSuccess(
-          message: 'Synchronization completed for ${widget.sessionTitle}.',
+        if (synced > 0) {
+          AppToast.showSuccess(
+            message: 'Successfully synchronized $synced records for ${widget.sessionTitle}.',
+          );
+        } else if (_unsyncedCount == 0) {
+          AppToast.showSuccess(
+            message: 'All records for ${widget.sessionTitle} are synchronized.',
+          );
+        } else {
+          AppToast.showWarning(
+            message: 'Sync finished. $_unsyncedCount records still pending.',
+          );
+        }
+      }
+    } catch (e) {
+      await _loadRecords();
+      if (mounted) {
+        AppToast.showError(
+          message: 'Synchronization failed for ${widget.sessionTitle}: $e',
         );
       }
     } finally {
@@ -159,11 +189,24 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Handle Bar
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
                   // Header
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -172,12 +215,21 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
                         child: Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.all(8),
+                              width: 42,
+                              height: 42,
                               decoration: BoxDecoration(
-                                color: AppTheme.eventxproAccent.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(10),
+                                color: AppTheme.accentIndigo.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppTheme.accentIndigo.withValues(alpha: 0.25),
+                                  width: 1,
+                                ),
                               ),
-                              child: const Icon(Icons.qr_code_2_rounded, color: AppTheme.eventxproAccent, size: 22),
+                              child: const Icon(
+                                Icons.qr_code_2_rounded,
+                                color: AppTheme.accentIndigo,
+                                size: 22,
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -190,13 +242,18 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
                                       color: Colors.white,
                                       fontSize: 17,
                                       fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.1,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
+                                  const SizedBox(height: 2),
                                   Text(
                                     'Session: ${widget.sessionTitle}',
-                                    style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                                    style: const TextStyle(
+                                      color: AppTheme.textMuted,
+                                      fontSize: 12.5,
+                                    ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -206,72 +263,114 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                        onPressed: () => Navigator.of(sheetCtx).pop(),
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.06),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 18),
+                          onPressed: () => Navigator.of(sheetCtx).pop(),
+                        ),
                       ),
                     ],
                   ),
-                const SizedBox(height: 16),
-                const Divider(color: AppTheme.surfaceBorder, height: 1),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
+                  Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
+                  const SizedBox(height: 16),
 
-                // Encrypted Code Section (matches eventxproorganiser)
-                _buildDetailInfoTile(
-                  title: 'ENCRYPTED CODE',
-                  value: displayCode,
-                  icon: Icons.qr_code_2_rounded,
-                  accentColor: AppTheme.eventxproAccent,
-                ),
-
-                const SizedBox(height: 16),
-
-                // Metadata grid
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF131722),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppTheme.surfaceBorder),
+                  // Encrypted Code Section
+                  _buildDetailInfoTile(
+                    title: 'ENCRYPTED CODE',
+                    value: displayCode,
+                    icon: Icons.qr_code_2_rounded,
+                    accentColor: AppTheme.accentIndigo,
                   ),
-                  child: Column(
-                    children: [
-                      _buildMetaRow('Punch Action', isCheckIn ? 'Check-In' : 'Check-Out', isCheckIn ? AppTheme.eventxproSuccess : AppTheme.eventxproDanger),
-                      const SizedBox(height: 8),
-                      _buildMetaRow('Gate / Entrance', 'Gate #${record.entranceId} (${record.entranceLocation.isNotEmpty ? record.entranceLocation : widget.sessionTitle})', Colors.white),
-                      const SizedBox(height: 8),
-                      _buildMetaRow('Timestamp', formattedDate, Colors.white70),
-                      const SizedBox(height: 8),
-                      _buildMetaRow('Server Sync Status', record.isSynced ? 'Synced to Server' : 'Local SQLite Pending', record.isSynced ? AppTheme.eventxproSuccess : AppTheme.accentOrange),
-                      const SizedBox(height: 8),
-                      _buildMetaRow('Registration Status', record.isNotExist ? 'Unregistered' : 'Registered', record.isNotExist ? AppTheme.eventxproDanger : AppTheme.eventxproSuccess),
-                    ],
-                  ),
-                ),
 
-                const SizedBox(height: 18),
+                  const SizedBox(height: 16),
 
-                // Close button
-                SizedBox(
-                  width: double.infinity,
-                  height: 46,
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: AppTheme.surfaceBorder),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  // Metadata grid
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.035),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                     ),
-                    onPressed: () => Navigator.of(sheetCtx).pop(),
-                    child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: Column(
+                      children: [
+                        _buildMetaRow(
+                          'Punch Action',
+                          isCheckIn ? 'Check-In' : 'Check-Out',
+                          isCheckIn ? AppTheme.accentIndigo : AppTheme.eventxproDanger,
+                          isPill: true,
+                        ),
+                        _buildMetaDivider(),
+                        _buildMetaRow(
+                          'Gate / Entrance',
+                          'Gate #${record.entranceId} (${record.entranceLocation.isNotEmpty ? record.entranceLocation : widget.sessionTitle})',
+                          Colors.white,
+                        ),
+                        _buildMetaDivider(),
+                        _buildMetaRow(
+                          'Timestamp',
+                          formattedDate,
+                          AppTheme.textSecondary,
+                        ),
+                        _buildMetaDivider(),
+                        _buildMetaRow(
+                          'Server Sync Status',
+                          record.isSynced ? 'Synced to Server' : 'Local SQLite Pending',
+                          record.isSynced ? AppTheme.accentIndigo : AppTheme.accentOrange,
+                          icon: record.isSynced ? Icons.check_circle_rounded : Icons.schedule_rounded,
+                        ),
+                        _buildMetaDivider(),
+                        _buildMetaRow(
+                          'Registration Status',
+                          record.isNotExist ? 'Unregistered' : 'Registered',
+                          record.isNotExist ? AppTheme.eventxproDanger : AppTheme.accentIndigo,
+                          isPill: true,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+
+                  const SizedBox(height: 20),
+
+                  // Close button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentIndigo,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () => Navigator.of(sheetCtx).pop(),
+                      child: const Text(
+                        'Close',
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
   }
 
   Widget _buildDetailInfoTile({
@@ -284,9 +383,9 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF131722),
+        color: Colors.white.withValues(alpha: 0.035),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: accentColor.withValues(alpha: 0.35)),
+        border: Border.all(color: accentColor.withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,13 +399,42 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
                 style: TextStyle(
                   color: accentColor,
                   fontSize: 11,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: 0.8,
+                ),
+              ),
+              const Spacer(),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(6),
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: value));
+                    AppToast.showSuccess(message: 'Code copied to clipboard');
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.copy_rounded, size: 12, color: accentColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Copy',
+                          style: TextStyle(
+                            color: accentColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           SelectableText(
             value,
             style: const TextStyle(
@@ -314,6 +442,7 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
               fontSize: 13.5,
               fontWeight: FontWeight.w600,
               fontFamily: 'monospace',
+              letterSpacing: 0.4,
             ),
           ),
         ],
@@ -321,19 +450,77 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
     );
   }
 
-  Widget _buildMetaRow(String label, String value, Color valueColor) {
+  Widget _buildMetaDivider() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Divider(
+        color: Colors.white.withValues(alpha: 0.05),
+        height: 1,
+      ),
+    );
+  }
+
+  Widget _buildMetaRow(
+    String label,
+    String value,
+    Color valueColor, {
+    IconData? icon,
+    bool isPill = false,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(label, style: const TextStyle(color: AppTheme.textMuted, fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppTheme.textMuted,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         const SizedBox(width: 12),
         Flexible(
-          child: Text(
-            value,
-            textAlign: TextAlign.end,
-            style: TextStyle(color: valueColor, fontSize: 12, fontWeight: FontWeight.w600),
-          ),
+          child: isPill
+              ? Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: valueColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: valueColor.withValues(alpha: 0.25),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      color: valueColor,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (icon != null) ...[
+                      Icon(icon, size: 13, color: valueColor),
+                      const SizedBox(width: 5),
+                    ],
+                    Flexible(
+                      child: Text(
+                        value,
+                        textAlign: TextAlign.end,
+                        style: TextStyle(
+                          color: valueColor,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ],
     );
@@ -346,11 +533,11 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: AppTheme.surface,
+        backgroundColor: AppTheme.surface.withValues(alpha: 0.95),
         elevation: 0,
         centerTitle: false,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Column(
@@ -360,17 +547,20 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
               '${widget.sessionTitle} Check-ins',
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+                fontSize: 17.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.1,
               ),
             ),
-            const Text(
-              'Offline Records',
+            const SizedBox(height: 2),
+            Text(
+              _unsyncedCount > 0
+                  ? '$_totalCount records • $_unsyncedCount pending'
+                  : '$_totalCount records • All synced',
               style: TextStyle(
-                color: AppTheme.eventxproAccent,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.4,
+                color: _unsyncedCount > 0 ? AppTheme.accentOrange : AppTheme.textSecondary,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -378,13 +568,16 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
         actions: [
           IconButton(
             tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white70, size: 21),
             onPressed: _loadRecords,
           ),
         ],
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1),
-          child: Divider(color: AppTheme.surfaceBorder, height: 1),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(
+            color: Colors.white.withValues(alpha: 0.08),
+            height: 1,
+          ),
         ),
       ),
       body: Stack(
@@ -394,22 +587,25 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
           Column(
             children: [
               // ── Search Bar ────────────────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-                color: AppTheme.surface,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Container(
-                  height: 42,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF131722),
+                    color: Colors.white.withValues(alpha: 0.04),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.surfaceBorder),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.09),
+                      width: 1,
+                    ),
                   ),
                   child: TextField(
                     controller: _searchController,
                     style: const TextStyle(color: Colors.white, fontSize: 13.5),
+                    cursorColor: AppTheme.accentIndigo,
                     decoration: InputDecoration(
                       hintText: 'Search code, gate, record #...',
-                      hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 12.5),
+                      hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
                       prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.textMuted, size: 20),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
@@ -421,7 +617,7 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
                             )
                           : null,
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     onChanged: (val) {
                       setState(() => _searchQuery = val);
@@ -431,9 +627,8 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
               ),
 
               // ── Action Buttons Row (Sync & Export) ────────────────────────
-              Container(
+              Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                color: AppTheme.surface,
                 child: Row(
                   children: [
                     Expanded(child: _buildSyncButton()),
@@ -449,12 +644,12 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
               // ── Check-in Records List ─────────────────────────────────────
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: AppTheme.eventxproAccent))
+                    ? const Center(child: CircularProgressIndicator(color: AppTheme.accentIndigo))
                     : filtered.isEmpty
                         ? _buildEmptyState()
                         : RefreshIndicator(
                             onRefresh: _loadRecords,
-                            color: AppTheme.eventxproAccent,
+                            color: AppTheme.accentIndigo,
                             backgroundColor: AppTheme.surfaceElevated,
                             child: ListView.separated(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -480,34 +675,41 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
       color: Colors.transparent,
       child: InkWell(
         onTap: _isSyncing ? null : _syncSection,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
-          height: 38,
+          height: 42,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: _isSyncing
-                ? AppTheme.eventxproAccent.withValues(alpha: 0.35)
+                ? AppTheme.accentIndigo.withValues(alpha: 0.35)
                 : (hasPending
-                    ? AppTheme.eventxproAccent
-                    : const Color(0xFF131722)),
-            borderRadius: BorderRadius.circular(10),
+                    ? AppTheme.accentIndigo
+                    : Colors.white.withValues(alpha: 0.04)),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: _isSyncing
-                  ? AppTheme.eventxproAccent
-                  : (hasPending
-                      ? AppTheme.eventxproAccent
-                      : AppTheme.surfaceBorder),
+              color: hasPending
+                  ? AppTheme.accentIndigo
+                  : Colors.white.withValues(alpha: 0.09),
               width: 1.0,
             ),
+            boxShadow: hasPending
+                ? [
+                    BoxShadow(
+                      color: AppTheme.accentIndigo.withValues(alpha: 0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (_isSyncing)
                 const SizedBox(
-                  width: 14,
-                  height: 14,
+                  width: 15,
+                  height: 15,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     color: Colors.white,
@@ -518,10 +720,10 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
                   hasPending
                       ? Icons.cloud_upload_rounded
                       : Icons.cloud_done_rounded,
-                  size: 16,
-                  color: hasPending ? Colors.white : AppTheme.eventxproSuccess,
+                  size: 17,
+                  color: hasPending ? Colors.white : AppTheme.accentIndigo,
                 ),
-              const SizedBox(width: 7),
+              const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   _isSyncing
@@ -531,8 +733,8 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
                     color: hasPending || _isSyncing
                         ? Colors.white
                         : AppTheme.textSecondary,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                     letterSpacing: 0.2,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -547,14 +749,13 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
 
   /// Download menu button shown in the Action Row below the search bar.
   /// Tapping it shows a popup menu with "Export Excel" and "Export CSV".
-  /// Mirrors the download options from the reference React Native project.
   Widget _buildDownloadButton() {
     return PopupMenuButton<_DownloadFormat>(
       tooltip: 'Export offline data',
       color: AppTheme.surfaceElevated,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppTheme.surfaceBorder),
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
       ),
       onSelected: (format) {
         if (format == _DownloadFormat.excel) {
@@ -568,11 +769,12 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
           value: _DownloadFormat.excel,
           child: Row(
             children: const [
-              Icon(Icons.table_chart_rounded,
-                  color: AppTheme.eventxproSuccess, size: 18),
+              Icon(Icons.table_chart_rounded, color: AppTheme.accentIndigo, size: 18),
               SizedBox(width: 10),
-              Text('Export Excel (.xlsx)',
-                  style: TextStyle(color: Colors.white, fontSize: 13)),
+              Text(
+                'Export Excel (.xlsx)',
+                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+              ),
             ],
           ),
         ),
@@ -580,57 +782,61 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
           value: _DownloadFormat.csv,
           child: Row(
             children: const [
-              Icon(Icons.description_rounded,
-                  color: AppTheme.accentCyan, size: 18),
+              Icon(Icons.description_rounded, color: AppTheme.accentIndigo, size: 18),
               SizedBox(width: 10),
-              Text('Export CSV (.csv)',
-                  style: TextStyle(color: Colors.white, fontSize: 13)),
+              Text(
+                'Export CSV (.csv)',
+                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+              ),
             ],
           ),
         ),
       ],
       child: Container(
-        height: 38,
+        height: 42,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF131722),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppTheme.surfaceBorder, width: 1.0),
+          color: Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.09),
+            width: 1.0,
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (_isDownloading)
               const SizedBox(
-                width: 14,
-                height: 14,
+                width: 15,
+                height: 15,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: AppTheme.eventxproAccent,
+                  color: AppTheme.accentIndigo,
                 ),
               )
             else
               const Icon(
-                Icons.download_rounded,
-                color: AppTheme.accentCyan,
-                size: 16,
+                Icons.file_download_outlined,
+                color: AppTheme.accentIndigo,
+                size: 17,
               ),
-            const SizedBox(width: 7),
+            const SizedBox(width: 8),
             Flexible(
               child: Text(
                 _isDownloading ? 'Exporting...' : 'Export Data',
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                   letterSpacing: 0.2,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(width: 2),
+            const SizedBox(width: 4),
             const Icon(
-              Icons.arrow_drop_down_rounded,
+              Icons.keyboard_arrow_down_rounded,
               color: AppTheme.textMuted,
               size: 18,
             ),
@@ -740,12 +946,15 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
 
   Widget _buildFilterBar() {
     return Container(
-
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: const BoxDecoration(
-        color: AppTheme.surface,
-        border: Border(bottom: BorderSide(color: AppTheme.surfaceBorder, width: 1)),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.white.withValues(alpha: 0.06),
+            width: 1,
+          ),
+        ),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -769,30 +978,72 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
 
   Widget _buildFilterChip(String label, String key, int count) {
     final isSelected = _selectedFilter == key;
-    return GestureDetector(
-      onTap: () {
-        if (_selectedFilter != key) {
-          setState(() {
-            _selectedFilter = key;
-          });
-          _loadRecords();
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.eventxproAccent : AppTheme.surfaceElevated,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppTheme.eventxproAccent : AppTheme.surfaceBorder,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          if (_selectedFilter != key) {
+            setState(() {
+              _selectedFilter = key;
+            });
+            _loadRecords();
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppTheme.accentIndigo
+                : Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected
+                  ? AppTheme.accentIndigo
+                  : Colors.white.withValues(alpha: 0.08),
+              width: 1,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: AppTheme.accentIndigo.withValues(alpha: 0.28),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
-        ),
-        child: Text(
-          '$label ($count)',
-          style: TextStyle(
-            color: isSelected ? Colors.white : AppTheme.textSecondary,
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : AppTheme.textSecondary,
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.white.withValues(alpha: 0.22)
+                      : Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : AppTheme.textMuted,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -805,226 +1056,231 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
     final isCheckIn = record.scanType.toLowerCase().contains('in');
     final displayCode = record.encryptedCode.isNotEmpty ? record.encryptedCode : record.code;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _showRecordDetails(record),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceElevated,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isSynced
-                  ? AppTheme.surfaceBorder
-                  : AppTheme.accentOrange.withValues(alpha: 0.4),
-              width: isSynced ? 1.0 : 1.2,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Row 1: ID, Action Type Badge, and Sync Status
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                        decoration: BoxDecoration(
-                          color: AppTheme.surface,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppTheme.surfaceBorder),
-                        ),
-                        child: Text(
-                          '#${record.id ?? '-'}',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: isCheckIn
-                              ? AppTheme.eventxproSuccess.withValues(alpha: 0.15)
-                              : AppTheme.eventxproDanger.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: isCheckIn
-                                ? AppTheme.eventxproSuccess.withValues(alpha: 0.4)
-                                : AppTheme.eventxproDanger.withValues(alpha: 0.4),
-                            width: 0.8,
-                          ),
-                        ),
-                        child: Text(
-                          isCheckIn ? 'Check-in' : 'Check-out',
-                          style: TextStyle(
-                            color: isCheckIn ? AppTheme.eventxproSuccess : AppTheme.eventxproDanger,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // Right side: Registration status & Sync status pills
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: record.isNotExist
-                              ? const Color(0xFFFF6767).withValues(alpha: 0.15)
-                              : const Color(0xFF00D2B4).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: record.isNotExist
-                                ? const Color(0xFFFF6767).withValues(alpha: 0.5)
-                                : const Color(0xFF00D2B4).withValues(alpha: 0.5),
-                            width: 0.8,
-                          ),
-                        ),
-                        child: Text(
-                          record.isNotExist ? 'Unregistered' : 'Registered',
-                          style: TextStyle(
-                            color: record.isNotExist
-                                ? const Color(0xFFFF6767)
-                                : const Color(0xFF00D2B4),
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: isSynced
-                              ? AppTheme.eventxproSuccess.withValues(alpha: 0.15)
-                              : AppTheme.accentOrange.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isSynced ? AppTheme.eventxproSuccess : AppTheme.accentOrange,
-                            width: 0.8,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              isSynced ? Icons.check_circle_outline_rounded : Icons.schedule_rounded,
-                              size: 12,
-                              color: isSynced ? AppTheme.eventxproSuccess : AppTheme.accentOrange,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              isSynced ? 'Synced' : 'Pending',
-                              style: TextStyle(
-                                color: isSynced ? AppTheme.eventxproSuccess : AppTheme.accentOrange,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 12),
-
-              // Row 2: Encrypted Code Box (matches eventxproorganiser)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF131722),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppTheme.eventxproAccent.withValues(alpha: 0.3)),
-                ),
-                child: Row(
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.035),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 1.0,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showRecordDetails(record),
+          borderRadius: BorderRadius.circular(16),
+          splashColor: AppTheme.accentIndigo.withValues(alpha: 0.08),
+          highlightColor: AppTheme.accentIndigo.withValues(alpha: 0.04),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Row 1: ID, Action Badge, and Status Badges
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Icon(Icons.qr_code_2_rounded, color: AppTheme.eventxproAccent, size: 14),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'ENCRYPTED CODE: ',
-                      style: TextStyle(
-                        color: AppTheme.eventxproAccent,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        displayCode,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'monospace',
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              // Row 3: Gate/Location & Timestamp
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Row(
+                    Row(
                       children: [
-                        const Icon(Icons.meeting_room_outlined, size: 13, color: AppTheme.textMuted),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'Gate #${record.entranceId} (${record.entranceLocation.isNotEmpty ? record.entranceLocation : widget.sessionTitle})',
-                            style: const TextStyle(
-                              color: AppTheme.textSecondary,
-                              fontSize: 11.5,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          ),
+                          child: Text(
+                            '#${record.id ?? '-'}',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isCheckIn
+                                ? AppTheme.accentIndigo.withValues(alpha: 0.12)
+                                : AppTheme.eventxproDanger.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: isCheckIn
+                                  ? AppTheme.accentIndigo.withValues(alpha: 0.25)
+                                  : AppTheme.eventxproDanger.withValues(alpha: 0.25),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            isCheckIn ? 'Check-in' : 'Check-out',
+                            style: TextStyle(
+                              color: isCheckIn ? AppTheme.accentIndigo : AppTheme.eventxproDanger,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
                     ),
+
+                    // Right side: Registration status & Sync status
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (record.isNotExist) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppTheme.eventxproDanger.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: AppTheme.eventxproDanger.withValues(alpha: 0.3),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: const Text(
+                              'Unregistered',
+                              style: TextStyle(
+                                color: AppTheme.eventxproDanger,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isSynced
+                                ? AppTheme.accentIndigo.withValues(alpha: 0.08)
+                                : AppTheme.accentOrange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isSynced
+                                  ? AppTheme.accentIndigo.withValues(alpha: 0.2)
+                                  : AppTheme.accentOrange.withValues(alpha: 0.28),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isSynced ? Icons.check_circle_rounded : Icons.schedule_rounded,
+                                size: 12,
+                                color: isSynced ? AppTheme.accentIndigo : AppTheme.accentOrange,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                isSynced ? 'Synced' : 'Pending',
+                                style: TextStyle(
+                                  color: isSynced ? AppTheme.accentIndigo : AppTheme.accentOrange,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+
+                // Row 2: Encrypted Code Box
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.03),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppTheme.accentIndigo.withValues(alpha: 0.2),
+                      width: 1,
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Row(
                     children: [
-                      const Icon(Icons.schedule_rounded, size: 12, color: AppTheme.textMuted),
-                      const SizedBox(width: 4),
-                      Text(
-                        formattedDate,
-                        style: const TextStyle(
-                          color: AppTheme.textMuted,
-                          fontSize: 11,
+                      const Icon(Icons.qr_code_2_rounded, color: AppTheme.accentIndigo, size: 14),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'CODE: ',
+                        style: TextStyle(
+                          color: AppTheme.accentIndigo,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          displayCode,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'monospace',
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ],
+                ),
+
+                const SizedBox(height: 10),
+
+                // Row 3: Gate/Location & Timestamp
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Icon(Icons.meeting_room_outlined, size: 13, color: AppTheme.textMuted),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Gate #${record.entranceId} (${record.entranceLocation.isNotEmpty ? record.entranceLocation : widget.sessionTitle})',
+                              style: const TextStyle(
+                                color: AppTheme.textSecondary,
+                                fontSize: 11.5,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.schedule_rounded, size: 12, color: AppTheme.textMuted),
+                        const SizedBox(width: 4),
+                        Text(
+                          formattedDate,
+                          style: const TextStyle(
+                            color: AppTheme.textMuted,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1041,19 +1297,27 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.qr_code_2_rounded,
-            size: 56,
-            color: AppTheme.textMuted.withValues(alpha: 0.4),
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: AppTheme.accentIndigo.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.qr_code_2_rounded,
+              size: 36,
+              color: AppTheme.accentIndigo,
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
             _searchQuery.isNotEmpty
                 ? 'No check-ins match "$_searchQuery"'
                 : 'No ${filterLabel.toLowerCase()}check-ins found',
             style: const TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 15,
+              color: Colors.white,
+              fontSize: 15.5,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1062,7 +1326,7 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
             'Scanned ticket codes will appear here in real-time',
             style: TextStyle(
               color: AppTheme.textMuted,
-              fontSize: 12,
+              fontSize: 12.5,
             ),
           ),
         ],

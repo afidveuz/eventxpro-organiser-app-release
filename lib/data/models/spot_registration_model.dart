@@ -114,6 +114,31 @@ class SpotRegistrationRequest {
 
   FormData toFormData() => FormData.fromMap(toRequestBody());
 
+  /// Strict organizer payload matching `CreateAttendee.jsx` in the reference React Native app.
+  /// Omits unhandled kiosk payment fields that cause Django 500 errors on `organizer/create-attendee`.
+  Map<String, dynamic> toOrganizerPayload() {
+    final cleanDialCode = countryCode.trim().startsWith('+')
+        ? countryCode.trim()
+        : '+${countryCode.trim()}';
+
+    return {
+      'firstname': firstName.trim(),
+      'lastname': lastName.trim(),
+      if (email.trim().isNotEmpty) 'email': email.trim().toLowerCase(),
+      'country': country.trim(),
+      'country_code': cleanDialCode,
+      if (countryInitial != null && countryInitial!.trim().isNotEmpty)
+        'country_initial': countryInitial!.trim(),
+      'mobile': mobile.trim(),
+      'company_name': companyName.trim(),
+      'job_title': jobTitle.trim(),
+      if (nationality.trim().isNotEmpty)
+        'nationality': nationality.trim(),
+      'event_id': eventId,
+      'ticket_id': ticketId,
+    };
+  }
+
   Map<String, dynamic> toJson() => toRequestBody();
 }
 

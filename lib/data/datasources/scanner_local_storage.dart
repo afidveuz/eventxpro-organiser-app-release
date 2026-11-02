@@ -126,14 +126,19 @@ class ScannerLocalStorage {
   Future<void> setCustomString(String key, String value) =>
       _prefs.setString(key, value);
 
+  Future<void> clearOfflineData() async {
+    await _prefs.remove(_keyOfflineData);
+    leadCapturePermissionNotifier.value = false;
+  }
+
   /// Checks whether lead capture permission is enabled in the cached permissions.
   bool isLeadCapturePermissionEnabled() {
     final rawData = getOfflineData();
     if (rawData != null && rawData.isNotEmpty) {
       try {
         final map = jsonDecode(rawData) as Map<String, dynamic>;
-        final permission = map['permission'] as Map<String, dynamic>?;
-        final enabled = permission?['lead_capture_permission'];
+        final permission = (map['permission'] as Map<String, dynamic>?) ?? map;
+        final enabled = permission['lead_capture_permission'];
         if (enabled is bool) return enabled;
         if (enabled is num) return enabled == 1;
         if (enabled is String) {

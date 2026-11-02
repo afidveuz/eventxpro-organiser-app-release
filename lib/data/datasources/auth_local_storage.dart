@@ -261,6 +261,7 @@ class AuthLocalStorage {
     await _prefs.remove(_keyRefreshToken);
     await _prefs.remove(_keyUser);
     await _prefs.remove(_keyUserProfile);
+    await _prefs.remove('scanner_offline_data');
     // keep countries and base url cached for fast app reuse
   }
 }

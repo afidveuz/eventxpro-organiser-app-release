@@ -17,56 +17,56 @@ class EnterpriseHardwareAdapter implements HardwareScannerAdapter {
   static const MethodChannel _controlChannel =
       MethodChannel(AppConstants.scannerControlChannel);
 
-  final StreamController<String> _scanStreamController =
+  static final StreamController<String> _sharedScanStreamController =
       StreamController<String>.broadcast();
-  StreamSubscription<dynamic>? _channelSubscription;
+  static StreamSubscription<dynamic>? _sharedChannelSubscription;
 
-  bool _isListening = false;
-  String _statusDescription = 'Initialized';
-  String _adapterName = 'Enterprise Hardware Scanner';
-
-  @override
-  String get name => _adapterName;
+  static bool _sharedIsListening = false;
+  static String _sharedStatusDescription = 'Initialized';
+  static String _sharedAdapterName = 'Enterprise Hardware Scanner';
 
   @override
-  String get description => _statusDescription;
+  String get name => _sharedAdapterName;
 
   @override
-  Stream<String> get scanStream => _scanStreamController.stream;
+  String get description => _sharedStatusDescription;
 
   @override
-  bool get isListening => _isListening;
+  Stream<String> get scanStream => _sharedScanStreamController.stream;
+
+  @override
+  bool get isListening => _sharedIsListening;
 
   @override
   Future<void> initialize() async {
-    if (_isListening) return;
+    if (_sharedIsListening) return;
 
     if (!kIsWeb && Platform.isAndroid) {
       try {
         // Query device profile to display OEM-accurate adapter title
         final deviceInfo = await DeviceDetectionService().detectDevice();
         if (deviceInfo.isHoneywell) {
-          _adapterName = '${deviceInfo.displayName} (Honeywell Native)';
+          _sharedAdapterName = '${deviceInfo.displayName} (Honeywell Native)';
         } else if (deviceInfo.isZebra) {
-          _adapterName = '${deviceInfo.displayName} (Zebra DataWedge)';
+          _sharedAdapterName = '${deviceInfo.displayName} (Zebra DataWedge)';
         } else {
-          _adapterName = 'Enterprise Scanner (Native Broadcast)';
+          _sharedAdapterName = 'Enterprise Scanner (Native Broadcast)';
         }
 
-        _channelSubscription?.cancel();
-        _channelSubscription = _eventChannel
+        _sharedChannelSubscription?.cancel();
+        _sharedChannelSubscription = _eventChannel
             .receiveBroadcastStream()
             .listen(_onHardwareEvent, onError: _onHardwareError);
 
-        _isListening = true;
-        _statusDescription = 'Active • Intent: ${AppConstants.dataWedgeIntentAction}';
-        debugPrint('[$_adapterName] 🎯 Hardware listener active on ${AppConstants.scannerEventChannel}');
+        _sharedIsListening = true;
+        _sharedStatusDescription = 'Active • Intent: ${AppConstants.dataWedgeIntentAction}';
+        debugPrint('[$_sharedAdapterName] 🎯 Hardware listener active on ${AppConstants.scannerEventChannel}');
       } catch (e) {
-        _statusDescription = 'Error initializing native EventChannel: $e';
+        _sharedStatusDescription = 'Error initializing native EventChannel: $e';
         debugPrint('[EnterpriseHardwareAdapter] ❌ Initialization failed: $e');
       }
     } else {
-      _statusDescription = 'Enterprise Hardware Scanner is active on Android physical devices only';
+      _sharedStatusDescription = 'Enterprise Hardware Scanner is active on Android physical devices only';
       debugPrint('[EnterpriseHardwareAdapter] Non-Android target: $defaultTargetPlatform');
     }
   }
@@ -76,13 +76,13 @@ class EnterpriseHardwareAdapter implements HardwareScannerAdapter {
     final scannedString = event.toString().trim();
     if (scannedString.isNotEmpty) {
       debugPrint('[EnterpriseHardwareAdapter] ⚡ Raw hardware decode event received: "$scannedString"');
-      _scanStreamController.add(scannedString);
+      _sharedScanStreamController.add(scannedString);
     }
   }
 
   void _onHardwareError(dynamic error) {
     debugPrint('[EnterpriseHardwareAdapter] ⚠️ EventChannel error: $error');
-    _statusDescription = 'Channel error: $error';
+    _sharedStatusDescription = 'Channel error: $error';
   }
 
   /// Request the native platform to re-provision the scanner profile
@@ -122,15 +122,11 @@ class EnterpriseHardwareAdapter implements HardwareScannerAdapter {
 
   @override
   Future<void> stop() async {
-    await _channelSubscription?.cancel();
-    _channelSubscription = null;
-    _isListening = false;
-    _statusDescription = 'Stopped';
+    // Shared stream stays active across application screens
   }
 
   @override
   Future<void> dispose() async {
-    await stop();
-    await _scanStreamController.close();
+    // Shared stream stays active across application screens
   }
 }

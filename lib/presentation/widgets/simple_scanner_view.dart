@@ -646,8 +646,9 @@ class _SimpleScannerViewState extends State<SimpleScannerView>
                       onDetect: (BarcodeCapture capture) {
                         if (widget.state is ScannerProcessingState) return;
                         if (!_isShortToast &&
-                            widget.state is! ScannerReadyState)
+                            widget.state is! ScannerReadyState) {
                           return;
+                        }
 
                         for (final barcode in capture.barcodes) {
                           final rawVal = barcode.rawValue?.trim();
