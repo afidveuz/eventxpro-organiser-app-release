@@ -885,14 +885,6 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
           spacing: 10,
           runSpacing: 10,
           children: [
-            // Check-In / Check-Out Gates Tile
-            _buildActionTile(
-              title: 'Gates & Sessions',
-              icon: Icons.meeting_room_rounded,
-              color: AppTheme.accentCyan,
-              onTap: _openCheckInOutSessions,
-            ),
-
             // Registration Action Tile
             _buildActionTile(
               title: 'Registration',
