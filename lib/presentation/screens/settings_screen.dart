@@ -1,28 +1,21 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/config/app_constants.dart';
-import '../../core/network/api_client.dart';
 import '../../core/services/device_detection_service.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/utils/app_toast.dart';
 import '../../data/datasources/scanner_local_storage.dart';
-import '../bloc/auth/auth_bloc.dart';
-import '../bloc/auth/auth_event.dart';
 import '../bloc/scanner_bloc.dart';
 import '../bloc/scanner_event.dart';
 import '../bloc/scanner_state.dart';
 import '../widgets/app_background_layer.dart';
-import 'auth/login_screen.dart';
 
 /// Settings screen matching the React Native EventXPro Organiser Settings screen.
 /// Includes:
 /// - Top-level tickets toggle with confirmation
 /// - Short toast toggle with confirmation
-/// - Offline mode toggle with confirmation & online permission sync
+/// - Offline mode toggle with confirmation
 /// - Hardware scanner diagnostics and Honeywell / Zebra guides
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -35,7 +28,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isTopLevelTickets = false;
   bool _isShortToast = false;
   bool _isOfflineMode = false;
-  bool _isSyncingData = false;
   DeviceInfoResult? _deviceInfo;
 
   @override
@@ -158,7 +150,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _showConfirmDialog(
       title: nextState ? 'Enable Offline Mode' : 'Disable Offline Mode',
       message: nextState
-          ? 'Are you sure you want to enable offline mode? All scans will be written to local SQLite and queued for batch sync.'
+          ? 'Are you sure you want to enable offline mode? All scans will be saved locally and queued for batch sync.'
           : 'Are you sure you want to disable offline mode and return to online authoritative validation?',
       onConfirm: () async {
         final storage = context.read<ScannerLocalStorage>();
@@ -175,88 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// Downloads event and permission data for offline validation (matching React Native Settings syncData)
-  Future<void> _syncOfflinePermissions() async {
-    setState(() {
-      _isSyncingData = true;
-    });
 
-    try {
-      final apiClient = context.read<ApiClient>();
-      final storage = context.read<ScannerLocalStorage>();
-
-      final dashboardResp = await apiClient.dio.get('organizer/dashboard');
-      if (dashboardResp.statusCode == 200 && dashboardResp.data is Map) {
-        final data = dashboardResp.data as Map<String, dynamic>;
-        final eventList = data['event_list'] as List<dynamic>? ?? [];
-
-        if (eventList.isNotEmpty) {
-          final event = eventList.first as Map<String, dynamic>;
-          final eventPk = event['pk'] ?? event['id'] ?? storage.getEventId();
-
-          final permResp = await apiClient.dio.get(
-            'organizer/event-permission/$eventPk',
-          );
-          if (permResp.statusCode == 200 && permResp.data != null) {
-            final cachePayload = {
-              'event': event,
-              'permission': permResp.data,
-              'cached_at': DateTime.now().toIso8601String(),
-            };
-            await storage.setOfflineData(jsonEncode(cachePayload));
-
-            if (mounted) {
-              AppToast.showSuccess(
-                message: 'Offline event data synced successfully.',
-              );
-            }
-          } else {
-            throw Exception('Failed to load event permissions');
-          }
-        } else {
-          throw Exception('No active events found on server');
-        }
-      } else {
-        throw Exception('Server unreachable or invalid response');
-      }
-    } on DioException catch (dioErr) {
-      if (dioErr.response?.statusCode == 401) {
-        String msg = 'You have been logged out (another login detected)';
-        if (dioErr.response?.data is Map) {
-          final rawMsg =
-              dioErr.response?.data['message'] ??
-              dioErr.response?.data['detail'];
-          if (rawMsg != null) msg = rawMsg.toString();
-        }
-        if (mounted) {
-          context.read<AuthBloc>().add(LogoutRequested(reason: msg));
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
-            (route) => false,
-          );
-        }
-        return;
-      }
-      if (mounted) {
-        AppToast.showError(
-          message: 'Sync failed: ${ApiClient.formatDioError(dioErr)}',
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        AppToast.showError(
-          message:
-              'Sync failed: ${e.toString().replaceAll('Exception:', '').trim()}',
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSyncingData = false;
-        });
-      }
-    }
-  }
 
   void _showHoneywellGuideDialog() {
     showDialog<void>(
@@ -505,48 +416,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             letterSpacing: 0.2,
           ),
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_isOfflineMode) ...[
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: _isSyncingData ? null : _syncOfflinePermissions,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    margin: const EdgeInsets.only(right: 10),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentIndigo.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: AppTheme.accentIndigo.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    child: _isSyncingData
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.sync_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                  ),
-                ),
-              ),
-            ],
-            _buildCustomSwitch(
-              value: _isOfflineMode,
-              onChanged: (_) => _toggleOfflineMode(),
-            ),
-          ],
+        trailing: _buildCustomSwitch(
+          value: _isOfflineMode,
+          onChanged: (_) => _toggleOfflineMode(),
         ),
         onTap: _toggleOfflineMode,
       ),

@@ -323,7 +323,7 @@ class _OfflineCheckInListScreenState extends State<OfflineCheckInListScreen> {
                         _buildMetaDivider(),
                         _buildMetaRow(
                           'Server Sync Status',
-                          record.isSynced ? 'Synced to Server' : 'Local SQLite Pending',
+                          record.isSynced ? 'Synced to Server' : 'Pending Sync',
                           record.isSynced ? AppTheme.accentIndigo : AppTheme.accentOrange,
                           icon: record.isSynced ? Icons.check_circle_rounded : Icons.schedule_rounded,
                         ),
