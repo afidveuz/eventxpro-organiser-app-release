@@ -163,6 +163,42 @@ class AuthRemoteDatasource {
     }
   }
 
+  /// Change password for authenticated organizer
+  /// Calls 'organizer/change-password' with {password, confirm_password}
+  Future<Map<String, dynamic>> changePassword({
+    required String password,
+    required String confirmPassword,
+  }) async {
+    try {
+      final response = await _apiClient.dio.post(
+        AppConstants.changePasswordEndpoint,
+        data: {
+          'password': password,
+          'confirm_password': confirmPassword,
+        },
+      );
+
+      final data = response.data is String
+          ? jsonDecode(response.data as String) as Map<String, dynamic>
+          : response.data as Map<String, dynamic>;
+      return data;
+    } on DioException catch (dioErr) {
+      String? backendMsg;
+      if (dioErr.response?.data is Map) {
+        backendMsg = dioErr.response?.data['message']?.toString();
+      }
+      return {
+        'status': false,
+        'message': backendMsg ?? ApiClient.formatDioError(dioErr),
+      };
+    } catch (e) {
+      return {
+        'status': false,
+        'message': 'Unexpected error occurred. Please try again.',
+      };
+    }
+  }
+
   /// Fetch user profile from organizer/user-profile
   Future<Map<String, dynamic>> getUserProfile() async {
     try {

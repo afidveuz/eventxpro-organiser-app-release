@@ -22,6 +22,9 @@ import '../settings_screen.dart';
 import '../../widgets/blinking_offline_button.dart';
 import '../../widgets/fade_in_background_image.dart';
 import '../../widgets/session_punch_card.dart';
+import '../../../data/models/ticket_type_model.dart';
+import '../../../data/repositories/attendee_repository.dart';
+import 'widgets/ticket_types_horizontal_bar.dart';
 
 /// Cached parsed sections for high-performance zero-delay rendering
 class _ParsedEventSections {
@@ -68,6 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _totalEvents = 0;
   int _totalScannedCount = 0;
   List<Map<String, dynamic>> _eventList = [];
+  List<TicketTypeModel> _ticketTypes = [];
   bool _isOffline = false;
   int? _selectedEventPk;
   bool _showGates = true;
@@ -200,6 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final rawOffline = scannerLocalStorage.getOfflineData();
       final totalScanned = await dbHelper.getTotalScannedCount();
 
+      List<TicketTypeModel> offlineTickets = [];
       if (rawOffline != null && rawOffline.isNotEmpty) {
         final parsed = jsonDecode(rawOffline) as Map<String, dynamic>;
         final event = parsed['event'] as Map<String, dynamic>?;
@@ -219,20 +224,35 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
 
+        if (parsed['tickets'] is List) {
+          offlineTickets = (parsed['tickets'] as List)
+              .whereType<Map>()
+              .map((item) =>
+                  TicketTypeModel.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
+        }
+
+        if (offlineTickets.isEmpty) {
+          offlineTickets = scannerLocalStorage.getDashboardTickets();
+        }
+
         setState(() {
           _totalEvents = event != null ? 1 : 0;
           _totalScannedCount = totalScanned;
           _eventList = event != null ? [event] : [];
+          _ticketTypes = offlineTickets;
           _isLoading = false;
           if (pk != null) {
             _selectedEventPk = pk;
           }
         });
       } else {
+        offlineTickets = scannerLocalStorage.getDashboardTickets();
         setState(() {
           _totalEvents = 0;
           _totalScannedCount = totalScanned;
           _eventList = [];
+          _ticketTypes = offlineTickets;
           _isLoading = false;
         });
       }
@@ -262,16 +282,43 @@ class _HomeScreenState extends State<HomeScreen> {
         final totalScanned =
             (data['total_scanned_count'] as num?)?.toInt() ?? 0;
 
+        // Parse ticket list from dashboard response (matching React Native `res.data?.ticket_list`)
+        final rawTickets = data['ticket_list'] ??
+            data['Ticket_list'] ??
+            data['tickets'] ??
+            data['ticket_types'];
+
+        List<TicketTypeModel> parsedTickets = [];
+        if (rawTickets is List) {
+          parsedTickets = rawTickets
+              .whereType<Map>()
+              .map((item) =>
+                  TicketTypeModel.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
+        }
+
         // If there's an event, fetch permissions and cache offline
+        int? evtPk;
         if (events.isNotEmpty) {
           final firstEvt = events.first;
-          final int? evtPk =
+          evtPk =
               (firstEvt['pk'] as num?)?.toInt() ??
               (firstEvt['id'] as num?)?.toInt() ??
               int.tryParse(firstEvt['pk']?.toString() ?? '') ??
               int.tryParse(firstEvt['id']?.toString() ?? '');
           if (evtPk != null) {
             await scannerLocalStorage.setEventId(evtPk);
+
+            // Fallback: if dashboard didn't include tickets, fetch via AttendeeRepository
+            if (parsedTickets.isEmpty) {
+              try {
+                final attendeeRepo = context.read<AttendeeRepository>();
+                parsedTickets = await attendeeRepo.getTicketList(evtPk);
+              } catch (ticketErr) {
+                debugPrint('[HomeScreen] ⚠️ Ticket list fetch error: $ticketErr');
+              }
+            }
+
             try {
               final permRes = await apiClient.dio.get(
                 'organizer/event-permission/$evtPk',
@@ -280,6 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 final permData = {
                   'event': firstEvt,
                   'permission': permRes.data,
+                  'tickets': parsedTickets.map((t) => t.toJson()).toList(),
                 };
                 await scannerLocalStorage.setOfflineData(jsonEncode(permData));
                 Map<String, dynamic>? permMap;
@@ -302,10 +350,15 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
 
+        if (parsedTickets.isNotEmpty) {
+          await scannerLocalStorage.setDashboardTickets(parsedTickets);
+        }
+
         setState(() {
           _totalEvents = totalEvt > 0 ? totalEvt : events.length;
           _totalScannedCount = totalScanned;
           _eventList = events;
+          _ticketTypes = parsedTickets;
           _isLoading = false;
           if (events.isNotEmpty) {
             final first = events.first;
@@ -438,6 +491,23 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     } else {
       _loadingPermissions.remove(eventPk);
+    }
+  }
+
+  /// Fetches available ticket types for a selected event and caches them
+  Future<void> _fetchTicketsForEvent(int eventId) async {
+    try {
+      final attendeeRepo = context.read<AttendeeRepository>();
+      final tickets = await attendeeRepo.getTicketList(eventId);
+      if (mounted && _selectedEventPk == eventId && tickets.isNotEmpty) {
+        setState(() {
+          _ticketTypes = tickets;
+        });
+        final storage = context.read<ScannerLocalStorage>();
+        await storage.setDashboardTickets(tickets);
+      }
+    } catch (e) {
+      debugPrint('[HomeScreen] ⚠️ Error fetching tickets for event $eventId: $e');
     }
   }
 
@@ -671,6 +741,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           // 1. Metric Cards: TOTAL EVENTS & SCANNED USERS
                           _buildMetricsRow(),
                           const SizedBox(height: 12),
+
+                          // Tickets horizontally above event card (matching React Native Dashboard)
+                          TicketTypesHorizontalBar(
+                            tickets: _ticketTypes,
+                            isLoading: _isLoading && _ticketTypes.isEmpty,
+                          ),
 
                           // 2. Active Event Name & Date Card
                           if (_eventList.isNotEmpty || !_isLoading) ...[
@@ -1349,6 +1425,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             });
                             final storage = context.read<ScannerLocalStorage>();
                             storage.setEventId(pk);
+                            _fetchTicketsForEvent(pk);
                             if (_eventPermissions.containsKey(pk)) {
                               final ev = _eventList.firstWhere(
                                 (e) => ((e['pk'] ?? e['id']) == pk),
@@ -1357,6 +1434,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               storage.setOfflineData(jsonEncode({
                                 'event': ev,
                                 'permission': _eventPermissions[pk],
+                                'tickets':
+                                    _ticketTypes.map((t) => t.toJson()).toList(),
                               }));
                             } else {
                               _fetchPermissionsForEvent(pk);

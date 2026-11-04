@@ -102,6 +102,16 @@ class AuthRepository {
         resetToken: resetToken,
       );
 
+  /// Changes password for currently logged-in user via 'organizer/change-password'.
+  Future<Map<String, dynamic>> changePassword({
+    required String password,
+    required String confirmPassword,
+  }) =>
+      _remoteDatasource.changePassword(
+        password: password,
+        confirmPassword: confirmPassword,
+      );
+
   /// Fetches full user profile from 'organizer/user-profile' matching React Native useProfile.
   /// Falls back to cached profile when offline.
   Future<UserProfileModel?> getUserProfile({bool forceRefresh = false}) async {

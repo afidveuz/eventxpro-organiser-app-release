@@ -1,6 +1,8 @@
 class TicketTypeModel {
   final int pk;
   final String label;
+  final String? ticketName;
+  final String? displayTicketName;
   final String? ticketTypeCat;
   final num? price;
   final String? currency;
@@ -11,6 +13,8 @@ class TicketTypeModel {
   const TicketTypeModel({
     required this.pk,
     required this.label,
+    this.ticketName,
+    this.displayTicketName,
     this.ticketTypeCat,
     this.price,
     this.currency,
@@ -19,13 +23,34 @@ class TicketTypeModel {
     this.remaining,
   });
 
+  /// Primary display name for the ticket, matching React Native's:
+  /// `itm?.display_ticket_name || itm?.ticket_name || itm?.label`
+  String get displayName {
+    if (displayTicketName != null && displayTicketName!.trim().isNotEmpty) {
+      return displayTicketName!.trim();
+    }
+    if (ticketName != null && ticketName!.trim().isNotEmpty) {
+      return ticketName!.trim();
+    }
+    if (label.trim().isNotEmpty) {
+      return label.trim();
+    }
+    return 'Ticket #$pk';
+  }
+
   factory TicketTypeModel.fromJson(Map<String, dynamic> json) {
     // pk can be int or string or under 'id'
     final rawPk = json['pk'] ?? json['id'] ?? json['ticket_id'] ?? 0;
     final parsedPk = rawPk is int ? rawPk : int.tryParse(rawPk.toString()) ?? 0;
 
-    final rawLabel = json['label'] ??
+    final String? parsedTicketName =
+        json['ticket_name']?.toString() ?? json['name']?.toString();
+    final String? parsedDisplayName =
+        json['display_ticket_name']?.toString();
+
+    final rawLabel = json['display_ticket_name'] ??
         json['ticket_name'] ??
+        json['label'] ??
         json['name'] ??
         json['title'] ??
         'Ticket #$parsedPk';
@@ -42,6 +67,8 @@ class TicketTypeModel {
     return TicketTypeModel(
       pk: parsedPk,
       label: rawLabel.toString().trim(),
+      ticketName: parsedTicketName?.trim(),
+      displayTicketName: parsedDisplayName?.trim(),
       ticketTypeCat: json['ticket_type_cat']?.toString() ??
           json['category']?.toString() ??
           json['type']?.toString(),
@@ -61,10 +88,14 @@ class TicketTypeModel {
     return {
       'pk': pk,
       'label': label,
+      if (ticketName != null) 'ticket_name': ticketName,
+      if (displayTicketName != null) 'display_ticket_name': displayTicketName,
       if (ticketTypeCat != null) 'ticket_type_cat': ticketTypeCat,
       if (price != null) 'price': price,
       if (currency != null) 'currency': currency,
       if (description != null) 'description': description,
+      if (quantity != null) 'quantity': quantity,
+      if (remaining != null) 'remaining': remaining,
     };
   }
 

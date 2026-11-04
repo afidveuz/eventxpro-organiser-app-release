@@ -112,7 +112,9 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
           } else {
             // Append only unique IDs
             final existingIds = _leads.map((e) => e.id).toSet();
-            final newLeads = result.leads.where((e) => !existingIds.contains(e.id));
+            final newLeads = result.leads.where(
+              (e) => !existingIds.contains(e.id),
+            );
             _leads.addAll(newLeads);
           }
 
@@ -199,10 +201,7 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
     final updated = await Navigator.push<LeadModel>(
       context,
       MaterialPageRoute(
-        builder: (_) => LeadDetailsScreen(
-          leadId: lead.id,
-          initialLead: lead,
-        ),
+        builder: (_) => LeadDetailsScreen(leadId: lead.id, initialLead: lead),
       ),
     );
 
@@ -236,7 +235,11 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
         leading: widget.isRootTab
             ? null
             : IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary, size: 20),
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: AppTheme.textPrimary,
+                  size: 20,
+                ),
                 onPressed: () => Navigator.of(context).pop(),
               ),
         title: Column(
@@ -274,7 +277,9 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
                     height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentCyan),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppTheme.accentCyan,
+                      ),
                     ),
                   )
                 : Container(
@@ -302,9 +307,7 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
               // Search & Metrics Header
               _buildSearchAndFiltersHeader(),
               // Lead Cards List
-              Expanded(
-                child: _buildBody(),
-              ),
+              Expanded(child: _buildBody()),
             ],
           ),
         ],
@@ -315,9 +318,7 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
   Widget _buildSearchAndFiltersHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: const BoxDecoration(
-        color: AppTheme.surface,
-      ),
+      decoration: const BoxDecoration(color: AppTheme.surface),
       child: Column(
         children: [
           // Search Input Bar
@@ -331,18 +332,32 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
               style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Search by attendee name, email, company...',
-                hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
-                prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.textSecondary, size: 20),
+                hintStyle: const TextStyle(
+                  color: AppTheme.textMuted,
+                  fontSize: 13,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: AppTheme.textSecondary,
+                  size: 20,
+                ),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.close_rounded, color: AppTheme.textSecondary, size: 18),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: AppTheme.textSecondary,
+                          size: 18,
+                        ),
                         onPressed: () {
                           _searchController.clear();
                         },
                       )
                     : null,
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
               ),
             ),
           ),
@@ -369,7 +384,10 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
               const SizedBox(width: 8),
               // Total Count Indicator
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: AppTheme.accentIndigo.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
@@ -377,7 +395,11 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.people_alt_outlined, color: AppTheme.accentCyan, size: 14),
+                    const Icon(
+                      Icons.people_alt_outlined,
+                      color: AppTheme.accentCyan,
+                      size: 14,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       '$_totalCount',
@@ -412,7 +434,9 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.2) : AppTheme.surfaceElevated,
+          color: isSelected
+              ? color.withValues(alpha: 0.2)
+              : AppTheme.surfaceElevated,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -432,7 +456,9 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? (accentColor ?? Colors.white) : AppTheme.textSecondary,
+                color: isSelected
+                    ? (accentColor ?? Colors.white)
+                    : AppTheme.textSecondary,
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
@@ -459,7 +485,11 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.cloud_off_rounded, size: 48, color: AppTheme.statusRejected),
+              const Icon(
+                Icons.cloud_off_rounded,
+                size: 48,
+                color: AppTheme.statusRejected,
+              ),
               const SizedBox(height: 16),
               Text(
                 _errorMessage!,
@@ -497,7 +527,11 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
                   color: AppTheme.surfaceElevated,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.badge_outlined, size: 48, color: AppTheme.textMuted),
+                child: const Icon(
+                  Icons.badge_outlined,
+                  size: 48,
+                  color: AppTheme.textMuted,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -514,10 +548,7 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
               const Text(
                 'Scan attendee QR codes to capture their details, classify prospect intent, and export.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 13,
-                ),
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
               ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
@@ -527,8 +558,13 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.accentIndigo,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ],
@@ -546,7 +582,7 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         itemCount: displayList.length + (_isLoadingMore ? 1 : 0),
-        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        separatorBuilder: (context, index) => const SizedBox(height: 6),
         itemBuilder: (context, index) {
           if (index >= displayList.length) {
             return const Center(
@@ -557,7 +593,9 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
                   height: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentIndigo),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppTheme.accentIndigo,
+                    ),
                   ),
                 ),
               ),
@@ -565,10 +603,7 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
           }
 
           final lead = displayList[index];
-          return LeadCard(
-            lead: lead,
-            onTap: () => _openLeadDetails(lead),
-          );
+          return LeadCard(lead: lead, onTap: () => _openLeadDetails(lead));
         },
       ),
     );

@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/config/app_constants.dart';
 import '../../core/services/remote_config_service.dart';
 import '../../domain/entities/scan_request.dart';
+import '../models/ticket_type_model.dart';
 
 /// Local persistent storage for offline scan queues, gate settings, and device identity.
 class ScannerLocalStorage {
@@ -22,6 +23,7 @@ class ScannerLocalStorage {
   static const String _keyTopLevelTickets = 'scanner_top_level_tickets';
   static const String _keyShortToast = 'scanner_short_toast';
   static const String _keyOfflineData = 'scanner_offline_data';
+  static const String _keyDashboardTickets = 'scanner_dashboard_tickets';
   static const String _keySection = 'scanner_section';
   static const String _keySectionLocation = 'scanner_section_location';
   static const String _keyDeviceManufacturer = 'scanner_device_manufacturer';
@@ -120,6 +122,29 @@ class ScannerLocalStorage {
   Future<void> setOfflineData(String data) async {
     await _prefs.setString(_keyOfflineData, data);
     leadCapturePermissionNotifier.value = isLeadCapturePermissionEnabled();
+  }
+
+  /// Get cached dashboard tickets for immediate zero-latency rendering & offline support
+  List<TicketTypeModel> getDashboardTickets() {
+    final raw = _prefs.getString(_keyDashboardTickets);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final list = jsonDecode(raw);
+      if (list is List) {
+        return list
+            .whereType<Map>()
+            .map((item) =>
+                TicketTypeModel.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// Persist dashboard tickets for offline accessibility
+  Future<void> setDashboardTickets(List<TicketTypeModel> tickets) async {
+    final listJson = tickets.map((t) => t.toJson()).toList();
+    await _prefs.setString(_keyDashboardTickets, jsonEncode(listJson));
   }
 
   String? getCustomString(String key) => _prefs.getString(key);

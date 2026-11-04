@@ -8,11 +8,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 class LeadCard extends StatelessWidget {
   final LeadModel lead;
   final VoidCallback onTap;
+  final EdgeInsetsGeometry? margin;
 
   const LeadCard({
     super.key,
     required this.lead,
     required this.onTap,
+    this.margin,
   });
 
   String _formatDateTime() {
@@ -103,7 +105,7 @@ class LeadCard extends StatelessWidget {
     final dateStr = _formatDateTime();
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: margin,
       decoration: BoxDecoration(
         color: const Color(0xFF131722),
         borderRadius: BorderRadius.circular(16),
@@ -129,9 +131,7 @@ class LeadCard extends StatelessWidget {
                 Container(
                   width: 50,
                   height: 50,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                  ),
+                  decoration: const BoxDecoration(shape: BoxShape.circle),
                   child: ClipOval(
                     child: photoUrl != null
                         ? Image.network(
@@ -139,7 +139,8 @@ class LeadCard extends StatelessWidget {
                             fit: BoxFit.cover,
                             width: 50,
                             height: 50,
-                            errorBuilder: (context, error, stackTrace) => _buildInitials(),
+                            errorBuilder: (context, error, stackTrace) =>
+                                _buildInitials(),
                           )
                         : _buildInitials(),
                   ),
@@ -173,7 +174,8 @@ class LeadCard extends StatelessWidget {
                         ],
                       ),
 
-                      if (lead.companyName != null && lead.companyName!.isNotEmpty) ...[
+                      if (lead.companyName != null &&
+                          lead.companyName!.isNotEmpty) ...[
                         const SizedBox(height: 3),
                         Text(
                           lead.companyName!,
@@ -187,7 +189,8 @@ class LeadCard extends StatelessWidget {
                         ),
                       ],
 
-                      if (lead.designation != null && lead.designation!.isNotEmpty) ...[
+                      if (lead.designation != null &&
+                          lead.designation!.isNotEmpty) ...[
                         const SizedBox(height: 1),
                         Text(
                           lead.designation!,
@@ -210,7 +213,11 @@ class LeadCard extends StatelessWidget {
                             Expanded(
                               child: Row(
                                 children: [
-                                  const Icon(Icons.email_outlined, size: 12, color: Colors.white38),
+                                  const Icon(
+                                    Icons.email_outlined,
+                                    size: 12,
+                                    color: Colors.white38,
+                                  ),
                                   const SizedBox(width: 4),
                                   Expanded(
                                     child: Text(
@@ -218,7 +225,9 @@ class LeadCard extends StatelessWidget {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.5),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.5,
+                                        ),
                                         fontSize: 11,
                                       ),
                                     ),

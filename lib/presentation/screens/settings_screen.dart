@@ -9,6 +9,7 @@ import '../../data/datasources/scanner_local_storage.dart';
 import '../bloc/scanner_bloc.dart';
 import '../bloc/scanner_event.dart';
 import '../bloc/scanner_state.dart';
+import 'auth/change_password_screen.dart';
 import '../widgets/app_background_layer.dart';
 
 /// Settings screen matching the React Native EventXPro Organiser Settings screen.
@@ -308,6 +309,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                     _buildOfflineModeTile(),
 
+                    if (!_isOfflineMode) ...[
+                      const SizedBox(height: 10),
+                      _buildChangePasswordTile(),
+                    ],
+
                     // const SizedBox(height: 10),
 
                     // _buildHardwareDiagnosticsCard(state),
@@ -421,6 +427,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
           onChanged: (_) => _toggleOfflineMode(),
         ),
         onTap: _toggleOfflineMode,
+      ),
+    );
+  }
+
+  Widget _buildChangePasswordTile() {
+    return _buildGlassCard(
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        leading: Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: AppTheme.accentIndigo.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(
+            Icons.lock_outline_rounded,
+            color: AppTheme.accentIndigo,
+            size: 22,
+          ),
+        ),
+        title: const Text(
+          'Change Password',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 15.5,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
+        ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios_rounded,
+          color: AppTheme.textMuted,
+          size: 14,
+        ),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+          );
+        },
       ),
     );
   }

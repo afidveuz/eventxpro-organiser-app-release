@@ -19,6 +19,7 @@ class AppConstants {
   static const String generateOtpEndpoint = 'organizer/generate-otp';
   static const String otpValidationEndpoint = 'organizer/otp-validation';
   static const String resetPasswordEndpoint = 'organizer/reset-password';
+  static const String changePasswordEndpoint = 'organizer/change-password';
   static const String userProfileEndpoint = 'organizer/user-profile';
   static const String scanValidateEndpoint =
       '/api/v1/access-control/scans/validate/';

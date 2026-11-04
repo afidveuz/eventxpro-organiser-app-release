@@ -19,6 +19,8 @@ class AppTheme {
     0xFFFF1744,
   ); // Red: Denied / Expired / Invalid
   static const Color statusRejectedBg = Color(0xFF3B0D11);
+  static const Color statusError = statusRejected;
+  static const Color statusErrorBg = statusRejectedBg;
   static const Color statusPending = Color(
     0xFF00E5FF,
   ); // Blue: Queued / Network In Flight
