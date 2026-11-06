@@ -748,23 +748,15 @@ class _HomeScreenState extends State<HomeScreen> {
                             isLoading: _isLoading && _ticketTypes.isEmpty,
                           ),
 
-                          // 2. Active Event Name & Date Card
+                          // 2. Combined Event Card (Event Info, Dashboard & Show Gates)
                           if (_eventList.isNotEmpty || !_isLoading) ...[
-                            _buildEventInfoCard(
+                            _buildCombinedEventCard(
                               activeEventPk,
                               activeEventName,
                               activeEvent,
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 14),
                           ],
-
-                          // 3. Quick Action Row: [Dashboard >] & [Hide Gates ^ / Show Gates v]
-                          _buildQuickActionsRow(
-                            activeEventPk,
-                            activeEventName,
-                            activeEvent,
-                          ),
-                          const SizedBox(height: 14),
 
                           // Gates & Sessions Content (or loading / empty state)
                           if (_isLoading && _eventList.isEmpty)
@@ -880,134 +872,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  // ── Quick Actions Row: [Dashboard >] & [Hide Gates ^] ─────────────
-  Widget _buildQuickActionsRow(
-    int eventPk,
-    String eventName,
-    Map<String, dynamic>? eventData,
-  ) {
-    return Row(
-      children: [
-        // Dashboard Button
-        Expanded(
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => EventDashboardScreen(
-                      eventId: eventPk,
-                      eventName: eventName,
-                      eventData: eventData,
-                      zebraAdapter: widget.zebraAdapter,
-                      simulatorAdapter: widget.simulatorAdapter,
-                    ),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                height: 46,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF131926),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(0xFF1F293D),
-                    width: 1.0,
-                  ),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(
-                      Icons.bar_chart_rounded,
-                      size: 18,
-                      color: Color(0xFF64748B),
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      'Dashboard',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Spacer(),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 18,
-                      color: Color(0xFF64748B),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-
-        // Hide / Show Gates Button
-        Expanded(
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                setState(() {
-                  _showGates = !_showGates;
-                });
-              },
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                height: 46,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF131926),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(0xFF1F293D),
-                    width: 1.0,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _showGates
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      size: 18,
-                      color: const Color(0xFF64748B),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _showGates ? 'Hide Gates' : 'Show Gates',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    Icon(
-                      _showGates
-                          ? Icons.keyboard_arrow_up_rounded
-                          : Icons.keyboard_arrow_down_rounded,
-                      size: 18,
-                      color: const Color(0xFF64748B),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1157,8 +1021,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return cardContent;
   }
 
-  // ── Active Event Name & Date Card ─────────────────────────────────
-  Widget _buildEventInfoCard(
+  // ── Combined Event Card (Event Info, Dashboard & Show Gates) ──────
+  Widget _buildCombinedEventCard(
     int activePk,
     String activeName,
     Map<String, dynamic>? activeEvent,
@@ -1337,6 +1201,147 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ],
+
+          const SizedBox(height: 12),
+
+          // Subtle Divider separating Event Info from Actions
+          const Divider(
+            color: Color(0xFF1F293D),
+            height: 1,
+            thickness: 1,
+          ),
+
+          const SizedBox(height: 12),
+
+          // Actions Row: [Dashboard >] & [Hide Gates ^ / Show Gates v]
+          Row(
+            children: [
+              // Dashboard Button
+              Expanded(
+                child: Material(
+                  color: const Color(0xFF182234),
+                  borderRadius: BorderRadius.circular(10),
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => EventDashboardScreen(
+                            eventId: activePk,
+                            eventName: activeName,
+                            eventData: activeEvent,
+                            zebraAdapter: widget.zebraAdapter,
+                            simulatorAdapter: widget.simulatorAdapter,
+                          ),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      height: 42,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF28364F),
+                          width: 0.9,
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.bar_chart_rounded,
+                            size: 17,
+                            color: Color(0xFF818CF8),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Dashboard',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            size: 17,
+                            color: Color(0xFF64748B),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+
+              // Hide / Show Gates Button
+              Expanded(
+                child: Material(
+                  color: const Color(0xFF182234),
+                  borderRadius: BorderRadius.circular(10),
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      setState(() {
+                        _showGates = !_showGates;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      height: 42,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF28364F),
+                          width: 0.9,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _showGates
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            size: 17,
+                            color: _showGates
+                                ? const Color(0xFF38BDF8)
+                                : const Color(0xFF8E9BAE),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _showGates ? 'Hide Gates' : 'Show Gates',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            _showGates
+                                ? Icons.keyboard_arrow_up_rounded
+                                : Icons.keyboard_arrow_down_rounded,
+                            size: 17,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
