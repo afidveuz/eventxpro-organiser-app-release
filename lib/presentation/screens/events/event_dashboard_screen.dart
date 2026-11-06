@@ -213,6 +213,15 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
     );
   }
 
+  bool get _canUpdateUsers {
+    try {
+      final authRepo = context.read<AuthRepository>();
+      if (authRepo.currentUser?.isAdmin == true) return true;
+    } catch (_) {}
+    return _eventDetails['user_update'] == true ||
+        _cachedPermissions?['user_update'] == true;
+  }
+
   void _openAttendees(String title, String endPoint) {
     HapticFeedback.lightImpact();
     Navigator.of(context).push(
@@ -222,6 +231,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
           eventName: _getEventName(),
           title: title,
           endPoint: endPoint,
+          canEditAttendee: _canUpdateUsers,
         ),
       ),
     );

@@ -6,21 +6,26 @@ import '../../../core/theme/app_theme.dart';
 import '../../../data/models/attendee_details_model.dart';
 import '../../../data/repositories/attendee_repository.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../widgets/app_background_layer.dart';
 import '../../widgets/attendee_history_widgets.dart';
-import '../../widgets/fade_in_background_image.dart';
+import 'edit_attendee_details_screen.dart';
 
 /// Screen displaying complete Attendee Profile, Ticket/Booking details,
 /// and Entrance, Hall, and Agenda Attendance History logs matching `AttendeesDetails.jsx`.
 class AttendeeDetailsScreen extends StatefulWidget {
   final int attendeeId;
   final String? eventName;
+  final int? eventId;
   final AttendeeDetailsModel? initialDetails;
+  final bool? canEdit;
 
   const AttendeeDetailsScreen({
     super.key,
     required this.attendeeId,
     this.eventName,
+    this.eventId,
     this.initialDetails,
+    this.canEdit,
   });
 
   @override
@@ -96,6 +101,35 @@ class _AttendeeDetailsScreenState extends State<AttendeeDetailsScreen> {
           _isRefreshing = false;
         });
       }
+    }
+  }
+
+  bool get _effectiveCanEdit {
+    if (widget.canEdit != null) return widget.canEdit!;
+    if (_details?.userUpdate != null) return _details!.userUpdate!;
+    try {
+      final authRepo = context.read<AuthRepository>();
+      if (authRepo.currentUser?.isAdmin == true) return true;
+    } catch (_) {}
+    return false;
+  }
+
+  Future<void> _openEditAttendee() async {
+    if (_details == null || !_effectiveCanEdit) return;
+    HapticFeedback.lightImpact();
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => EditAttendeeDetailsScreen(
+          attendee: _details!,
+          eventId: widget.eventId ?? _details?.eventId,
+          eventName: widget.eventName ?? _details?.eventName,
+          isReadOnly: !_effectiveCanEdit,
+        ),
+      ),
+    );
+
+    if (updated == true && mounted) {
+      _loadAttendeeDetails(silent: false);
     }
   }
 
@@ -300,6 +334,18 @@ class _AttendeeDetailsScreenState extends State<AttendeeDetailsScreen> {
             ),
           ),
 
+          // Edit Attendee Button (only if permitted)
+          if (_details != null && _effectiveCanEdit)
+            IconButton(
+              onPressed: _openEditAttendee,
+              icon: const Icon(
+                Icons.edit_outlined,
+                color: Colors.white,
+                size: 20,
+              ),
+              tooltip: 'Edit Attendee',
+            ),
+
           // Refresh Button
           IconButton(
             onPressed: () {
@@ -484,6 +530,48 @@ class _AttendeeDetailsScreenState extends State<AttendeeDetailsScreen> {
             Wrap(
               spacing: 12,
               children: socialLinks.map((s) => _buildSocialIcon(s)).toList(),
+            ),
+          ],
+
+          if (_effectiveCanEdit) ...[
+            const SizedBox(height: 12),
+            // Edit Information Button Pill
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _openEditAttendee,
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.16),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.edit_rounded,
+                        size: 13,
+                        color: AppTheme.accentCyan,
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'Edit Information',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
         ],

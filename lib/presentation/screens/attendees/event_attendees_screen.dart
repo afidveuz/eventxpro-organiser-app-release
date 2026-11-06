@@ -27,6 +27,7 @@ class EventAttendeesScreen extends StatefulWidget {
   final String? actionType; // 'check_in' | 'check_out'
   final int? gateId;
   final String? sectionLocation;
+  final bool? canEditAttendee;
 
   const EventAttendeesScreen({
     super.key,
@@ -39,6 +40,7 @@ class EventAttendeesScreen extends StatefulWidget {
     this.actionType,
     this.gateId,
     this.sectionLocation,
+    this.canEditAttendee,
   });
 
   @override
@@ -332,16 +334,21 @@ class _EventAttendeesScreenState extends State<EventAttendeesScreen> {
     }
   }
 
-  void _openAttendeeDetails(AttendeeListItemModel item) {
+  Future<void> _openAttendeeDetails(AttendeeListItemModel item) async {
     HapticFeedback.lightImpact();
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AttendeeDetailsScreen(
           attendeeId: item.pk,
+          eventId: widget.eventId,
           eventName: widget.eventName,
+          canEdit: widget.canEditAttendee,
         ),
       ),
     );
+    if (mounted) {
+      _loadAttendees(reset: true);
+    }
   }
 
   void _openFilterDialog() {

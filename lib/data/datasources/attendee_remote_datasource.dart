@@ -8,6 +8,7 @@ import '../models/attendee_list_item_model.dart';
 import '../models/country_model.dart';
 import '../models/spot_registration_model.dart';
 import '../models/ticket_type_model.dart';
+import '../models/update_attendee_model.dart';
 
 class AttendeePunchResult {
   final bool isSuccess;
@@ -303,10 +304,10 @@ class AttendeeRemoteDatasource {
             ? response.data as Map<String, dynamic>
             : jsonDecode(response.data.toString()) as Map<String, dynamic>;
 
-        final bool isSuccess = data['status'] == true ||
-            data['success'] == true ||
-            response.statusCode == 200 ||
-            response.statusCode == 201;
+        final dynamic rawStatus = data['status'] ?? data['success'];
+        final bool isSuccess = rawStatus != null
+            ? (rawStatus == true || rawStatus == 1 || rawStatus == 'true')
+            : (response.statusCode >= 200 && response.statusCode < 300);
 
         if (isSuccess) {
           final attendeeData =
@@ -415,6 +416,106 @@ class AttendeeRemoteDatasource {
       }
     }
     return e.message ?? 'Network error during registration. Please try again.';
+  }
+
+  /// Updates attendee details matching `EditAttendeesDetails.jsx` and `useRegistrationEdit.jsx`.
+  /// Target endpoints:
+  /// 1. POST `organizer/edit-attendee/{attendeeId}` (primary endpoint on EventXPro API)
+  /// 2. POST `edit-attendee/{attendeeId}` (legacy fallback)
+  /// 3. PATCH `organizer/api/v1/update-user/{attendeeId}` (modern v1 endpoint)
+  Future<UpdateAttendeeResult> updateAttendee({
+    required UpdateAttendeeRequest request,
+  }) async {
+    dynamic response;
+    dynamic lastError;
+
+    // 1. Try primary endpoint 'organizer/edit-attendee/{attendeeId}'
+    try {
+      response = await _apiClient.dio.post(
+        'organizer/edit-attendee/${request.attendeeId}',
+        data: request.toOrganizerPayload(),
+      );
+    } catch (e1) {
+      debugPrint('[AttendeeRemoteDatasource] organizer/edit-attendee/${request.attendeeId} failed: $e1, trying edit-attendee fallback');
+      lastError = e1;
+
+      // 2. Try legacy endpoint 'edit-attendee/{attendeeId}'
+      try {
+        response = await _apiClient.dio.post(
+          'edit-attendee/${request.attendeeId}',
+          data: request.toOrganizerPayload(),
+        );
+      } catch (e2) {
+        debugPrint('[AttendeeRemoteDatasource] edit-attendee fallback failed: $e2, trying organizer/api/v1/update-user');
+        lastError = e2;
+
+        // 3. Try modern v1 PATCH endpoint
+        try {
+          response = await _apiClient.dio.patch(
+            'organizer/api/v1/update-user/${request.attendeeId}',
+            data: request.toV1Payload(),
+          );
+        } catch (e3) {
+          debugPrint('[AttendeeRemoteDatasource] organizer/api/v1/update-user PATCH failed: $e3, trying POST fallback');
+          lastError = e3;
+
+          // 4. Try modern v1 POST fallback
+          try {
+            response = await _apiClient.dio.post(
+              'organizer/api/v1/update-user/${request.attendeeId}',
+              data: request.toV1Payload(),
+            );
+          } catch (e4) {
+            lastError = e4;
+          }
+        }
+      }
+    }
+
+    if (response != null && response.data != null) {
+      final data = response.data is Map<String, dynamic>
+          ? response.data as Map<String, dynamic>
+          : jsonDecode(response.data.toString()) as Map<String, dynamic>;
+
+      // EventXPro backend returns HTTP 200 even for validation failures
+      // e.g. { "status": false, "message": "Mobile Number Already Exists", "field": "mobile" }.
+      // Only treat as success if status/success is strictly true.
+      final dynamic rawStatus = data['status'] ?? data['success'];
+      final bool isSuccess = rawStatus != null
+          ? (rawStatus == true || rawStatus == 1 || rawStatus == 'true')
+          : (response.statusCode >= 200 && response.statusCode < 300);
+
+      if (isSuccess) {
+        return UpdateAttendeeResult.success(
+          message: data['message']?.toString() ?? 'Attendee updated successfully',
+          rawData: data,
+        );
+      } else {
+        return UpdateAttendeeResult.failure(
+          message: _extractErrorMessage(data),
+          field: data['field']?.toString(),
+          rawData: data,
+        );
+      }
+    }
+
+    if (lastError != null) {
+      if (lastError is DioException) {
+        return UpdateAttendeeResult.failure(
+          message: _extractDioErrorMessage(lastError),
+          rawData: lastError.response?.data is Map<String, dynamic>
+              ? lastError.response!.data as Map<String, dynamic>
+              : null,
+        );
+      }
+      return UpdateAttendeeResult.failure(
+        message: lastError.toString(),
+      );
+    }
+
+    return UpdateAttendeeResult.failure(
+      message: 'Failed to update attendee. Please try again.',
+    );
   }
 
   /// Fetches global countries with dial codes from `microsite/v2/countries/`

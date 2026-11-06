@@ -4,6 +4,7 @@ import '../models/attendee_list_item_model.dart';
 import '../models/country_model.dart';
 import '../models/spot_registration_model.dart';
 import '../models/ticket_type_model.dart';
+import '../models/update_attendee_model.dart';
 
 class AttendeeRepository {
   final AttendeeRemoteDatasource _remoteDatasource;
@@ -79,6 +80,11 @@ class AttendeeRepository {
   /// Registers a walk-in attendee on-site
   Future<SpotRegistrationResult> createSpotAttendee(SpotRegistrationRequest request) {
     return _remoteDatasource.createSpotAttendee(request: request);
+  }
+
+  /// Updates existing attendee details on the server
+  Future<UpdateAttendeeResult> updateAttendee(UpdateAttendeeRequest request) {
+    return _remoteDatasource.updateAttendee(request: request);
   }
 
   /// Fetches standardized countries list with dial codes

@@ -107,6 +107,8 @@ class SocialLinkItem {
 class AttendeeDetailsModel {
   final int id;
   final String? uid;
+  final int? eventId;
+  final int? ticketId;
   final String firstname;
   final String? lastname;
   final String? designation;
@@ -123,6 +125,7 @@ class AttendeeDetailsModel {
   final String? photoUrl;
   final String? eventName;
   final bool isDetailsAllowed;
+  final bool? userUpdate;
   final List<SocialLinkItem> socialLinks;
   final List<EntranceHistoryGroup> entranceHistory;
   final List<HallHistoryGroup> hallHistory;
@@ -131,6 +134,8 @@ class AttendeeDetailsModel {
   const AttendeeDetailsModel({
     required this.id,
     this.uid,
+    this.eventId,
+    this.ticketId,
     required this.firstname,
     this.lastname,
     this.designation,
@@ -147,11 +152,68 @@ class AttendeeDetailsModel {
     this.photoUrl,
     this.eventName,
     this.isDetailsAllowed = true,
+    this.userUpdate,
     this.socialLinks = const [],
     this.entranceHistory = const [],
     this.hallHistory = const [],
     this.agendaHistory = const [],
   });
+
+  AttendeeDetailsModel copyWith({
+    int? id,
+    String? uid,
+    int? eventId,
+    int? ticketId,
+    String? firstname,
+    String? lastname,
+    String? designation,
+    String? companyName,
+    String? country,
+    String? uniqueId,
+    String? ticketName,
+    String? paidStatus,
+    bool? digitalBadgeIssue,
+    bool? badgeIssue,
+    String? bookingStatus,
+    String? email,
+    String? mobile,
+    String? photoUrl,
+    String? eventName,
+    bool? isDetailsAllowed,
+    bool? userUpdate,
+    List<SocialLinkItem>? socialLinks,
+    List<EntranceHistoryGroup>? entranceHistory,
+    List<HallHistoryGroup>? hallHistory,
+    List<AgendaHistoryGroup>? agendaHistory,
+  }) {
+    return AttendeeDetailsModel(
+      id: id ?? this.id,
+      uid: uid ?? this.uid,
+      eventId: eventId ?? this.eventId,
+      ticketId: ticketId ?? this.ticketId,
+      firstname: firstname ?? this.firstname,
+      lastname: lastname ?? this.lastname,
+      designation: designation ?? this.designation,
+      companyName: companyName ?? this.companyName,
+      country: country ?? this.country,
+      uniqueId: uniqueId ?? this.uniqueId,
+      ticketName: ticketName ?? this.ticketName,
+      paidStatus: paidStatus ?? this.paidStatus,
+      digitalBadgeIssue: digitalBadgeIssue ?? this.digitalBadgeIssue,
+      badgeIssue: badgeIssue ?? this.badgeIssue,
+      bookingStatus: bookingStatus ?? this.bookingStatus,
+      email: email ?? this.email,
+      mobile: mobile ?? this.mobile,
+      photoUrl: photoUrl ?? this.photoUrl,
+      eventName: eventName ?? this.eventName,
+      isDetailsAllowed: isDetailsAllowed ?? this.isDetailsAllowed,
+      userUpdate: userUpdate ?? this.userUpdate,
+      socialLinks: socialLinks ?? this.socialLinks,
+      entranceHistory: entranceHistory ?? this.entranceHistory,
+      hallHistory: hallHistory ?? this.hallHistory,
+      agendaHistory: agendaHistory ?? this.agendaHistory,
+    );
+  }
 
   String get fullName {
     final first = firstname.trim();
@@ -182,6 +244,9 @@ class AttendeeDetailsModel {
         json['publish_event_name']?.toString();
 
     final isDetails = json['organiser_app_attendee_personal_details'] != false;
+    final bool? userUpdate = (json['user_update'] as bool?) ??
+        (json['can_update_user'] as bool?) ??
+        (userData['user_update'] as bool?);
 
     // Parse Social Links
     final List<SocialLinkItem> sLinks = [];
@@ -223,11 +288,22 @@ class AttendeeDetailsModel {
         .map((e) => AgendaHistoryGroup.fromJson(e))
         .toList();
 
+    final eventId = (userData['event_id'] as num?)?.toInt() ??
+        (json['event_id'] as num?)?.toInt();
+    final ticketId = (userData['ticket_id'] as num?)?.toInt() ??
+        (userData['ticket'] is num
+            ? (userData['ticket'] as num).toInt()
+            : (userData['ticket'] is Map
+                ? (userData['ticket']['id'] as num?)?.toInt()
+                : null));
+
     return AttendeeDetailsModel(
       id: (userData['pk'] as num?)?.toInt() ??
           (userData['id'] as num?)?.toInt() ??
           0,
       uid: userData['uid']?.toString(),
+      eventId: eventId,
+      ticketId: ticketId,
       firstname: userData['firstname']?.toString() ?? '',
       lastname: userData['lastname']?.toString(),
       designation: userData['designation']?.toString(),
@@ -248,6 +324,7 @@ class AttendeeDetailsModel {
           userData['photo_url']?.toString(),
       eventName: eventName,
       isDetailsAllowed: isDetails,
+      userUpdate: userUpdate,
       socialLinks: sLinks,
       entranceHistory: entranceHistory,
       hallHistory: hallHistory,
