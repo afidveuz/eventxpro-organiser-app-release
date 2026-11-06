@@ -154,29 +154,58 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget _buildBottomBar(bool hasLeadPermission) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF10141E).withValues(alpha: 0.98),
-        border: Border(
-          top: BorderSide(
-            color: Colors.white.withValues(alpha: 0.08),
-            width: 1,
-          ),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFF181C2E).withValues(alpha: 0.98), // Indigo-slate top edge
+            const Color(0xFF101320).withValues(alpha: 0.99), // Deep midnight body
+            const Color(0xFF090B12),                         // Grounded obsidian base
+          ],
+          stops: const [0.0, 0.45, 1.0],
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
+            color: Colors.black.withValues(alpha: 0.50),
             blurRadius: 20,
             offset: const Offset(0, -6),
           ),
+          BoxShadow(
+            color: AppTheme.accentIndigo.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, -2),
+          ),
         ],
       ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: hasLeadPermission
-              ? _buildLeadEnabledBar()
-              : _buildTwoItemBar(),
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Ambient Indigo Top Luminous Hairline
+          Container(
+            height: 1,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withValues(alpha: 0.04),
+                  AppTheme.accentIndigo.withValues(alpha: 0.35),
+                  const Color(0xFF818CF8).withValues(alpha: 0.60),
+                  AppTheme.accentIndigo.withValues(alpha: 0.35),
+                  Colors.white.withValues(alpha: 0.04),
+                ],
+                stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
+              ),
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: hasLeadPermission
+                  ? _buildLeadEnabledBar()
+                  : _buildTwoItemBar(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -252,8 +281,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    final activeColor = AppTheme.brandGradientStart;
-    final inactiveColor = Colors.white.withValues(alpha: 0.42);
+    final activeColor = AppTheme.accentIndigo;
+    final inactiveColor = Colors.white.withValues(alpha: 0.45);
 
     return Expanded(
       child: Material(
@@ -271,22 +300,36 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Active indicator line matching reference design
+                // Active indicator line with indigo gradient & glow
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  width: isSelected ? 20 : 0,
+                  width: isSelected ? 22 : 0,
                   height: 2.5,
                   margin: const EdgeInsets.only(bottom: 5),
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFF6366F1)
-                        : Colors.transparent,
+                    gradient: isSelected
+                        ? const LinearGradient(
+                            colors: [
+                              AppTheme.accentIndigo,
+                              Color(0xFF818CF8),
+                            ],
+                          )
+                        : null,
                     borderRadius: BorderRadius.circular(2),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: AppTheme.accentIndigo.withValues(alpha: 0.55),
+                              blurRadius: 6,
+                              offset: const Offset(0, 1),
+                            ),
+                          ]
+                        : null,
                   ),
                 ),
                 // Micro-scale icon transition
                 AnimatedScale(
-                  scale: isSelected ? 1.12 : 1.0,
+                  scale: isSelected ? 1.10 : 1.0,
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOutBack,
                   child: Icon(

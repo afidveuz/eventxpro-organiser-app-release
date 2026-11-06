@@ -33,13 +33,6 @@ android {
     }
 
     buildTypes {
-        debug {
-            packaging {
-                jniLibs {
-                    keepDebugSymbols += "**/*.so"
-                }
-            }
-        }
         release {
             signingConfig = signingConfigs.getByName("debug")
         }
