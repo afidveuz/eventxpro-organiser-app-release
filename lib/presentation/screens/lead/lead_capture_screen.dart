@@ -1924,77 +1924,106 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
   Widget _buildStandaloneBottomBar() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF10141E).withValues(alpha: 0.98),
-        border: Border(
-          top: BorderSide(
-            color: Colors.white.withValues(alpha: 0.08),
-            width: 1,
-          ),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFF181C2E).withValues(alpha: 0.98), // Indigo-slate top edge
+            const Color(0xFF101320).withValues(alpha: 0.99), // Deep midnight body
+            const Color(0xFF090B12),                         // Grounded obsidian base
+          ],
+          stops: const [0.0, 0.45, 1.0],
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
+            color: Colors.black.withValues(alpha: 0.50),
             blurRadius: 20,
             offset: const Offset(0, -6),
           ),
+          BoxShadow(
+            color: AppTheme.accentIndigo.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, -2),
+          ),
         ],
       ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildStandaloneNavItem(
-                icon: Icons.home_outlined,
-                activeIcon: Icons.home_rounded,
-                label: 'Home',
-                isSelected: false,
-                onTap: () {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Ambient Indigo Top Luminous Hairline
+          Container(
+            height: 1,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withValues(alpha: 0.04),
+                  AppTheme.accentIndigo.withValues(alpha: 0.35),
+                  const Color(0xFF818CF8).withValues(alpha: 0.60),
+                  AppTheme.accentIndigo.withValues(alpha: 0.35),
+                  Colors.white.withValues(alpha: 0.04),
+                ],
+                stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
               ),
-              _buildStandaloneNavItem(
-                icon: Icons.qr_code_scanner_outlined,
-                activeIcon: Icons.qr_code_scanner_rounded,
-                label: 'Scan Lead',
-                isSelected: true,
-                onTap: () {},
-              ),
-              _buildStandaloneNavItem(
-                icon: Icons.badge_outlined,
-                activeIcon: Icons.badge_rounded,
-                label: 'Leads',
-                isSelected: false,
-                onTap: () {
-                  if (widget.onOpenLeads != null) {
-                    widget.onOpenLeads!();
-                  } else {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => LeadsListScreen(
-                          eventId: widget.eventId,
-                          eventName: widget.eventName,
-                        ),
-                      ),
-                    );
-                  }
-                },
-              ),
-              _buildStandaloneNavItem(
-                icon: Icons.settings_outlined,
-                activeIcon: Icons.settings_rounded,
-                label: 'Settings',
-                isSelected: false,
-                onTap: () {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
-              ),
-            ],
+            ),
           ),
-        ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildStandaloneNavItem(
+                    icon: Icons.home_outlined,
+                    activeIcon: Icons.home_rounded,
+                    label: 'Home',
+                    isSelected: false,
+                    onTap: () {
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                    },
+                  ),
+                  _buildStandaloneNavItem(
+                    icon: Icons.qr_code_scanner_outlined,
+                    activeIcon: Icons.qr_code_scanner_rounded,
+                    label: 'Scan Lead',
+                    isSelected: true,
+                    onTap: () {},
+                  ),
+                  _buildStandaloneNavItem(
+                    icon: Icons.badge_outlined,
+                    activeIcon: Icons.badge_rounded,
+                    label: 'Leads',
+                    isSelected: false,
+                    onTap: () {
+                      if (widget.onOpenLeads != null) {
+                        widget.onOpenLeads!();
+                      } else {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => LeadsListScreen(
+                              eventId: widget.eventId,
+                              eventName: widget.eventName,
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  _buildStandaloneNavItem(
+                    icon: Icons.settings_outlined,
+                    activeIcon: Icons.settings_rounded,
+                    label: 'Settings',
+                    isSelected: false,
+                    onTap: () {
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2006,8 +2035,8 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    final activeColor = AppTheme.brandGradientStart;
-    final inactiveColor = Colors.white.withValues(alpha: 0.42);
+    final activeColor = AppTheme.accentIndigo;
+    final inactiveColor = Colors.white.withValues(alpha: 0.45);
 
     return Expanded(
       child: Material(
@@ -2017,26 +2046,67 @@ class _LeadCaptureScreenState extends State<LeadCaptureScreen>
           containedInkWell: true,
           highlightShape: BoxShape.rectangle,
           borderRadius: BorderRadius.circular(16),
+          splashColor: activeColor.withValues(alpha: 0.12),
+          highlightColor: Colors.white.withValues(alpha: 0.04),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.only(top: 2, bottom: 6),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  isSelected ? activeIcon : icon,
-                  size: 22,
-                  color: isSelected ? activeColor : inactiveColor,
+                // Active indicator line with indigo gradient & glow
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: isSelected ? 22 : 0,
+                  height: 2.5,
+                  margin: const EdgeInsets.only(bottom: 5),
+                  decoration: BoxDecoration(
+                    gradient: isSelected
+                        ? const LinearGradient(
+                            colors: [
+                              AppTheme.accentIndigo,
+                              Color(0xFF818CF8),
+                            ],
+                          )
+                        : null,
+                    borderRadius: BorderRadius.circular(2),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: AppTheme.accentIndigo.withValues(alpha: 0.55),
+                              blurRadius: 6,
+                              offset: const Offset(0, 1),
+                            ),
+                          ]
+                        : null,
+                  ),
+                ),
+                // Micro-scale icon transition
+                AnimatedScale(
+                  scale: isSelected ? 1.10 : 1.0,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutBack,
+                  child: Icon(
+                    isSelected ? activeIcon : icon,
+                    size: 22,
+                    color: isSelected ? Colors.white : inactiveColor,
+                  ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                // Smooth typography transition
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOut,
                   style: TextStyle(
                     color: isSelected ? Colors.white : inactiveColor,
                     fontSize: isSelected ? 11 : 10.5,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    letterSpacing: 0.2,
+                  ),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],

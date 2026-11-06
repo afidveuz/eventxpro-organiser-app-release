@@ -229,8 +229,9 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        backgroundColor: AppTheme.surface,
+        backgroundColor: AppTheme.surface.withValues(alpha: 0.95),
         elevation: 0,
+        scrolledUnderElevation: 0,
         automaticallyImplyLeading: false,
         leading: widget.isRootTab
             ? null
@@ -238,7 +239,7 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
                 icon: const Icon(
                   Icons.arrow_back_ios_new_rounded,
                   color: AppTheme.textPrimary,
-                  size: 20,
+                  size: 18,
                 ),
                 onPressed: () => Navigator.of(context).pop(),
               ),
@@ -249,11 +250,13 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
               'Leads Management',
               style: TextStyle(
                 color: AppTheme.textPrimary,
-                fontSize: 17,
+                fontSize: 18,
                 fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
               ),
             ),
-            if (widget.eventName != null && widget.eventName!.isNotEmpty)
+            if (widget.eventName != null && widget.eventName!.isNotEmpty) ...[
+              const SizedBox(height: 2),
               Text(
                 widget.eventName!,
                 style: const TextStyle(
@@ -264,38 +267,54 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+            ],
           ],
         ),
         actions: [
           // Export Button
-          IconButton(
-            tooltip: 'Export to Excel',
-            onPressed: _isExporting ? null : _exportLeads,
-            icon: _isExporting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppTheme.accentCyan,
-                      ),
-                    ),
-                  )
-                : Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(
-                      color: AppTheme.surfaceElevated,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.file_download_outlined,
-                      color: AppTheme.accentCyan,
-                      size: 20,
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Tooltip(
+              message: 'Export to Excel',
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppTheme.accentIndigo.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.accentIndigo.withValues(alpha: 0.25),
+                    width: 1,
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _isExporting ? null : _exportLeads,
+                    child: Center(
+                      child: _isExporting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppTheme.accentIndigo,
+                                ),
+                              ),
+                            )
+                          : const Icon(
+                              Icons.file_download_outlined,
+                              color: AppTheme.accentIndigo,
+                              size: 20,
+                            ),
                     ),
                   ),
+                ),
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
         ],
       ),
       body: Stack(
@@ -317,19 +336,33 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
 
   Widget _buildSearchAndFiltersHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: const BoxDecoration(color: AppTheme.surface),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surface.withValues(alpha: 0.95),
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.white.withValues(alpha: 0.06),
+            width: 1,
+          ),
+        ),
+      ),
       child: Column(
         children: [
           // Search Input Bar
           Container(
+            height: 44,
             decoration: BoxDecoration(
-              color: AppTheme.surfaceElevated,
-              borderRadius: BorderRadius.circular(14),
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.08),
+                width: 1,
+              ),
             ),
             child: TextField(
               controller: _searchController,
-              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
+              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 13.5),
+              cursorColor: AppTheme.accentIndigo,
               decoration: InputDecoration(
                 hintText: 'Search by attendee name, email, company...',
                 hintStyle: const TextStyle(
@@ -355,7 +388,7 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
                     : null,
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
+                  horizontal: 12,
                   vertical: 12,
                 ),
               ),
@@ -389,24 +422,28 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: AppTheme.accentIndigo.withValues(alpha: 0.15),
+                  color: AppTheme.accentIndigo.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.accentIndigo.withValues(alpha: 0.25),
+                    width: 1,
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
                       Icons.people_alt_outlined,
-                      color: AppTheme.accentCyan,
+                      color: AppTheme.accentIndigo,
                       size: 14,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       '$_totalCount',
                       style: const TextStyle(
-                        color: AppTheme.accentCyan,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
+                        color: AppTheme.accentIndigo,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
@@ -421,7 +458,6 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
 
   Widget _buildFilterChip(String key, String label, Color? accentColor) {
     final isSelected = _selectedRatingFilter == key;
-    final color = accentColor ?? AppTheme.accentIndigo;
 
     return InkWell(
       onTap: () {
@@ -432,23 +468,42 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
       borderRadius: BorderRadius.circular(20),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6.5),
         decoration: BoxDecoration(
           color: isSelected
-              ? color.withValues(alpha: 0.2)
-              : AppTheme.surfaceElevated,
+              ? (accentColor != null
+                  ? accentColor.withValues(alpha: 0.16)
+                  : AppTheme.accentIndigo.withValues(alpha: 0.18))
+              : Colors.white.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? (accentColor != null
+                    ? accentColor.withValues(alpha: 0.45)
+                    : AppTheme.accentIndigo.withValues(alpha: 0.5))
+                : Colors.white.withValues(alpha: 0.07),
+            width: 1,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (accentColor != null) ...[
               Container(
-                width: 7,
-                height: 7,
+                width: 6,
+                height: 6,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: accentColor,
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: accentColor.withValues(alpha: 0.5),
+                            blurRadius: 4,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
                 ),
               ),
               const SizedBox(width: 6),
@@ -459,8 +514,8 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
                 color: isSelected
                     ? (accentColor ?? Colors.white)
                     : AppTheme.textSecondary,
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 12.5,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
           ],
@@ -499,11 +554,25 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: () => _fetchLeads(page: 1, reset: true),
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Try Again'),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text(
+                  'Try Again',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.accentIndigo,
                   foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ],
@@ -522,45 +591,65 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(20),
-                decoration: const BoxDecoration(
-                  color: AppTheme.surfaceElevated,
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentIndigo.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppTheme.accentIndigo.withValues(alpha: 0.25),
+                    width: 1,
+                  ),
                 ),
                 child: const Icon(
-                  Icons.badge_outlined,
-                  size: 48,
-                  color: AppTheme.textMuted,
+                  Icons.people_outline_rounded,
+                  size: 44,
+                  color: AppTheme.accentIndigo,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               Text(
                 _selectedRatingFilter == 'ALL'
                     ? 'No leads captured yet'
                     : 'No $_selectedRatingFilter leads found',
                 style: const TextStyle(
                   color: AppTheme.textPrimary,
-                  fontSize: 16,
+                  fontSize: 16.5,
                   fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Scan attendee QR codes to capture their details, classify prospect intent, and export.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  'Scan attendee QR codes to capture their details, classify prospect intent, and export.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 22),
               ElevatedButton.icon(
                 onPressed: _openCaptureScreen,
-                icon: const Icon(Icons.qr_code_scanner_rounded),
-                label: const Text('Scan Attendee Badge'),
+                icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+                label: const Text(
+                  'Scan Attendee Badge',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.accentIndigo,
                   foregroundColor: Colors.white,
+                  elevation: 0,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
+                    horizontal: 22,
+                    vertical: 13,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -576,13 +665,13 @@ class _LeadsListScreenState extends State<LeadsListScreen> {
     return RefreshIndicator(
       onRefresh: () => _fetchLeads(page: 1, reset: true),
       color: AppTheme.accentIndigo,
-      backgroundColor: AppTheme.surface,
+      backgroundColor: AppTheme.surfaceElevated,
       child: ListView.separated(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
         itemCount: displayList.length + (_isLoadingMore ? 1 : 0),
-        separatorBuilder: (context, index) => const SizedBox(height: 6),
+        separatorBuilder: (context, index) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           if (index >= displayList.length) {
             return const Center(

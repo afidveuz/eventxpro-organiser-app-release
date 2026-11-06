@@ -69,6 +69,13 @@ class AppTheme {
     colors: [brandGradientStart, brandGradientEnd],
   );
 
+  // Unified Indigo Accent Gradient
+  static const LinearGradient indigoGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [accentIndigo, Color(0xFF4F46E5)],
+  );
+
   static ThemeData get darkTheme {
     final baseTextTheme = ThemeData.dark().textTheme;
     final interTextTheme = GoogleFonts.interTextTheme(

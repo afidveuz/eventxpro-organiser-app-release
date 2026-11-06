@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../core/config/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/app_toast.dart';
 import '../../../data/datasources/scanner_local_storage.dart';
@@ -331,6 +330,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     isLoading: _isLoading,
                     onPressed: _isLoading ? null : _submitChangePassword,
                     isRound: true,
+                    color: AppTheme.accentIndigo,
                   ),
 
                   const SizedBox(height: 20),

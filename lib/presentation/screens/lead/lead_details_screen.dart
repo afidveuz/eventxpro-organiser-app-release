@@ -167,7 +167,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
         Navigator.of(context).pop(_lead);
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF0B0F19),
+        backgroundColor: AppTheme.background,
         body: Stack(
           fit: StackFit.expand,
           children: [
@@ -180,7 +180,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
               ),
             ),
 
-            // 2. Multi-point Aurora Glow Orbs for ambient depth (matching HomeScreen)
+            // 2. Multi-point Aurora Glow Orbs for ambient depth (matching theme)
             Positioned(
               top: -60,
               right: -50,
@@ -192,8 +192,8 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        const Color(0xFFC10067).withValues(alpha: 0.20),
-                        const Color(0xFFF43F5E).withValues(alpha: 0.08),
+                        AppTheme.accentIndigo.withValues(alpha: 0.15),
+                        const Color(0xFF4F46E5).withValues(alpha: 0.06),
                         Colors.transparent,
                       ],
                       stops: const [0.0, 0.45, 1.0],
@@ -213,8 +213,8 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        const Color(0xFF4F46E5).withValues(alpha: 0.18),
-                        const Color(0xFF7C3AED).withValues(alpha: 0.08),
+                        AppTheme.accentIndigo.withValues(alpha: 0.12),
+                        const Color(0xFF312E81).withValues(alpha: 0.05),
                         Colors.transparent,
                       ],
                       stops: const [0.0, 0.45, 1.0],
@@ -233,9 +233,9 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        const Color(0xFF0B0F19).withValues(alpha: 0.65),
-                        const Color(0xFF0B0F19).withValues(alpha: 0.50),
-                        const Color(0xFF0B0F19).withValues(alpha: 0.85),
+                        AppTheme.background.withValues(alpha: 0.65),
+                        AppTheme.background.withValues(alpha: 0.50),
+                        AppTheme.background.withValues(alpha: 0.85),
                       ],
                       stops: const [0.0, 0.45, 1.0],
                     ),
@@ -256,8 +256,8 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                         ? _buildErrorState()
                         : RefreshIndicator(
                             onRefresh: () => _fetchDetails(silent: true),
-                            color: const Color(0xFF6366F1),
-                            backgroundColor: const Color(0xFF131926),
+                            color: AppTheme.accentIndigo,
+                            backgroundColor: AppTheme.surfaceElevated,
                             child: SingleChildScrollView(
                               physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.symmetric(
@@ -303,13 +303,13 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     );
   }
 
-  // ── Top Bar (Matching HomeScreen / AttendeeDetailsScreen) ──────────
+  // ── Top Bar ────────────────────────────────────────────────────────
   Widget _buildTopBar(String title, String subtitle) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          // Circular White Back Button
+          // Circular Back Button
           Material(
             color: Colors.transparent,
             child: InkWell(
@@ -322,21 +322,18 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Colors.white.withValues(alpha: 0.06),
                   shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.25),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    width: 1.0,
+                  ),
                 ),
                 child: const Center(
                   child: Icon(
                     Icons.arrow_back_ios_new_rounded,
-                    size: 14,
-                    color: Color(0xFF131722),
+                    size: 16,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
               ),
@@ -355,9 +352,9 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16.5,
-                    fontWeight: FontWeight.w800,
+                    color: AppTheme.textPrimary,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: -0.2,
                   ),
                 ),
@@ -366,8 +363,8 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                   children: [
                     const Icon(
                       Icons.event_note_rounded,
-                      size: 11,
-                      color: AppTheme.brandGradientStart,
+                      size: 12,
+                      color: AppTheme.accentIndigo,
                     ),
                     const SizedBox(width: 4),
                     Expanded(
@@ -375,10 +372,10 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.65),
+                        style: const TextStyle(
+                          color: AppTheme.textSecondary,
                           fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w400,
                         ),
                       ),
                     ),
@@ -395,42 +392,33 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
               color: Colors.transparent,
               child: InkWell(
                 onTap: _navigateToEdit,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  height: 36,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  height: 38,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF131926),
-                    borderRadius: BorderRadius.circular(10),
+                    color: AppTheme.accentIndigo.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: const Color(0xFF1F293D),
+                      color: AppTheme.accentIndigo.withValues(alpha: 0.25),
                       width: 1.0,
                     ),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: AppTheme.brandGradient,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Icon(
+                      Icon(
                         Icons.edit_note_rounded,
-                        color: Color(0xFF818CF8),
-                        size: 16,
+                        color: AppTheme.accentIndigo,
+                        size: 18,
                       ),
-                      const SizedBox(width: 4),
-                      const Text(
+                      SizedBox(width: 5),
+                      Text(
                         'Edit',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -450,33 +438,33 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                         HapticFeedback.lightImpact();
                         _fetchDetails(silent: true);
                       },
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
                 child: Container(
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF131926),
-                    borderRadius: BorderRadius.circular(10),
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: const Color(0xFF1F293D),
+                      color: Colors.white.withValues(alpha: 0.1),
                       width: 1.0,
                     ),
                   ),
                   child: Center(
                     child: _isRefreshing
                         ? const SizedBox(
-                            width: 15,
-                            height: 15,
+                            width: 16,
+                            height: 16,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                Color(0xFF8E9BAE),
+                                AppTheme.accentIndigo,
                               ),
                             ),
                           )
                         : const Icon(
                             Icons.sync_rounded,
-                            color: Color(0xFF8E9BAE),
+                            color: AppTheme.textSecondary,
                             size: 18,
                           ),
                   ),
@@ -489,7 +477,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     );
   }
 
-  // ── Hero Profile Card (Matching HomeScreen Event Info Card) ────────
+  // ── Hero Profile Card ──────────────────────────────────────────────
   Widget _buildHeroCard(LeadModel lead) {
     final photoUrl = _resolveAvatarUrl(context, lead.photo);
     final (typeColor, typeBg, typeBorder, typeIcon, typeLabel) =
@@ -497,12 +485,15 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF131926),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF1F293D), width: 1.0),
+        color: AppTheme.surfaceElevated.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 1.0,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -512,12 +503,12 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
         children: [
           // Top accent gradient bar
           Container(
-            height: 4,
+            height: 3,
             decoration: const BoxDecoration(
-              gradient: AppTheme.brandGradient,
+              gradient: AppTheme.indigoGradient,
               borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
               ),
             ),
           ),
@@ -536,10 +527,10 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                         vertical: 3.5,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1B2436),
+                        color: Colors.white.withValues(alpha: 0.04),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: const Color(0xFF28364F),
+                          color: Colors.white.withValues(alpha: 0.08),
                           width: 0.8,
                         ),
                       ),
@@ -550,7 +541,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                             width: 5,
                             height: 5,
                             decoration: const BoxDecoration(
-                              color: Color(0xFF00E676),
+                              color: AppTheme.statusSuccess,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -558,7 +549,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                           Text(
                             'LEAD #${lead.id}',
                             style: const TextStyle(
-                              color: Color(0xFF94A3B8),
+                              color: AppTheme.textSecondary,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.4,
@@ -571,19 +562,13 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                     // Lead Quality Badge (HOT / WARM / COLD)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
+                        horizontal: 8,
                         vertical: 3.5,
                       ),
                       decoration: BoxDecoration(
                         color: typeBg,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: typeBorder, width: 1.0),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 4,
-                          ),
-                        ],
+                        border: Border.all(color: typeBorder, width: 0.8),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -595,7 +580,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                             style: TextStyle(
                               color: typeColor,
                               fontSize: 10.5,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w700,
                               letterSpacing: 0.4,
                             ),
                           ),
@@ -604,21 +589,23 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
 
-                // Clean Circular Avatar with Glowing Ring
+                // Clean Circular Avatar with Indigo Ambient Glow
                 Container(
-                  width: 88,
-                  height: 88,
+                  width: 86,
+                  height: 86,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: typeColor.withValues(alpha: 0.5),
-                      width: 2.5,
+                      color: photoUrl != null
+                          ? Colors.white.withValues(alpha: 0.15)
+                          : AppTheme.accentIndigo.withValues(alpha: 0.4),
+                      width: 2.0,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: typeColor.withValues(alpha: 0.2),
+                        color: AppTheme.accentIndigo.withValues(alpha: 0.18),
                         blurRadius: 14,
                         spreadRadius: 2,
                       ),
@@ -642,11 +629,11 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                   lead.fullName.toUpperCase(),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18.5,
+                    color: AppTheme.textPrimary,
+                    fontSize: 18,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.3,
-                    height: 1.2,
+                    height: 1.25,
                   ),
                 ),
 
@@ -658,10 +645,10 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                     lead.designation!.trim().toUpperCase(),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: Color(0xFF818CF8),
+                      color: AppTheme.accentIndigo,
                       fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.6,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ],
@@ -676,7 +663,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                     children: [
                       const Icon(
                         Icons.business_rounded,
-                        color: Color(0xFF8E9BAE),
+                        color: AppTheme.textMuted,
                         size: 14,
                       ),
                       const SizedBox(width: 6),
@@ -687,7 +674,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Color(0xFF8E9BAE),
+                            color: AppTheme.textSecondary,
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
@@ -714,10 +701,10 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1B2436),
+                          color: Colors.white.withValues(alpha: 0.04),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: const Color(0xFF28364F),
+                            color: Colors.white.withValues(alpha: 0.08),
                             width: 0.8,
                           ),
                         ),
@@ -728,7 +715,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                               width: 5,
                               height: 5,
                               decoration: const BoxDecoration(
-                                color: Color(0xFF00E676),
+                                color: AppTheme.statusSuccess,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -736,9 +723,9 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                             Text(
                               lead.ticketType!.trim().toUpperCase(),
                               style: const TextStyle(
-                                color: Color(0xFF94A3B8),
+                                color: AppTheme.textSecondary,
                                 fontSize: 11,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                                 letterSpacing: 0.3,
                               ),
                             ),
@@ -760,10 +747,10 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1B2436),
+                              color: AppTheme.accentIndigo.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: const Color(0xFF28364F),
+                                color: AppTheme.accentIndigo.withValues(alpha: 0.25),
                                 width: 0.8,
                               ),
                             ),
@@ -772,14 +759,14 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                               children: [
                                 const Icon(
                                   Icons.qr_code_rounded,
-                                  color: Color(0xFF00E5FF),
+                                  color: AppTheme.accentIndigo,
                                   size: 13,
                                 ),
                                 const SizedBox(width: 5),
                                 Text(
                                   lead.uniqueId,
                                   style: const TextStyle(
-                                    color: Color(0xFF00E5FF),
+                                    color: AppTheme.accentIndigo,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: 0.3,
@@ -788,7 +775,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                                 const SizedBox(width: 4),
                                 const Icon(
                                   Icons.copy_rounded,
-                                  color: Color(0xFF8E9BAE),
+                                  color: AppTheme.textMuted,
                                   size: 11,
                                 ),
                               ],
@@ -808,11 +795,14 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
 
   Widget _buildInitialsAvatar(LeadModel lead) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF2E0854), Color(0xFF1E1B4B)],
+          colors: [
+            AppTheme.accentIndigo.withValues(alpha: 0.28),
+            AppTheme.accentIndigo.withValues(alpha: 0.10),
+          ],
         ),
       ),
       alignment: Alignment.center,
@@ -821,13 +811,13 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
         style: const TextStyle(
           color: Colors.white,
           fontSize: 30,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
   }
 
-  // ── Unified Tactile Quick Action Buttons (Matching HomeScreen) ─────
+  // ── Unified Tactile Quick Action Buttons ───────────────────────────
   Widget _buildContactActions(LeadModel lead) {
     final hasMobile = lead.mobile != null && lead.mobile!.trim().isNotEmpty;
     final hasEmail = lead.email != null && lead.email!.trim().isNotEmpty;
@@ -883,19 +873,24 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
           onTap();
         },
         borderRadius: BorderRadius.circular(12),
+        splashColor: AppTheme.accentIndigo.withValues(alpha: 0.08),
+        highlightColor: AppTheme.accentIndigo.withValues(alpha: 0.04),
         child: Container(
           height: 46,
           padding: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF131926),
+            color: AppTheme.surfaceElevated.withValues(alpha: 0.55),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF1F293D), width: 1.0),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.08),
+              width: 1.0,
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 16, color: const Color(0xFF818CF8)),
-              const SizedBox(width: 4),
+              Icon(icon, size: 16, color: AppTheme.accentIndigo),
+              const SizedBox(width: 6),
               Flexible(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
@@ -903,10 +898,10 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                     label,
                     maxLines: 1,
                     style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                      fontWeight: FontWeight.w600,
                       fontSize: 11.5,
-                      letterSpacing: 0.2,
+                      letterSpacing: 0.3,
                     ),
                   ),
                 ),
@@ -927,9 +922,12 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF131926),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF1F293D), width: 1.0),
+        color: AppTheme.surfaceElevated.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 1.0,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -941,7 +939,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                 width: 3.5,
                 height: 14,
                 decoration: BoxDecoration(
-                  gradient: AppTheme.brandGradient,
+                  gradient: AppTheme.indigoGradient,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -949,10 +947,10 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
               const Text(
                 'LEAD ASSESSMENT & NOTES',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.7,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
                 ),
               ),
               const Spacer(),
@@ -961,17 +959,17 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: _navigateToEdit,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(8),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
+                      horizontal: 9,
+                      vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E273A),
-                      borderRadius: BorderRadius.circular(6),
+                      color: AppTheme.accentIndigo.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: const Color(0xFF2D3B55),
+                        color: AppTheme.accentIndigo.withValues(alpha: 0.25),
                         width: 0.8,
                       ),
                     ),
@@ -981,16 +979,17 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                         Text(
                           'EDIT',
                           style: TextStyle(
-                            color: Color(0xFF818CF8),
+                            color: AppTheme.accentIndigo,
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
                           ),
                         ),
-                        SizedBox(width: 3),
+                        SizedBox(width: 4),
                         Icon(
                           Icons.edit_rounded,
                           size: 11,
-                          color: Color(0xFF818CF8),
+                          color: AppTheme.accentIndigo,
                         ),
                       ],
                     ),
@@ -1005,9 +1004,12 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFF1B2436),
+              color: Colors.white.withValues(alpha: 0.03),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFF28364F), width: 0.8),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.07),
+                width: 0.8,
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1016,21 +1018,21 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                   child: Text(
                     'Lead Quality',
                     style: TextStyle(
-                      color: Color(0xFF8E9BAE),
+                      color: AppTheme.textSecondary,
                       fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
+                    horizontal: 9,
                     vertical: 3.5,
                   ),
                   decoration: BoxDecoration(
                     color: typeBg,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: typeBorder, width: 1),
+                    border: Border.all(color: typeBorder, width: 0.8),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1042,7 +1044,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                         style: TextStyle(
                           color: typeColor,
                           fontSize: 11,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                           letterSpacing: 0.4,
                         ),
                       ),
@@ -1060,9 +1062,12 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFF1B2436),
+                color: Colors.white.withValues(alpha: 0.03),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF28364F), width: 0.8),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.07),
+                  width: 0.8,
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1072,13 +1077,13 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                       Icon(
                         Icons.format_quote_rounded,
                         size: 16,
-                        color: Color(0xFF818CF8),
+                        color: AppTheme.accentIndigo,
                       ),
                       SizedBox(width: 6),
                       Text(
                         'Captured Note:',
                         style: TextStyle(
-                          color: Color(0xFF8E9BAE),
+                          color: AppTheme.textSecondary,
                           fontSize: 11.5,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1089,7 +1094,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                   Text(
                     lead.notes!.trim(),
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                       fontSize: 13.5,
                       height: 1.45,
                       fontWeight: FontWeight.w500,
@@ -1111,11 +1116,10 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                     horizontal: 14,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1B2436).withValues(alpha: 0.5),
+                    color: Colors.white.withValues(alpha: 0.02),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: const Color(0xFF28364F),
-                      style: BorderStyle.solid,
+                      color: Colors.white.withValues(alpha: 0.07),
                     ),
                   ),
                   child: const Row(
@@ -1123,7 +1127,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                     children: [
                       Icon(
                         Icons.add_comment_rounded,
-                        color: Color(0xFF818CF8),
+                        color: AppTheme.accentIndigo,
                         size: 17,
                       ),
                       SizedBox(width: 8),
@@ -1134,9 +1138,9 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: Color(0xFF8E9BAE),
+                            color: AppTheme.textSecondary,
                             fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
@@ -1191,9 +1195,12 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF131926),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF1F293D), width: 1.0),
+        color: AppTheme.surfaceElevated.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 1.0,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1204,7 +1211,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                 width: 3.5,
                 height: 14,
                 decoration: BoxDecoration(
-                  gradient: AppTheme.brandGradient,
+                  gradient: AppTheme.indigoGradient,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1212,10 +1219,10 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
               const Text(
                 'ATTENDEE INFORMATION',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.7,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
                 ),
               ),
             ],
@@ -1223,8 +1230,8 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
           const SizedBox(height: 12),
           for (int i = 0; i < infoItems.length; i++) ...[
             if (i > 0)
-              const Divider(
-                color: Color(0xFF1E273A),
+              Divider(
+                color: Colors.white.withValues(alpha: 0.06),
                 height: 16,
                 thickness: 0.8,
               ),
@@ -1250,14 +1257,14 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF8E9BAE), size: 17),
+          Icon(icon, color: AppTheme.textMuted, size: 17),
           const SizedBox(width: 12),
           SizedBox(
             width: 110,
             child: Text(
               label,
               style: const TextStyle(
-                color: Color(0xFF8E9BAE),
+                color: AppTheme.textSecondary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -1270,7 +1277,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: onTap != null ? const Color(0xFF38BDF8) : Colors.white,
+                color: onTap != null ? AppTheme.accentIndigo : AppTheme.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -1280,7 +1287,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
             const SizedBox(width: 6),
             const Icon(
               Icons.open_in_new_rounded,
-              color: Color(0xFF38BDF8),
+              color: AppTheme.accentIndigo,
               size: 13,
             ),
           ],
@@ -1294,6 +1301,8 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(6),
+          splashColor: AppTheme.accentIndigo.withValues(alpha: 0.08),
+          highlightColor: AppTheme.accentIndigo.withValues(alpha: 0.04),
           child: rowContent,
         ),
       );
@@ -1301,16 +1310,19 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     return rowContent;
   }
 
-  // ── Check-In History Section (Matching SessionPunchCard Style) ──────
+  // ── Check-In History Section ───────────────────────────────────────
   Widget _buildHistorySection(LeadModel lead) {
     final historyList = lead.checkinHistory!;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF131926),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF1F293D), width: 1.0),
+        color: AppTheme.surfaceElevated.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 1.0,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1321,7 +1333,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                 width: 3.5,
                 height: 14,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00E676),
+                  color: AppTheme.statusSuccess,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1329,10 +1341,10 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
               const Text(
                 'CHECK-IN & OUT HISTORY',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.7,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
                 ),
               ),
               const Spacer(),
@@ -1342,19 +1354,19 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                   vertical: 2.5,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1B2436),
+                  color: AppTheme.statusSuccess.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: const Color(0xFF28364F),
+                    color: AppTheme.statusSuccess.withValues(alpha: 0.25),
                     width: 0.8,
                   ),
                 ),
                 child: Text(
                   '${historyList.length} ${historyList.length == 1 ? 'RECORD' : 'RECORDS'}',
                   style: const TextStyle(
-                    color: Color(0xFF00E676),
+                    color: AppTheme.statusSuccess,
                     fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: 0.4,
                   ),
                 ),
@@ -1388,9 +1400,12 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B2436),
+        color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF28364F), width: 0.8),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.07),
+          width: 0.8,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1403,8 +1418,8 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                 height: 6,
                 decoration: BoxDecoration(
                   color: hasCheckOut
-                      ? const Color(0xFF8E9BAE)
-                      : const Color(0xFF00E676),
+                      ? AppTheme.textMuted
+                      : AppTheme.statusSuccess,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -1412,9 +1427,9 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
               Text(
                 'VISIT #$index',
                 style: const TextStyle(
-                  color: Color(0xFF8E9BAE),
+                  color: AppTheme.textSecondary,
                   fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
                 ),
               ),
@@ -1426,17 +1441,17 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF00E676).withValues(alpha: 0.12),
+                    color: AppTheme.statusSuccess.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                      color: const Color(0xFF00E676).withValues(alpha: 0.3),
+                      color: AppTheme.statusSuccess.withValues(alpha: 0.3),
                       width: 0.8,
                     ),
                   ),
                   child: const Text(
                     'IN VENUE',
                     style: TextStyle(
-                      color: Color(0xFF00E676),
+                      color: AppTheme.statusSuccess,
                       fontSize: 9.5,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.4,
@@ -1447,7 +1462,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
           ),
           const SizedBox(height: 10),
 
-          // In & Out Columns (Matching SessionPunchCard metrics)
+          // In & Out Columns
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1460,7 +1475,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                       width: 3,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00E676),
+                        color: AppTheme.statusSuccess,
                         borderRadius: BorderRadius.circular(1.5),
                       ),
                     ),
@@ -1473,14 +1488,14 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                             children: [
                               Icon(
                                 Icons.login_rounded,
-                                color: Color(0xFF00E676),
+                                color: AppTheme.statusSuccess,
                                 size: 13,
                               ),
                               SizedBox(width: 4),
                               Text(
                                 'CHECK-IN',
                                 style: TextStyle(
-                                  color: Color(0xFF00E676),
+                                  color: AppTheme.statusSuccess,
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 0.4,
@@ -1492,7 +1507,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                           Text(
                             formattedIn,
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: AppTheme.textPrimary,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1508,7 +1523,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
               Container(
                 height: 36,
                 width: 1,
-                color: const Color(0xFF28364F),
+                color: Colors.white.withValues(alpha: 0.08),
                 margin: const EdgeInsets.symmetric(horizontal: 10),
               ),
 
@@ -1522,8 +1537,8 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                       height: 32,
                       decoration: BoxDecoration(
                         color: hasCheckOut
-                            ? const Color(0xFFFF5252)
-                            : const Color(0xFF64748B),
+                            ? AppTheme.statusRejected
+                            : AppTheme.textMuted,
                         borderRadius: BorderRadius.circular(1.5),
                       ),
                     ),
@@ -1537,8 +1552,8 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                               Icon(
                                 Icons.logout_rounded,
                                 color: hasCheckOut
-                                    ? const Color(0xFFFF5252)
-                                    : const Color(0xFF64748B),
+                                    ? AppTheme.statusRejected
+                                    : AppTheme.textMuted,
                                 size: 13,
                               ),
                               const SizedBox(width: 4),
@@ -1546,8 +1561,8 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                                 'CHECK-OUT',
                                 style: TextStyle(
                                   color: hasCheckOut
-                                      ? const Color(0xFFFF5252)
-                                      : const Color(0xFF64748B),
+                                      ? AppTheme.statusRejected
+                                      : AppTheme.textMuted,
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 0.4,
@@ -1560,8 +1575,8 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                             formattedOut ?? 'Active',
                             style: TextStyle(
                               color: hasCheckOut
-                                  ? Colors.white
-                                  : const Color(0xFF8E9BAE),
+                                  ? AppTheme.textPrimary
+                                  : AppTheme.textSecondary,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1590,20 +1605,20 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
             height: 52,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF131926),
+              color: AppTheme.surfaceElevated.withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF1F293D)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: const CircularProgressIndicator(
               strokeWidth: 2.5,
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentIndigo),
             ),
           ),
           const SizedBox(height: 14),
           const Text(
             'Loading lead details...',
             style: TextStyle(
-              color: Color(0xFF8E9BAE),
+              color: AppTheme.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -1620,9 +1635,9 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: const Color(0xFF131926),
+            color: AppTheme.surfaceElevated.withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF1F293D)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1631,20 +1646,20 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                 width: 50,
                 height: 50,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFF5252).withValues(alpha: 0.15),
+                  color: AppTheme.statusRejected.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.error_outline_rounded,
                   size: 28,
-                  color: Color(0xFFFF5252),
+                  color: AppTheme.statusRejected,
                 ),
               ),
               const SizedBox(height: 16),
               const Text(
                 'Unable to load lead details',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),
@@ -1653,42 +1668,29 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
               Text(
                 _errorMessage ?? 'Something went wrong.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF8E9BAE), fontSize: 13),
+                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
               ),
               const SizedBox(height: 18),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => _fetchDetails(),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: AppTheme.brandGradient,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.refresh_rounded,
-                          size: 16,
-                          color: Colors.white,
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          'Try Again',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
+              ElevatedButton.icon(
+                onPressed: () => _fetchDetails(),
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text(
+                  'Try Again',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.accentIndigo,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
@@ -1739,26 +1741,26 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     switch (type.toUpperCase()) {
       case 'HOT':
         return (
-          const Color(0xFFFF5252),
-          const Color(0xFFFF3B30).withValues(alpha: 0.16),
-          const Color(0xFFEF4444).withValues(alpha: 0.35),
+          const Color(0xFFF87171),
+          const Color(0xFFEF4444).withValues(alpha: 0.12),
+          const Color(0xFFEF4444).withValues(alpha: 0.28),
           Icons.local_fire_department_rounded,
           'HOT',
         );
       case 'WARM':
         return (
-          const Color(0xFFFFA726),
-          const Color(0xFFFF9500).withValues(alpha: 0.16),
-          const Color(0xFFF59E0B).withValues(alpha: 0.35),
+          const Color(0xFFFBBF24),
+          const Color(0xFFF59E0B).withValues(alpha: 0.12),
+          const Color(0xFFF59E0B).withValues(alpha: 0.28),
           Icons.wb_sunny_rounded,
           'WARM',
         );
       case 'COLD':
       default:
         return (
-          const Color(0xFF38BDF8),
-          const Color(0xFF007AFF).withValues(alpha: 0.16),
-          const Color(0xFF3B82F6).withValues(alpha: 0.35),
+          const Color(0xFF60A5FA),
+          const Color(0xFF3B82F6).withValues(alpha: 0.12),
+          const Color(0xFF3B82F6).withValues(alpha: 0.28),
           Icons.ac_unit_rounded,
           'COLD',
         );

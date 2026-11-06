@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -263,7 +264,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                 _buildTopBar(),
                 Expanded(
                   child: RefreshIndicator(
-                    color: AppTheme.eventxproAccent,
+                    color: AppTheme.accentIndigo,
                     backgroundColor: AppTheme.surfaceElevated,
                     onRefresh: () => _loadDashboardData(silent: true),
                     child: _isLoading
@@ -305,40 +306,64 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
     );
   }
 
+  // ── Reusable Glassmorphic Card Container ─────────────────────────
+  Widget _buildGlassCard({
+    required Widget child,
+    BorderRadius? borderRadius,
+    EdgeInsetsGeometry? padding,
+    Border? border,
+    Color? color,
+  }) {
+    final radius = borderRadius ?? BorderRadius.circular(16);
+    return ClipRRect(
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: color ?? Colors.white.withValues(alpha: 0.04),
+            borderRadius: radius,
+            border: border ??
+                Border.all(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  width: 1,
+                ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   // ── Top Header / App Bar ─────────────────────────────────────────
   Widget _buildTopBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          // Circular Back Button matching EventTopBar.jsx
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Navigator.of(context).pop();
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.25),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
+          // Sleek Glass Back Button
+          _buildGlassCard(
+            borderRadius: BorderRadius.circular(12),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.of(context).pop();
+                },
+                borderRadius: BorderRadius.circular(12),
+                splashColor: AppTheme.accentIndigo.withValues(alpha: 0.12),
+                highlightColor: AppTheme.accentIndigo.withValues(alpha: 0.06),
+                child: const SizedBox(
+                  width: 38,
+                  height: 38,
+                  child: Center(
+                    child: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 14,
+                      color: Colors.white,
                     ),
-                  ],
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    size: 14,
-                    color: Color(0xFF131722),
                   ),
                 ),
               ),
@@ -351,24 +376,59 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Event Home',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
-                  ),
+                Row(
+                  children: [
+                    const Text(
+                      'Event Home',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 5,
+                            height: 5,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF10B981),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'LIVE',
+                            style: TextStyle(
+                              color: Color(0xFF34D399),
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Row(
                   children: [
                     const Icon(
                       Icons.event_note_rounded,
-                      size: 11,
-                      color: AppTheme.brandGradientStart,
+                      size: 12,
+                      color: AppTheme.accentIndigo,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 5),
                     Expanded(
                       child: Text(
                         _getEventName(),
@@ -376,7 +436,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.65),
-                          fontSize: 11.5,
+                          fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -386,27 +446,43 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
               ],
             ),
           ),
-          // Refresh Icon
-          IconButton(
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              _loadDashboardData(silent: false);
-            },
-            icon: _isRefreshing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Icon(
-                    Icons.refresh_rounded,
-                    color: Colors.white70,
-                    size: 20,
+          // Glass Refresh Button
+          _buildGlassCard(
+            borderRadius: BorderRadius.circular(12),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  _loadDashboardData(silent: false);
+                },
+                borderRadius: BorderRadius.circular(12),
+                splashColor: AppTheme.accentIndigo.withValues(alpha: 0.12),
+                highlightColor: AppTheme.accentIndigo.withValues(alpha: 0.06),
+                child: SizedBox(
+                  width: 38,
+                  height: 38,
+                  child: Center(
+                    child: _isRefreshing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppTheme.accentIndigo,
+                              ),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.refresh_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                   ),
-            tooltip: 'Refresh Dashboard',
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -430,12 +506,16 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 14,
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 16,
             offset: const Offset(0, 4),
           ),
         ],
@@ -502,7 +582,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 17,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
                     height: 1.25,
                   ),
@@ -512,10 +592,14 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                 // Date Chip
                 if (startDate.isNotEmpty || endDate.isNotEmpty)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
+                      color: AppTheme.accentIndigo.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppTheme.accentIndigo.withValues(alpha: 0.25),
+                        width: 1,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -523,7 +607,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                         const Icon(
                           Icons.calendar_today_rounded,
                           size: 11,
-                          color: AppTheme.brandGradientStart,
+                          color: AppTheme.accentIndigo,
                         ),
                         const SizedBox(width: 5),
                         Text(
@@ -544,12 +628,14 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      gradient: AppTheme.brandGradient,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                      ),
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: AppTheme.brandGradientStart.withValues(alpha: 0.4),
-                          blurRadius: 8,
+                          color: AppTheme.accentIndigo.withValues(alpha: 0.35),
+                          blurRadius: 10,
                           offset: const Offset(0, 3),
                         ),
                       ],
@@ -580,83 +666,168 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
     );
   }
 
-  // ── 2. Prominent Check-In / Check-Out Banner Card ────────────────
+  // ── 2. Prominent Highlighted Check-In / Check-Out Hero Tile ──────
   Widget _buildCheckInOutBanner() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: _openCheckInOutSessions,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF10B981).withValues(alpha: 0.18),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                blurRadius: 12,
-                offset: const Offset(0, 3),
-              ),
-            ],
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF6366F1), // AppTheme.accentIndigo
+            Color(0xFF4F46E5), // Rich Deep Indigo
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.25),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6366F1).withValues(alpha: 0.40),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.25),
-                  shape: BoxShape.circle,
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.qr_code_2_rounded,
-                    color: Color(0xFF34D399),
-                    size: 24,
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            _openCheckInOutSessions();
+          },
+          borderRadius: BorderRadius.circular(16),
+          splashColor: Colors.white.withValues(alpha: 0.20),
+          highlightColor: Colors.white.withValues(alpha: 0.08),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                // Frosted Glass Icon Badge
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.20),
+                    borderRadius: BorderRadius.circular(13),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.32),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.qr_code_scanner_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Check-In / Check-Out',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.3,
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Check-In / Check-Out',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.1,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Scan attendees at entrances, halls & sessions',
-                      style: TextStyle(
-                        color: Color(0xFFD1FAE5),
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w500,
+                      const SizedBox(height: 2),
+                      Text(
+                        'Scan attendees at entrances, halls & sessions',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.88),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w400,
+                          height: 1.25,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const Icon(
-                Icons.arrow_forward_ios_rounded,
-                color: Color(0xFF34D399),
-                size: 16,
-              ),
-            ],
+                const SizedBox(width: 10),
+                // Crisp White Action Pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6.5),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.16),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'SCAN',
+                        style: TextStyle(
+                          color: Color(0xFF4338CA),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                      SizedBox(width: 4),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Color(0xFF4338CA),
+                        size: 12,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // ── 3. Metrics Section Grid ──────────────────────────────────────
+  // ── Section Header Helper ────────────────────────────────────────
+  Widget _buildSectionHeader(String title) {
+    return Row(
+      children: [
+        Container(
+          width: 3.5,
+          height: 14,
+          decoration: BoxDecoration(
+            color: AppTheme.accentIndigo,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── 3. Metrics Section: Turnout Hero + 2x2 Secondary Grid ────────
   Widget _buildMetricsSection() {
     final int totalReg = (_eventDetails['totalconfirmation'] as num?)?.toInt() ?? 0;
     final int totalVisits = (_eventDetails['totalattendees'] as num?)?.toInt() ?? 0;
@@ -669,129 +840,132 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
         (leadPerm == true || leadPerm == 1 || leadPerm == 'true');
     final int badgeIssued = (_eventDetails['badge_issue_count'] as num?)?.toInt() ?? 0;
 
+    final double turnoutRatio = totalReg > 0 ? (totalVisits / totalReg).clamp(0.0, 1.0) : 0.0;
+    final String turnoutPercent = totalReg > 0 ? (turnoutRatio * 100).toStringAsFixed(1) : '0.0';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Section Title
-        Row(
-          children: [
-            Container(
-              width: 3.5,
-              height: 14,
-              decoration: BoxDecoration(
-                gradient: AppTheme.brandGradient,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'ATTENDEE METRICS',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.7,
-              ),
-            ),
-          ],
+        _buildSectionHeader('ATTENDEE METRICS'),
+        const SizedBox(height: 10),
+
+        // 1. Hero Event Turnout Overview Card
+        _buildHeroTurnoutCard(
+          totalReg: totalReg,
+          totalVisits: totalVisits,
+          turnoutRatio: turnoutRatio,
+          turnoutPercent: turnoutPercent,
         ),
         const SizedBox(height: 10),
 
-        // Row 1: Total Registration, Total Venue Visits, No Shows
-        Row(
-          children: [
-            Expanded(
-              child: _buildMetricTile(
-                title: 'Total Registration',
-                count: totalReg,
-                countColor: const Color(0xFFFACC15), // Gold #D2C442
-                onTap: () => _openAttendees('Total Registration', 'event-register-users'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildMetricTile(
-                title: 'Total Venue Visits',
-                count: totalVisits,
-                countColor: const Color(0xFF6EE7B7), // Mint Green #8DFFBB
-                onTap: () => _openAttendees('Total Unique Visitors', 'totalattendees-list'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildMetricTile(
-                title: 'No Shows',
-                count: noShows,
-                countColor: const Color(0xFFF87171), // Coral Red #FF9292
-                onTap: () => _openAttendees('No Shows', 'noshow-list'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-
-        // Row 2: Today Visits, Checkin Count, and Leads (if active)
-        Row(
-          children: [
-            Expanded(
-              child: _buildMetricTile(
-                title: 'Today Visits',
-                count: todayVisits,
-                countColor: const Color(0xFF6EE7B7),
-                onTap: () => _openAttendees('Today Visitors', 'today-visits'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _buildMetricTile(
-                title: 'Checkin Count',
-                count: checkinCount,
-                countColor: const Color(0xFF6EE7B7),
-                onTap: () => _openAttendees('Check-in', 'checkin-list'),
-              ),
-            ),
-            if (hasLeadPermission) ...[
-              const SizedBox(width: 8),
+        // 2. Secondary Metrics 2x2 Grid: Row 1
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               Expanded(
-                child: _buildMetricTile(
-                  title: 'Leads Captured',
-                  count: leads,
-                  countColor: const Color(0xFF6EE7B7),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const LeadsListScreen(isRootTab: false),
-                      ),
-                    );
-                  },
+                child: _buildSecondaryMetricCard(
+                  title: 'Today Visits',
+                  count: todayVisits,
+                  icon: Icons.today_rounded,
+                  onTap: () => _openAttendees('Today Visitors', 'today-visits'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildSecondaryMetricCard(
+                  title: 'Checkin Count',
+                  count: checkinCount,
+                  icon: Icons.how_to_reg_rounded,
+                  onTap: () => _openAttendees('Check-in', 'checkin-list'),
                 ),
               ),
             ],
-          ],
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // Secondary Metrics 2x2 Grid: Row 2
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _buildSecondaryMetricCard(
+                  title: 'No Shows',
+                  count: noShows,
+                  icon: Icons.person_off_rounded,
+                  onTap: () => _openAttendees('No Shows', 'noshow-list'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              if (hasLeadPermission)
+                Expanded(
+                  child: _buildSecondaryMetricCard(
+                    title: 'Leads Captured',
+                    count: leads,
+                    icon: Icons.contact_mail_rounded,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const LeadsListScreen(isRootTab: false),
+                        ),
+                      );
+                    },
+                  ),
+                )
+              else if (badgeIssued > 0)
+                Expanded(
+                  child: _buildSecondaryMetricCard(
+                    title: 'Badge Issued',
+                    count: badgeIssued,
+                    icon: Icons.badge_rounded,
+                  ),
+                )
+              else
+                const Spacer(),
+            ],
+          ),
         ),
 
-        // Row 3: Badge Issued (if available)
-        if (badgeIssued > 0) ...[
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
-            ),
+        // Optional Row 3: Badge Issued (if available and leads permission occupied 4th slot)
+        if (badgeIssued > 0 && hasLeadPermission) ...[
+          const SizedBox(height: 10),
+          _buildGlassCard(
+            borderRadius: BorderRadius.circular(14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.badge_rounded, color: Colors.white, size: 20),
-                    SizedBox(width: 10),
-                    Text(
-                      'Badge Issued :',
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentIndigo.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppTheme.accentIndigo.withValues(alpha: 0.22),
+                          width: 1,
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.badge_rounded,
+                          color: AppTheme.accentIndigo,
+                          size: 17,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Badge Issued',
                       style: TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
                       ),
                     ),
                   ],
@@ -800,8 +974,9 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                   badgeIssued.toString(),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 19,
+                    letterSpacing: -0.3,
                   ),
                 ),
               ],
@@ -812,69 +987,348 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
     );
   }
 
-  Widget _buildMetricTile({
-    required String title,
-    required int count,
-    required Color countColor,
-    VoidCallback? onTap,
+  // ── Hero Turnout Card with Progress Bar ──────────────────────────
+  Widget _buildHeroTurnoutCard({
+    required int totalReg,
+    required int totalVisits,
+    required double turnoutRatio,
+    required String turnoutPercent,
   }) {
-    final tile = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
+    return _buildGlassCard(
+      borderRadius: BorderRadius.circular(16),
+      color: AppTheme.accentIndigo.withValues(alpha: 0.08),
+      border: Border.all(
+        color: AppTheme.accentIndigo.withValues(alpha: 0.24),
+        width: 1.2,
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            count.toString(),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-              color: countColor,
-              height: 1.1,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Top Row: Title + Turnout Pill Badge
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentIndigo.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.pie_chart_outline_rounded,
+                          color: AppTheme.accentIndigo,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'ATTENDANCE TURNOUT',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentIndigo.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppTheme.accentIndigo.withValues(alpha: 0.32),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: const BoxDecoration(
+                          color: AppTheme.accentIndigo,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        '$turnoutPercent% Turnout',
+                        style: const TextStyle(
+                          color: Color(0xFFC7D2FE),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              height: 1.2,
+            const SizedBox(height: 16),
+
+            // Two Hero KPI Pillars: Registrations & Venue Visits
+            Row(
+              children: [
+                // 1. Total Registration
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      _openAttendees('Total Registration', 'event-register-users');
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                totalReg.toString(),
+                                style: const TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: -0.5,
+                                  height: 1.1,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 10,
+                                color: Colors.white.withValues(alpha: 0.3),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Total Registration',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Vertical Divider
+                Container(
+                  width: 1,
+                  height: 38,
+                  color: Colors.white.withValues(alpha: 0.08),
+                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+
+                // 2. Total Venue Visits
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      _openAttendees('Total Unique Visitors', 'totalattendees-list');
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                totalVisits.toString(),
+                                style: const TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFC7D2FE),
+                                  letterSpacing: -0.5,
+                                  height: 1.1,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 10,
+                                color: Colors.white.withValues(alpha: 0.3),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Total Venue Visits',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 14),
+
+            // Turnout Progress Bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Stack(
+                children: [
+                  Container(
+                    height: 6,
+                    width: double.infinity,
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                  FractionallySizedBox(
+                    widthFactor: turnoutRatio,
+                    child: Container(
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [AppTheme.accentIndigo, Color(0xFF818CF8)],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Live progress ratio
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '$totalVisits arrived of $totalReg registered',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+                Text(
+                  totalReg >= totalVisits ? '${totalReg - totalVisits} remaining' : '',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
-
-    if (onTap != null) {
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            onTap();
-          },
-          borderRadius: BorderRadius.circular(10),
-          child: tile,
-        ),
-      );
-    }
-    return tile;
   }
 
-  // ── 4. Quick Action Tiles (matching Tiles.jsx) ───────────────────
+  // ── Secondary 2x2 Metric Card With Contextual Icon Badge ─────────
+  Widget _buildSecondaryMetricCard({
+    required String title,
+    required int count,
+    required IconData icon,
+    VoidCallback? onTap,
+  }) {
+    return _buildGlassCard(
+      borderRadius: BorderRadius.circular(14),
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap != null
+              ? () {
+                  HapticFeedback.lightImpact();
+                  onTap();
+                }
+              : null,
+          borderRadius: BorderRadius.circular(14),
+          splashColor: AppTheme.accentIndigo.withValues(alpha: 0.12),
+          highlightColor: AppTheme.accentIndigo.withValues(alpha: 0.06),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentIndigo.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppTheme.accentIndigo.withValues(alpha: 0.22),
+                          width: 1,
+                        ),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          icon,
+                          size: 16,
+                          color: AppTheme.accentIndigo,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 10,
+                      color: Colors.white.withValues(alpha: 0.20),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  count.toString(),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: -0.5,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── 4. Quick Action Tiles (Unified with accentIndigo, Clean Minimal) ─
   Widget _buildQuickActionTiles() {
-    final leadPerm = _cachedPermissions?['lead_capture_permission'];
-    final hasLeadPermission = _eventDetails['lead_permission'] != false &&
-        (leadPerm == true || leadPerm == 1 || leadPerm == 'true');
     final hasSpotRegPermission =
         _eventDetails['spot_registration_permission'] != false &&
         _cachedPermissions?['spot_registration_permission'] != false;
@@ -882,28 +1336,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Container(
-              width: 3.5,
-              height: 14,
-              decoration: BoxDecoration(
-                gradient: AppTheme.brandGradient,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Text(
-              'QUICK ACTIONS',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.7,
-              ),
-            ),
-          ],
-        ),
+        _buildSectionHeader('QUICK ACTIONS'),
         const SizedBox(height: 10),
 
         Wrap(
@@ -914,7 +1347,6 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
             _buildActionTile(
               title: 'Registration',
               icon: Icons.group_rounded,
-              color: AppTheme.brandGradientStart,
               onTap: () => _openAttendees('Total Registration', 'event-register-users'),
             ),
 
@@ -922,30 +1354,13 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
               _buildActionTile(
                 title: 'Spot Registration',
                 icon: Icons.person_add_alt_1_rounded,
-                color: const Color(0xFFF59E0B),
                 onTap: _openSpotRegistration,
-              ),
-
-            // Leads Tile (if lead permission is active)
-            if (hasLeadPermission)
-              _buildActionTile(
-                title: 'Event Leads',
-                icon: Icons.badge_rounded,
-                color: const Color(0xFF10B981),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const LeadsListScreen(isRootTab: false),
-                    ),
-                  );
-                },
               ),
 
             // QR Verification
             _buildActionTile(
               title: 'QR Verification',
               icon: Icons.qr_code_scanner_rounded,
-              color: const Color(0xFFA855F7),
               onTap: () {
                 HapticFeedback.lightImpact();
                 Navigator.of(context).push(
@@ -965,7 +1380,6 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
             _buildActionTile(
               title: 'Onsite QR Verification',
               icon: Icons.confirmation_number_rounded,
-              color: const Color(0xFF06B6D4),
               onTap: () {
                 HapticFeedback.lightImpact();
                 Navigator.of(context).push(
@@ -987,10 +1401,55 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
   Widget _buildActionTile({
     required String title,
     required IconData icon,
-    required Color color,
+    Color color = AppTheme.accentIndigo,
     required VoidCallback onTap,
   }) {
     final width = (MediaQuery.of(context).size.width - 42) / 2;
+
+    final tile = _buildGlassCard(
+      borderRadius: BorderRadius.circular(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: color.withValues(alpha: 0.22),
+                width: 1,
+              ),
+            ),
+            child: Center(
+              child: Icon(icon, size: 18, color: color),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              softWrap: true,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 12.5,
+                height: 1.25,
+              ),
+            ),
+          ),
+          Icon(
+            Icons.arrow_forward_ios_rounded,
+            size: 11,
+            color: Colors.white.withValues(alpha: 0.22),
+          ),
+        ],
+      ),
+    );
 
     return Material(
       color: Colors.transparent,
@@ -999,48 +1458,12 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
           HapticFeedback.lightImpact();
           onTap();
         },
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
+        borderRadius: BorderRadius.circular(14),
+        splashColor: color.withValues(alpha: 0.12),
+        highlightColor: color.withValues(alpha: 0.06),
+        child: SizedBox(
           width: width,
-          constraints: const BoxConstraints(minHeight: 58),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.06),
-              width: 1.0,
-            ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, size: 16, color: color),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: true,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                    height: 1.2,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          child: tile,
         ),
       ),
     );
@@ -1056,7 +1479,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
             height: 32,
             child: CircularProgressIndicator(
               strokeWidth: 2.8,
-              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.eventxproAccent),
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentIndigo),
             ),
           ),
           SizedBox(height: 14),

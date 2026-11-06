@@ -12,6 +12,8 @@ class GradientButton extends StatelessWidget {
   final double? width;
   final IconData? icon;
   final Gradient? gradient;
+  final Color? color;
+  final Color? shadowColor;
 
   const GradientButton({
     super.key,
@@ -24,6 +26,8 @@ class GradientButton extends StatelessWidget {
     this.width,
     this.icon,
     this.gradient,
+    this.color,
+    this.shadowColor,
   });
 
   @override
@@ -32,19 +36,40 @@ class GradientButton extends StatelessWidget {
     final borderRadius = BorderRadius.circular(isRound ? 50.0 : 12.0);
     final isDisabled = onPressed == null && !isLoading;
 
+    final resolvedGradient = gradient ??
+        (color != null
+            ? (color == AppTheme.accentIndigo
+                ? AppTheme.indigoGradient
+                : LinearGradient(colors: [color!, color!]))
+            : null);
+
     final effectiveGradient = isFade
         ? null
-        : (gradient ??
-            (isDisabled
+        : (isDisabled
+            ? (resolvedGradient is LinearGradient
                 ? LinearGradient(
+                    colors: resolvedGradient.colors
+                        .map((c) => c.withValues(alpha: 0.5))
+                        .toList(),
+                    begin: resolvedGradient.begin,
+                    end: resolvedGradient.end,
+                  )
+                : LinearGradient(
                     colors: [
                       AppTheme.brandGradientStart.withValues(alpha: 0.5),
                       AppTheme.brandGradientEnd.withValues(alpha: 0.5),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                  )
-                : AppTheme.brandGradient));
+                  ))
+            : (resolvedGradient ?? AppTheme.brandGradient));
+
+    final effectiveShadowColor = shadowColor ??
+        (resolvedGradient is LinearGradient && resolvedGradient.colors.isNotEmpty
+            ? resolvedGradient.colors.first.withValues(alpha: 0.35)
+            : (color != null
+                ? color!.withValues(alpha: 0.35)
+                : AppTheme.brandGradientStart.withValues(alpha: 0.35)));
 
     return SizedBox(
       width: width ?? double.infinity,
@@ -67,7 +92,7 @@ class GradientButton extends StatelessWidget {
                   ? null
                   : [
                       BoxShadow(
-                        color: AppTheme.brandGradientStart.withValues(alpha: 0.35),
+                        color: effectiveShadowColor,
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
