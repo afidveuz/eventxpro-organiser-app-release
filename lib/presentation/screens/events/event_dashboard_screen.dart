@@ -684,20 +684,25 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF6366F1), // AppTheme.accentIndigo
-            Color(0xFF4F46E5), // Rich Deep Indigo
+            Color(0xFF3730A3), // Subdued rich indigo (Tailwind indigo-800)
+            Color(0xFF1E1B4B), // Deep midnight indigo (Tailwind indigo-950)
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.25),
+          color: const Color(0xFF6366F1).withValues(alpha: 0.28),
           width: 1.0,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6366F1).withValues(alpha: 0.40),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: 0.28),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: const Color(0xFF3730A3).withValues(alpha: 0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -709,8 +714,8 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
             _openCheckInOutSessions();
           },
           borderRadius: BorderRadius.circular(16),
-          splashColor: Colors.white.withValues(alpha: 0.20),
-          highlightColor: Colors.white.withValues(alpha: 0.08),
+          splashColor: Colors.white.withValues(alpha: 0.12),
+          highlightColor: Colors.white.withValues(alpha: 0.05),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
@@ -720,10 +725,10 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.20),
+                    color: Colors.white.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(13),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.32),
+                      color: Colors.white.withValues(alpha: 0.18),
                       width: 1,
                     ),
                   ),
@@ -758,7 +763,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.88),
+                          color: Colors.white.withValues(alpha: 0.80),
                           fontSize: 11,
                           fontWeight: FontWeight.w400,
                           height: 1.25,
@@ -768,7 +773,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                // Crisp White Action Pill
+                // Crisp Action Pill
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6.5),
                   decoration: BoxDecoration(
@@ -776,8 +781,8 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.16),
-                        blurRadius: 8,
+                        color: Colors.black.withValues(alpha: 0.14),
+                        blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
                     ],
@@ -788,7 +793,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                       Text(
                         'SCAN',
                         style: TextStyle(
-                          color: Color(0xFF4338CA),
+                          color: Color(0xFF312E81),
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.6,
@@ -797,7 +802,7 @@ class _EventDashboardScreenState extends State<EventDashboardScreen> {
                       SizedBox(width: 4),
                       Icon(
                         Icons.arrow_forward_rounded,
-                        color: Color(0xFF4338CA),
+                        color: Color(0xFF312E81),
                         size: 12,
                       ),
                     ],
