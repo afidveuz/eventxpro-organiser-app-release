@@ -26,7 +26,7 @@ import '../../../data/models/ticket_type_model.dart';
 import '../../../data/repositories/attendee_repository.dart';
 import 'widgets/ticket_types_horizontal_bar.dart';
 
-/// Cached parsed sections for high-performance zero-delay rendering
+/// Cached parsed sections for high-performance zero-delay rendering.
 class _ParsedEventSections {
   final List<Map<String, dynamic>> entranceList;
   final List<Map<String, dynamic>> hallList;
@@ -106,10 +106,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     try {
-      context
-          .read<ScannerLocalStorage>()
-          .offlineModeNotifier
-          .removeListener(_onOfflineModeChanged);
+      context.read<ScannerLocalStorage>().offlineModeNotifier.removeListener(
+        _onOfflineModeChanged,
+      );
     } catch (_) {}
     super.dispose();
   }
@@ -227,8 +226,10 @@ class _HomeScreenState extends State<HomeScreen> {
         if (parsed['tickets'] is List) {
           offlineTickets = (parsed['tickets'] as List)
               .whereType<Map>()
-              .map((item) =>
-                  TicketTypeModel.fromJson(Map<String, dynamic>.from(item)))
+              .map(
+                (item) =>
+                    TicketTypeModel.fromJson(Map<String, dynamic>.from(item)),
+              )
               .toList();
         }
 
@@ -283,7 +284,8 @@ class _HomeScreenState extends State<HomeScreen> {
             (data['total_scanned_count'] as num?)?.toInt() ?? 0;
 
         // Parse ticket list from dashboard response (matching React Native `res.data?.ticket_list`)
-        final rawTickets = data['ticket_list'] ??
+        final rawTickets =
+            data['ticket_list'] ??
             data['Ticket_list'] ??
             data['tickets'] ??
             data['ticket_types'];
@@ -292,8 +294,10 @@ class _HomeScreenState extends State<HomeScreen> {
         if (rawTickets is List) {
           parsedTickets = rawTickets
               .whereType<Map>()
-              .map((item) =>
-                  TicketTypeModel.fromJson(Map<String, dynamic>.from(item)))
+              .map(
+                (item) =>
+                    TicketTypeModel.fromJson(Map<String, dynamic>.from(item)),
+              )
               .toList();
         }
 
@@ -315,7 +319,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 final attendeeRepo = context.read<AttendeeRepository>();
                 parsedTickets = await attendeeRepo.getTicketList(evtPk);
               } catch (ticketErr) {
-                debugPrint('[HomeScreen] ⚠️ Ticket list fetch error: $ticketErr');
+                debugPrint(
+                  '[HomeScreen] ⚠️ Ticket list fetch error: $ticketErr',
+                );
               }
             }
 
@@ -369,8 +375,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 int.tryParse(first['id']?.toString() ?? '');
             if (pk != null &&
                 (_selectedEventPk == null ||
-                    !events.any((e) =>
-                        ((e['pk'] ?? e['id']) == _selectedEventPk)))) {
+                    !events.any(
+                      (e) => ((e['pk'] ?? e['id']) == _selectedEventPk),
+                    ))) {
               _selectedEventPk = pk;
             }
           }
@@ -472,10 +479,9 @@ class _HomeScreenState extends State<HomeScreen> {
               (e) => ((e['pk'] ?? e['id']) == eventPk),
               orElse: () => {'pk': eventPk, 'id': eventPk},
             );
-            await scannerLocalStorage.setOfflineData(jsonEncode({
-              'event': ev,
-              'permission': perm,
-            }));
+            await scannerLocalStorage.setOfflineData(
+              jsonEncode({'event': ev, 'permission': perm}),
+            );
           }
         }
       } catch (e) {
@@ -507,7 +513,9 @@ class _HomeScreenState extends State<HomeScreen> {
         await storage.setDashboardTickets(tickets);
       }
     } catch (e) {
-      debugPrint('[HomeScreen] ⚠️ Error fetching tickets for event $eventId: $e');
+      debugPrint(
+        '[HomeScreen] ⚠️ Error fetching tickets for event $eventId: $e',
+      );
     }
   }
 
@@ -523,9 +531,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _handleOfflineButtonTap() async {
     HapticFeedback.lightImpact();
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
     if (mounted) {
       final storage = context.read<ScannerLocalStorage>();
       final isOfflineNow = storage.isOfflineModeEnabled;
@@ -625,7 +633,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_selectedEventPk != null) {
       try {
         return _eventList.firstWhere((e) {
-          final pk = (e['pk'] as num?)?.toInt() ??
+          final pk =
+              (e['pk'] as num?)?.toInt() ??
               (e['id'] as num?)?.toInt() ??
               int.tryParse(e['pk']?.toString() ?? '') ??
               int.tryParse(e['id']?.toString() ?? '');
@@ -686,11 +695,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _getEventDateRange(Map<String, dynamic>? event) {
     if (event == null) return '';
-    final rawStart = event['publish_start_dt'] ??
+    final rawStart =
+        event['publish_start_dt'] ??
         event['start_dt'] ??
         event['start_date'] ??
         event['event_start_date'];
-    final rawEnd = event['publish_end_dt'] ??
+    final rawEnd =
+        event['publish_end_dt'] ??
         event['end_dt'] ??
         event['end_date'] ??
         event['event_end_date'];
@@ -823,9 +834,7 @@ class _HomeScreenState extends State<HomeScreen> {
           if (_isOffline) ...[
             Tooltip(
               message: 'Offline Mode Active - Tap to configure',
-              child: BlinkingOfflineButton(
-                onTap: _handleOfflineButtonTap,
-              ),
+              child: BlinkingOfflineButton(onTap: _handleOfflineButtonTap),
             ),
             const SizedBox(width: 10),
           ],
@@ -935,10 +944,7 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF131926),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: borderColor,
-          width: 1.0,
-        ),
+        border: Border.all(color: borderColor, width: 1.0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -954,13 +960,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: iconBgColor,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Center(
-                  child: Icon(
-                    icon,
-                    size: 17,
-                    color: iconColor,
-                  ),
-                ),
+                child: Center(child: Icon(icon, size: 17, color: iconColor)),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -1028,7 +1028,8 @@ class _HomeScreenState extends State<HomeScreen> {
     Map<String, dynamic>? activeEvent,
   ) {
     final dateRange = _getEventDateRange(activeEvent);
-    final location = activeEvent?['location']?.toString() ??
+    final location =
+        activeEvent?['location']?.toString() ??
         activeEvent?['venue']?.toString() ??
         '';
 
@@ -1037,10 +1038,7 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF131926),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: const Color(0xFF1F293D),
-          width: 1.0,
-        ),
+        border: Border.all(color: const Color(0xFF1F293D), width: 1.0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1205,11 +1203,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 12),
 
           // Subtle Divider separating Event Info from Actions
-          const Divider(
-            color: Color(0xFF1F293D),
-            height: 1,
-            thickness: 1,
-          ),
+          const Divider(color: Color(0xFF1F293D), height: 1, thickness: 1),
 
           const SizedBox(height: 12),
 
@@ -1386,17 +1380,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: _eventList.length,
-                    separatorBuilder: (_, _) => const Divider(
-                      color: Color(0xFF1F293D),
-                      height: 1,
-                    ),
+                    separatorBuilder: (_, _) =>
+                        const Divider(color: Color(0xFF1F293D), height: 1),
                     itemBuilder: (_, index) {
                       final evt = _eventList[index];
-                      final pk = (evt['pk'] as num?)?.toInt() ??
+                      final pk =
+                          (evt['pk'] as num?)?.toInt() ??
                           (evt['id'] as num?)?.toInt() ??
                           int.tryParse(evt['pk']?.toString() ?? '') ??
                           index;
-                      final name = evt['publish_event_name']?.toString() ??
+                      final name =
+                          evt['publish_event_name']?.toString() ??
                           evt['event_name']?.toString() ??
                           'Event #$pk';
                       final isSelected = pk == _selectedEventPk;
@@ -1436,12 +1430,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                 (e) => ((e['pk'] ?? e['id']) == pk),
                                 orElse: () => {'pk': pk, 'id': pk},
                               );
-                              storage.setOfflineData(jsonEncode({
-                                'event': ev,
-                                'permission': _eventPermissions[pk],
-                                'tickets':
-                                    _ticketTypes.map((t) => t.toJson()).toList(),
-                              }));
+                              storage.setOfflineData(
+                                jsonEncode({
+                                  'event': ev,
+                                  'permission': _eventPermissions[pk],
+                                  'tickets': _ticketTypes
+                                      .map((t) => t.toJson())
+                                      .toList(),
+                                }),
+                              );
                             } else {
                               _fetchPermissionsForEvent(pk);
                             }
@@ -1475,7 +1472,8 @@ class _HomeScreenState extends State<HomeScreen> {
         try {
           final parsed = jsonDecode(rawOffline) as Map<String, dynamic>;
           final event = parsed['event'] as Map<String, dynamic>?;
-          final cachedPk = (event?['pk'] as num?)?.toInt() ??
+          final cachedPk =
+              (event?['pk'] as num?)?.toInt() ??
               (event?['id'] as num?)?.toInt() ??
               int.tryParse(event?['pk']?.toString() ?? '');
           if ((cachedPk == eventId || _eventList.length <= 1) &&
@@ -1510,9 +1508,7 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 24,
               child: CircularProgressIndicator(
                 strokeWidth: 2.2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  Color(0xFF6366F1),
-                ),
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
               ),
             ),
             SizedBox(height: 12),
@@ -1567,8 +1563,9 @@ class _HomeScreenState extends State<HomeScreen> {
             final String title =
                 item['entrance_name']?.toString() ?? 'Entrance';
             final String? loc = item['location']?.toString();
-            final String displayTitle =
-                loc != null && loc.isNotEmpty ? '$title - $loc' : title;
+            final String displayTitle = loc != null && loc.isNotEmpty
+                ? '$title - $loc'
+                : title;
             final bool inAccess = item['entrance_in_access'] != false;
             final bool outAccess = item['entrance_out_access'] != false;
 
@@ -1770,11 +1767,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.only(top: 10, bottom: 10),
       child: Row(
         children: [
-          Icon(
-            icon,
-            size: 18,
-            color: const Color(0xFF8E9BAE),
-          ),
+          Icon(icon, size: 18, color: const Color(0xFF8E9BAE)),
           const SizedBox(width: 8),
           Text(
             title,
@@ -1791,10 +1784,7 @@ class _HomeScreenState extends State<HomeScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFF131926),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: const Color(0xFF1F293D),
-                width: 1.0,
-              ),
+              border: Border.all(color: const Color(0xFF1F293D), width: 1.0),
             ),
             child: Text(
               '$count Available',
