@@ -27,27 +27,25 @@ class AuthLocalStorage {
     FlutterSecureStorage? secureStorage,
     String? initialToken,
     String? initialRefreshToken,
-  })  : _secureStorage = secureStorage ??
-            const FlutterSecureStorage(
-              aOptions: AndroidOptions(
-                resetOnError: true,
-              ),
-              iOptions: IOSOptions(
-                accessibility: KeychainAccessibility.first_unlock,
-              ),
-            ),
-        _cachedToken = initialToken,
-        _cachedRefreshToken = initialRefreshToken;
+  }) : _secureStorage =
+           secureStorage ??
+           const FlutterSecureStorage(
+             aOptions: AndroidOptions(resetOnError: true),
+             iOptions: IOSOptions(
+               accessibility: KeychainAccessibility.first_unlock,
+             ),
+           ),
+       _cachedToken = initialToken,
+       _cachedRefreshToken = initialRefreshToken;
 
   static Future<AuthLocalStorage> create({
     FlutterSecureStorage? secureStorage,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    final storage = secureStorage ??
+    final storage =
+        secureStorage ??
         const FlutterSecureStorage(
-          aOptions: AndroidOptions(
-            resetOnError: true,
-          ),
+          aOptions: AndroidOptions(resetOnError: true),
           iOptions: IOSOptions(
             accessibility: KeychainAccessibility.first_unlock,
           ),
@@ -174,11 +172,13 @@ class AuthLocalStorage {
   Future<void> setUserProfile(UserProfileModel profile) async {
     await _prefs.setString(_keyUserProfile, jsonEncode(profile.toJson()));
     // Also keep basic user in sync
-    await setUser(UserModel(
-      username: profile.username,
-      name: profile.name,
-      isAdmin: profile.isAdmin,
-    ));
+    await setUser(
+      UserModel(
+        username: profile.username,
+        name: profile.name,
+        isAdmin: profile.isAdmin,
+      ),
+    );
   }
 
   // Countries Cache
