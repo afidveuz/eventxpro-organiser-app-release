@@ -137,7 +137,11 @@ class RemoteConfigService {
     final trimmed = input.trim();
     if (trimmed.isEmpty) return false;
 
-    final remotePass = getMasterPassword();
-    return trimmed == remotePass || trimmed == AppConstants.masterPassword;
+    final masterPass = getMasterPassword();
+    if (masterPass.isEmpty) {
+      debugPrint('[RemoteConfigService] ⚠️ Master password is not configured.');
+      return false;
+    }
+    return trimmed == masterPass;
   }
 }

@@ -6,8 +6,7 @@ import '../../core/network/api_client.dart';
 class AuthRemoteDatasource {
   final ApiClient _apiClient;
 
-  AuthRemoteDatasource({required ApiClient apiClient})
-      : _apiClient = apiClient;
+  AuthRemoteDatasource({required ApiClient apiClient}) : _apiClient = apiClient;
 
   /// Call organizer/login endpoint
   Future<Map<String, dynamic>> login({
@@ -17,10 +16,7 @@ class AuthRemoteDatasource {
     try {
       final response = await _apiClient.dio.post(
         AppConstants.loginEndpoint,
-        data: {
-          'username': username.trim(),
-          'password': password,
-        },
+        data: {'username': username.trim(), 'password': password},
       );
 
       final data = response.data is String
@@ -29,10 +25,7 @@ class AuthRemoteDatasource {
 
       return data;
     } on DioException catch (dioErr) {
-      return {
-        'status': false,
-        'message': ApiClient.formatDioError(dioErr),
-      };
+      return {'status': false, 'message': ApiClient.formatDioError(dioErr)};
     } catch (e) {
       return {
         'status': false,
@@ -95,10 +88,7 @@ class AuthRemoteDatasource {
     try {
       final response = await _apiClient.dio.post(
         AppConstants.otpValidationEndpoint,
-        data: {
-          'email': email.trim(),
-          'otp': otp,
-        },
+        data: {'email': email.trim(), 'otp': otp},
       );
 
       final data = response.data is String
@@ -131,15 +121,8 @@ class AuthRemoteDatasource {
     try {
       final response = await _apiClient.dio.post(
         AppConstants.resetPasswordEndpoint,
-        data: {
-          'password': password,
-          'confirm_password': confirmPassword,
-        },
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer $resetToken',
-          },
-        ),
+        data: {'password': password, 'confirm_password': confirmPassword},
+        options: Options(headers: {'Authorization': 'Bearer $resetToken'}),
       );
 
       final data = response.data is String
@@ -172,10 +155,7 @@ class AuthRemoteDatasource {
     try {
       final response = await _apiClient.dio.post(
         AppConstants.changePasswordEndpoint,
-        data: {
-          'password': password,
-          'confirm_password': confirmPassword,
-        },
+        data: {'password': password, 'confirm_password': confirmPassword},
       );
 
       final data = response.data is String
@@ -202,17 +182,16 @@ class AuthRemoteDatasource {
   /// Fetch user profile from organizer/user-profile
   Future<Map<String, dynamic>> getUserProfile() async {
     try {
-      final response = await _apiClient.dio.get(AppConstants.userProfileEndpoint);
+      final response = await _apiClient.dio.get(
+        AppConstants.userProfileEndpoint,
+      );
 
       final data = response.data is String
           ? jsonDecode(response.data as String) as Map<String, dynamic>
           : response.data as Map<String, dynamic>;
       return data;
     } on DioException catch (dioErr) {
-      return {
-        'status': false,
-        'message': ApiClient.formatDioError(dioErr),
-      };
+      return {'status': false, 'message': ApiClient.formatDioError(dioErr)};
     } catch (e) {
       return {
         'status': false,
@@ -221,4 +200,3 @@ class AuthRemoteDatasource {
     }
   }
 }
-

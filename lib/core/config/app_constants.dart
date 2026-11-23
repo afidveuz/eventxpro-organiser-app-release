@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Application and Scanner Constants based on EventXPro specification.
@@ -30,14 +31,14 @@ class AppConstants {
   static const String getCouponDetailsEndpoint = 'organizer/get-coupon-details';
 
   // Master Secret for changing backend Base URL
-  static const String masterPassword = 'Veuz@url4788';
+  static const String masterPassword = String.fromEnvironment('EVENTXPRO_MASTER_PASSWORD', defaultValue: '');
 
   // Offline Ticket Encryption Key (matching React Native ENCRYPT_KEY)
-  static const String defaultTicketEncryptionKey = 'yGm7P48x50k=';
+  static const String defaultTicketEncryptionKey = String.fromEnvironment('TICKET_ENCRYPTION_KEY', defaultValue: 'yGm7P48x50k=');
 
   // Debug Test Credentials
-  static const String debugUsername = 'flutterveuz';
-  static const String debugPassword = 'Flutterveuz@321';
+  static const String debugUsername = String.fromEnvironment('DEBUG_USERNAME', defaultValue: kDebugMode ? 'flutterveuz' : '');
+  static const String debugPassword = String.fromEnvironment('DEBUG_PASSWORD', defaultValue: kDebugMode ? 'Flutterveuz@321' : '');
 
   // Branding Colors matching React Native theme
   static const Color brandAccent = Color(0xFFC10067); // rgba(193, 0, 103, 1)

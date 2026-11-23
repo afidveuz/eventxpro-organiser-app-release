@@ -213,7 +213,8 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun emitBarcode(barcode: String) {
-        Log.d(TAG, "Barcode decoded and emitted to Flutter: $barcode")
+        val masked = if (barcode.length > 8) "${barcode.take(3)}***${barcode.takeLast(2)}" else "***"
+        Log.d(TAG, "Barcode decoded and emitted to Flutter (masked): $masked")
         runOnUiThread {
             synchronized(scanSinks) {
                 val iterator = scanSinks.iterator()

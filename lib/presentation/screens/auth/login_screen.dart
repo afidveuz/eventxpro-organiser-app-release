@@ -45,11 +45,11 @@ class _LoginScreenState extends State<LoginScreen> {
   void _onLoginPressed() {
     FocusScope.of(context).unfocus();
     context.read<AuthBloc>().add(
-          LoginSubmitted(
-            username: _usernameController.text,
-            password: _passwordController.text,
-          ),
-        );
+      LoginSubmitted(
+        username: _usernameController.text,
+        password: _passwordController.text,
+      ),
+    );
   }
 
   @override
@@ -64,7 +64,8 @@ class _LoginScreenState extends State<LoginScreen> {
           DeviceDetectionService().detectDevice(storage: storage);
 
           AppToast.showSuccess(
-            message: 'Welcome, ${state.user.name.isNotEmpty ? state.user.name : state.user.username}!',
+            message:
+                'Welcome, ${state.user.name.isNotEmpty ? state.user.name : state.user.username}!',
             duration: const Duration(seconds: 2),
           );
           Navigator.of(context).pushReplacement(
@@ -82,14 +83,18 @@ class _LoginScreenState extends State<LoginScreen> {
               LayoutBuilder(
                 builder: (context, constraints) {
                   return SingleChildScrollView(
-                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
                         minHeight: constraints.maxHeight,
                       ),
                       child: IntrinsicHeight(
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 36,
+                            vertical: 24,
+                          ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -102,21 +107,26 @@ class _LoginScreenState extends State<LoginScreen> {
                                     'assets/images/logo.png',
                                     height: isKeyboardOpen ? 55 : 75,
                                     fit: BoxFit.contain,
-                                    errorBuilder: (context, error, stackTrace) => Column(
-                                      children: const [
-                                        Icon(Icons.qr_code_scanner_rounded, size: 64, color: AppConstants.brandAccent),
-                                        SizedBox(height: 8),
-                                        Text(
-                                          'EventXPro',
-                                          style: TextStyle(
-                                            fontSize: 22,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                            letterSpacing: 1.2,
-                                          ),
+                                    errorBuilder:
+                                        (context, error, stackTrace) => Column(
+                                          children: const [
+                                            Icon(
+                                              Icons.qr_code_scanner_rounded,
+                                              size: 64,
+                                              color: AppConstants.brandAccent,
+                                            ),
+                                            SizedBox(height: 8),
+                                            Text(
+                                              'EventXPro',
+                                              style: TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                                letterSpacing: 1.2,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                    ),
                                   ),
                                 ),
                               ),
@@ -125,14 +135,22 @@ class _LoginScreenState extends State<LoginScreen> {
                               // Error message banner
                               BlocBuilder<AuthBloc, AuthState>(
                                 builder: (context, state) {
-                                  if (state is AuthUnauthenticated && state.errorMessage != null) {
+                                  if (state is AuthUnauthenticated &&
+                                      state.errorMessage != null) {
                                     return Padding(
-                                      padding: const EdgeInsets.only(bottom: 20),
+                                      padding: const EdgeInsets.only(
+                                        bottom: 20,
+                                      ),
                                       child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 10,
+                                        ),
                                         decoration: BoxDecoration(
                                           color: AppConstants.brandError,
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                           boxShadow: const [
                                             BoxShadow(
                                               color: Color(0x40F14C4C),
@@ -161,7 +179,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                             ),
                                             GestureDetector(
                                               onTap: () {
-                                                context.read<AuthBloc>().add(const ClearAuthError());
+                                                context.read<AuthBloc>().add(
+                                                  const ClearAuthError(),
+                                                );
                                               },
                                               child: const Icon(
                                                 Icons.close,
@@ -195,15 +215,22 @@ class _LoginScreenState extends State<LoginScreen> {
                                 height: 50,
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(50),
-                                  border: Border.all(color: AppConstants.brandBorder, width: 1),
+                                  border: Border.all(
+                                    color: AppConstants.brandBorder,
+                                    width: 1,
+                                  ),
                                 ),
-                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                ),
                                 alignment: Alignment.center,
                                 child: TextField(
                                   controller: _usernameController,
                                   autocorrect: false,
                                   textInputAction: TextInputAction.next,
-                                  scrollPadding: const EdgeInsets.only(bottom: 160),
+                                  scrollPadding: const EdgeInsets.only(
+                                    bottom: 160,
+                                  ),
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 15,
@@ -227,9 +254,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                 height: 50,
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(50),
-                                  border: Border.all(color: AppConstants.brandBorder, width: 1),
+                                  border: Border.all(
+                                    color: AppConstants.brandBorder,
+                                    width: 1,
+                                  ),
                                 ),
-                                padding: const EdgeInsets.only(left: 20, right: 8),
+                                padding: const EdgeInsets.only(
+                                  left: 20,
+                                  right: 8,
+                                ),
                                 alignment: Alignment.center,
                                 child: Row(
                                   children: [
@@ -238,7 +271,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                         controller: _passwordController,
                                         obscureText: !_isPasswordVisible,
                                         textInputAction: TextInputAction.done,
-                                        scrollPadding: const EdgeInsets.only(bottom: 100),
+                                        scrollPadding: const EdgeInsets.only(
+                                          bottom: 100,
+                                        ),
                                         onSubmitted: (_) => _onLoginPressed(),
                                         style: const TextStyle(
                                           color: Colors.white,
@@ -258,13 +293,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                     IconButton(
                                       icon: Icon(
-                                        _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                                        _isPasswordVisible
+                                            ? Icons.visibility
+                                            : Icons.visibility_off,
                                         color: Colors.white70,
                                         size: 20,
                                       ),
                                       onPressed: () {
                                         setState(() {
-                                          _isPasswordVisible = !_isPasswordVisible;
+                                          _isPasswordVisible =
+                                              !_isPasswordVisible;
                                         });
                                       },
                                     ),

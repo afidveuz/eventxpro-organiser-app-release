@@ -200,7 +200,7 @@ class TicketEncryptionService {
   TicketValidationResult validateTicket({
     required String rawQrToken,
     String? keyString,
-    bool allowTestPrefixes = true,
+    bool allowTestPrefixes = false,
   }) {
     final token = rawQrToken.trim();
     if (token.isEmpty) {
@@ -222,8 +222,8 @@ class TicketEncryptionService {
       );
     }
 
-    // 2. Fallback for test/demo tokens (VIP-, EXH-, TEST-, DEMO-)
-    if (allowTestPrefixes) {
+    // 2. Fallback for test/demo tokens (strictly restricted to explicit debug/test environments)
+    if (allowTestPrefixes && kDebugMode) {
       final upper = token.toUpperCase();
       if (upper.startsWith('VIP') ||
           upper.startsWith('EXH') ||
